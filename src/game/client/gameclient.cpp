@@ -64,6 +64,7 @@
 #include <engine/map.h>
 #include <engine/serverbrowser.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/csv.h>
 #include <engine/sound.h>
 #include <engine/storage.h>
@@ -90,8 +91,18 @@ using namespace std::chrono_literals;
 const char *CGameClient::Version() const { return GAME_VERSION; }
 const char *CGameClient::NetVersion() const { return GAME_NETVERSION; }
 const char *CGameClient::NetVersion7() const { return GAME_NETVERSION7; }
-int CGameClient::DDNetVersion() const { return g_Config.m_KrxSpoofVersion ? g_Config.m_KrxSpoofVersionNr : 18091; }
-const char *CGameClient::DDNetVersionStr() const { return m_aDDNetVersionStr; }
+int CGameClient::DDNetVersion() const
+{
+	if(OpenKrx::NullProfileActive())
+		return g_Config.m_NullVersionSpoof ? g_Config.m_NullVersionNum : 18091;
+	return g_Config.m_KrxSpoofVersion ? g_Config.m_KrxSpoofVersionNr : 18091;
+}
+const char *CGameClient::DDNetVersionStr() const
+{
+	if(OpenKrx::NullProfileActive() && g_Config.m_NullVersionSpoof)
+		return g_Config.m_NullVersionStr[0] ? g_Config.m_NullVersionStr : GAME_NAME " " GAME_RELEASE_VERSION;
+	return m_aDDNetVersionStr;
+}
 int CGameClient::ClientVersion7() const { return CLIENT_VERSION7; }
 const char *CGameClient::GetItemName(int Type) const { return m_NetObjHandler.GetObjName(Type); }
 
@@ -106,6 +117,18 @@ void CGameClient::OnConsoleInit()
 	m_pInput = Kernel()->RequestInterface<IInput>();
 	m_pConsole = Kernel()->RequestInterface<IConsole>();
 	m_pStorage = Kernel()->RequestInterface<IStorage>();
+	// Compatibility with beta settings and presets saved before whole-profile
+	// isolation. New settings serialize the unambiguous openkrx_profile name.
+	m_pConsole->Register("openkrx_avoid_provider", "?i[profile]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
+		auto *pSelf = static_cast<CGameClient *>(pUser);
+		if(pResult->NumArguments())
+		{
+			g_Config.m_OpenKrxAvoidProvider = std::clamp(pResult->GetInteger(0), 0, 1);
+			pSelf->SyncFeatureProfile();
+		}
+		else
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "profile", OpenKrx::NullProfileActive() ? "NullClient" : "KRX");
+	}, this, "Legacy alias for openkrx_profile (0 KRX, 1 NullClient)");
 	m_pConsole->Register("openkrx_avoid_dump", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) { static_cast<CGameClient *>(pUser)->m_Avoid.m_Trace.Dump(); }, this, "Save recent Avoid decisions to dumps/openkrx-avoid (requires openkrx_avoid_debug 1)");
 	m_pDemoPlayer = Kernel()->RequestInterface<IDemoPlayer>();
 	m_pServerBrowser = Kernel()->RequestInterface<IServerBrowser>();
@@ -158,6 +181,7 @@ void CGameClient::OnConsoleInit()
 					      &m_PreTasVisuals,
 					      &m_Tas,
 					      &m_Fent,
+					      &m_NullClient,
 					      &m_Spectator,
 					      &m_Emoticon,
 					      &m_InfoMessages,
@@ -187,6 +211,7 @@ void CGameClient::OnConsoleInit()
 						  &m_Menus,
 						  &m_Controls,
 						  &m_TouchControls,
+						  &m_NullClient,
 						  &m_Binds});
 
 	// initialize client data
@@ -454,8 +479,51 @@ void CGameClient::OnInit()
 	log_trace("gameclient", "initialization finished after %.2fms", (time_get() - OnInitStart) * 1000.0f / (float)time_freq());
 }
 
+bool CGameClient::FeatureComponentActive(const CComponent *pComponent) const
+{
+	if(pComponent == &m_NullClient)
+		return OpenKrx::NullProfileActive();
+	if(pComponent == &m_MediumVisuals || pComponent == &m_KrxMovementPreTas ||
+		pComponent == &m_KrxMiscPreTas || pComponent == &m_PreTasVisuals ||
+		pComponent == &m_Tas || pComponent == &m_Fent || pComponent == &m_KrxAutoEdgeNew)
+		return OpenKrx::KrxProfileActive();
+	return true;
+}
+
+void CGameClient::SyncFeatureProfile()
+{
+	const int Profile = g_Config.m_OpenKrxAvoidProvider;
+	if(m_LastFeatureProfile == Profile)
+		return;
+	if(m_LastFeatureProfile >= 0)
+	{
+		// Drop transient decisions on both sides. Do not copy or zero saved
+		// provider settings, and do not delete any recorded replay.
+		m_Avoid.OnReset();
+		m_ClassicAvoid.OnReset();
+		m_PilotBot.OnReset();
+		m_KrxAutoEdgeNew.OnReset();
+		m_RocketSave.OnReset();
+		m_Aimbot.OnReset();
+		m_MediumBots.OnReset();
+		m_RescueBots.OnReset();
+		m_KrxMisc.OnReset();
+		m_MediumVisuals.OnReset();
+		m_KrxMovementPreTas.OnReset();
+		m_KrxMiscPreTas.OnReset();
+		m_NullClient.OnReset();
+		m_pDiscord->Initialize(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
+		for(auto &Input : m_Controls.m_aKrxInput)
+			Input = {};
+		m_Fent.Stop();
+		g_Config.m_KrxRecordReplay = g_Config.m_KrxLoadReplay = 0;
+	}
+	m_LastFeatureProfile = Profile;
+}
+
 void CGameClient::OnUpdate()
 {
+	SyncFeatureProfile();
 	HandleLanguageChanged();
 
 	CUIElementBase::Init(Ui()); // update static pointer because game and editor use separate UI
@@ -500,11 +568,13 @@ void CGameClient::OnUpdate()
 
 	for(auto &pComponent : m_vpAll)
 	{
-		pComponent->OnUpdate();
+		if(FeatureComponentActive(pComponent))
+			pComponent->OnUpdate();
 	}
 
 	m_LocalServer.Update();
-	m_KrxMiscPreTas.AfterComponentsUpdate();
+	if(OpenKrx::KrxProfileActive())
+		m_KrxMiscPreTas.AfterComponentsUpdate();
 }
 
 void CGameClient::OnInput(const IInput::CEvent &Event)
@@ -551,7 +621,9 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 			m_DummyFire = 0;
 		}
 
-		if(!Force && (!m_DummyInput.m_Direction && !m_DummyInput.m_Jump && !m_DummyInput.m_Hook))
+		m_DummyInput = m_NullClient.Apply(m_DummyInput, !g_Config.m_ClDummy);
+		if(!Force && (!m_DummyInput.m_Direction && !m_DummyInput.m_Jump && !m_DummyInput.m_Hook) &&
+			!(g_Config.m_OpenKrxAvoidProvider == 1 && g_Config.m_NullGodmodeDummy))
 		{
 			return 0;
 		}
@@ -578,6 +650,7 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 		const vec2 Dir = m_LocalCharacterPos - m_aClients[m_aLocalIds[!g_Config.m_ClDummy]].m_Predicted.m_Pos;
 		m_HammerInput.m_TargetX = (int)Dir.x;
 		m_HammerInput.m_TargetY = (int)Dir.y;
+		m_HammerInput = m_NullClient.Apply(m_HammerInput, !g_Config.m_ClDummy);
 
 		mem_copy(pData, &m_HammerInput, sizeof(m_HammerInput));
 		return sizeof(m_HammerInput);
@@ -838,7 +911,8 @@ void CGameClient::OnRender()
 
 	// render all systems
 	for(auto &pComponent : m_vpAll)
-		pComponent->OnRender();
+		if(FeatureComponentActive(pComponent))
+			pComponent->OnRender();
 	Ui()->OnRenderTooltip();
 
 	// clear all events/input for this frame
@@ -1165,7 +1239,8 @@ void CGameClient::OnMessage(int MsgId, CUnpacker *pUnpacker, int Conn, bool Dumm
 
 	// TODO: this should be done smarter
 	for(auto &pComponent : m_vpAll)
-		pComponent->OnMessage(MsgId, pRawMsg);
+		if(FeatureComponentActive(pComponent))
+			pComponent->OnMessage(MsgId, pRawMsg);
 
 	if(MsgId == NETMSGTYPE_SV_READYTOENTER)
 	{
@@ -2462,7 +2537,8 @@ void CGameClient::OnNewSnapshot(bool DummySwapped)
 	m_LastDummyConnected = Client()->DummyConnected();
 
 	for(auto &pComponent : m_vpAll)
-		pComponent->OnNewSnapshot();
+		if(FeatureComponentActive(pComponent))
+			pComponent->OnNewSnapshot();
 
 	// notify editor when local character moved
 	UpdateEditorIngameMoved();
@@ -2702,15 +2778,15 @@ void CGameClient::OnPredict()
 	if(PredictDummy())
 		pDummyChar = m_PredictedWorld.GetCharacterById(m_aLocalIds[!g_Config.m_ClDummy]);
 
-	const int EndTick = Client()->PredGameTick(g_Config.m_ClDummy) + g_Config.m_ClFastInput;
-	const int PredictionTick = g_Config.m_ClFastInput ?
-					   Client()->PredGameTick(g_Config.m_ClDummy) + g_Config.m_ClFastInputOthers :
+	const int EndTick = Client()->PredGameTick(g_Config.m_ClDummy) + (OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInput : 0);
+	const int PredictionTick = (OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInput : 0) ?
+					   Client()->PredGameTick(g_Config.m_ClDummy) + (OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInputOthers : 0) :
 					   Client()->GetPredictionTick();
 	bool SavedFastInputWorld = false;
 	// predict
 	for(int Tick = Client()->GameTick(g_Config.m_ClDummy) + 1; Tick <= EndTick; Tick++)
 	{
-		if(g_Config.m_ClFastInput && Tick == EndTick)
+		if((OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInput : 0) && Tick == EndTick)
 		{
 			// Keep speculative input out of the world consumed by Avoid/Rocket.
 			m_FastInputWorld.CopyWorldIsolated(&m_PredictedWorld);
@@ -2730,7 +2806,7 @@ void CGameClient::OnPredict()
 			m_PredictedPrevChar = pLocalChar->GetCore();
 			m_aClients[m_Snap.m_LocalClientId].m_PrevPredicted = pLocalChar->GetCore();
 
-			if(pDummyChar && !g_Config.m_ClFastInput)
+			if(pDummyChar && !(OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInput : 0))
 				m_aClients[m_aLocalIds[!g_Config.m_ClDummy]].m_PrevPredicted = pDummyChar->GetCore();
 		}
 
@@ -2742,7 +2818,7 @@ void CGameClient::OnPredict()
 		const CNetObj_PlayerInput *pInputData = (CNetObj_PlayerInput *)Client()->GetInput(Tick, m_IsDummySwapping);
 		CNetObj_PlayerInput *pDummyInputData = !pDummyChar ? nullptr : (CNetObj_PlayerInput *)Client()->GetInput(Tick, m_IsDummySwapping ^ 1);
 		bool DummyFirst = pInputData && pDummyInputData && pDummyChar->GetCid() < pLocalChar->GetCid();
-		if(g_Config.m_ClFastInput && Tick == EndTick)
+		if((OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInput : 0) && Tick == EndTick)
 			pInputData = &m_KrxMovementPreTas.FastInput();
 
 		if(DummyFirst)
@@ -2779,7 +2855,7 @@ void CGameClient::OnPredict()
 			m_PredictedChar = pLocalChar->GetCore();
 			m_aClients[m_Snap.m_LocalClientId].m_Predicted = pLocalChar->GetCore();
 
-			if(pDummyChar && !g_Config.m_ClFastInput)
+			if(pDummyChar && !(OpenKrx::KrxProfileActive() ? g_Config.m_ClFastInput : 0))
 				m_aClients[m_aLocalIds[!g_Config.m_ClDummy]].m_Predicted = pDummyChar->GetCore();
 		}
 
@@ -3574,6 +3650,7 @@ void CGameClient::UpdatePrediction()
 	m_GameWorld.m_WorldConfig.m_PredictTiles = m_GameInfo.m_PredictDDRace && m_GameInfo.m_PredictDDRaceTiles;
 	m_GameWorld.m_WorldConfig.m_PredictFreeze = g_Config.m_ClPredictFreeze;
 	m_GameWorld.m_WorldConfig.m_PredictWeapons = AntiPingWeapons();
+	m_NullClient.ConfigurePrediction(m_GameWorld);
 	m_GameWorld.m_WorldConfig.m_BugDDRaceInput = m_GameInfo.m_BugDDRaceInput;
 	m_GameWorld.m_WorldConfig.m_NoWeakHookAndBounce = m_GameInfo.m_NoWeakHookAndBounce;
 	m_GameWorld.m_WorldConfig.m_PredictEvents = m_GameInfo.m_PredictEvents;

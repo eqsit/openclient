@@ -10,6 +10,7 @@
 #include <engine/font_icons.h>
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 #include <engine/textrender.h>
 
 #include <generated/client_data7.h>
@@ -857,7 +858,7 @@ void CScoreboard::RenderScoreboard(CUIRect Scoreboard, int Team, int CountStart,
 					NameColor = color_cast<ColorRGBA>(ColorHSLA(g_Config.m_ClAuthedPlayerColor));
 				}
 				float PrefixWidth = 0;
-				if(g_Config.m_KrxModDetector)
+				if((OpenKrx::KrxProfileActive() && g_Config.m_KrxModDetector))
 				{
 					const bool Mod = GameClient()->m_KrxMiscPreTas.IsModerator(pInfo->m_ClientId);
 					const bool Warn = g_Config.m_KrxModDetectorWarn && GameClient()->m_KrxMiscPreTas.IsSuspicious(pInfo->m_ClientId);

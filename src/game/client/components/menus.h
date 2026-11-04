@@ -573,6 +573,8 @@ protected:
 
 	// found in menus_settings_avoid.cpp
 	void RenderSettingsAvoid(CUIRect MainView);
+	void RenderSettingsNullClient(CUIRect MainView);
+	void ResetSettingsNullClient();
 	void RenderSettingsKrx(CUIRect MainView);
 
 	// found in menus_settings_controls.cpp

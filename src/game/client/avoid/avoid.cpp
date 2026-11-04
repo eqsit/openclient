@@ -42,7 +42,7 @@ namespace OpenKrx
 
 	bool CAvoid::Active() const
 	{
-		return g_Config.m_AvoidFreeze != 0 && g_Config.m_AvoidAgentType == 2;
+		return g_Config.m_OpenKrxAvoidProvider == 0 && g_Config.m_AvoidFreeze != 0 && g_Config.m_AvoidAgentType == 2;
 	}
 
 	void CAvoid::Render(CGameClient *pGameClient)
@@ -118,6 +118,9 @@ namespace OpenKrx
 		m_Diagnostic = {};
 		m_Diagnostic.m_ManualHook = ManualHook;
 		m_Diagnostic.m_OwnedHookBefore = m_OwnsHook;
+		// Changing implementation invalidates only its transient plan, not settings.
+		if(g_Config.m_OpenKrxAvoidProvider != 0 && m_WasActive)
+			OnReset();
 		if(!Active() || ClientId < 0 || pGameClient->Client()->State() != IClient::STATE_ONLINE ||
 			pGameClient->m_Snap.m_SpecInfo.m_Active || !pGameClient->m_Snap.m_pLocalCharacter ||
 			!(Input.m_PlayerFlags & PLAYERFLAG_PLAYING))

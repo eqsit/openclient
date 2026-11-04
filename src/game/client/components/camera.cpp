@@ -9,6 +9,7 @@
 #include <base/vmath.h>
 
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <game/client/gameclient.h>
 #include <game/collision.h>
@@ -116,7 +117,7 @@ void CCamera::ResetAutoSpecCamera()
 
 void CCamera::UpdateCamera()
 {
-	UpdateKrxSuperDyncam(g_Config.m_KrxSuperDyncam &&
+	UpdateKrxSuperDyncam((OpenKrx::KrxProfileActive() && g_Config.m_KrxSuperDyncam) &&
 			     (Client()->State() == IClient::STATE_ONLINE || Client()->State() == IClient::STATE_DEMOPLAYBACK));
 	// use hardcoded smooth camera for spectating unless player explicitly turn it off
 	bool CanUseCameraInfo = !GameClient()->m_MultiViewActivated;
@@ -220,7 +221,7 @@ void CCamera::UpdateCamera()
 	vec2 TargetPos = CanUseCameraInfo ? GameClient()->m_CursorInfo.Target() : GameClient()->m_Controls.m_aMousePos[g_Config.m_ClDummy];
 	int Smoothness = CanUseCameraInfo ? 50 : g_Config.m_ClDyncamSmoothness;
 	int Stabilizing = CanUseCameraInfo ? 50 : g_Config.m_ClDyncamStabilizing;
-	bool IsDyncam = CanUseCameraInfo ? true : (g_Config.m_ClDyncam || g_Config.m_KrxSuperDyncam);
+	bool IsDyncam = CanUseCameraInfo ? true : (g_Config.m_ClDyncam || (OpenKrx::KrxProfileActive() && g_Config.m_KrxSuperDyncam));
 
 	float DeltaTime = Client()->RenderFrameTime();
 
@@ -293,7 +294,7 @@ void CCamera::UpdateCamera()
 
 void CCamera::OnRender()
 {
-	UpdateKrxSuperDyncam(g_Config.m_KrxSuperDyncam &&
+	UpdateKrxSuperDyncam((OpenKrx::KrxProfileActive() && g_Config.m_KrxSuperDyncam) &&
 			     (Client()->State() == IClient::STATE_ONLINE || Client()->State() == IClient::STATE_DEMOPLAYBACK));
 	if(m_CameraSmoothing)
 	{
@@ -414,7 +415,7 @@ void CCamera::OnRender()
 
 	// Recovered 0x140237cc6: smooth the player position itself, after the
 	// ordinary camera calculation, rather than smoothing the mouse offset.
-	if(g_Config.m_KrxSmoothCam && !GameClient()->m_Snap.m_SpecInfo.m_Active &&
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxSmoothCam) && !GameClient()->m_Snap.m_SpecInfo.m_Active &&
 		GameClient()->m_Snap.m_LocalClientId >= 0)
 	{
 		const float FrameTime = Client()->State() == IClient::STATE_DEMOPLAYBACK ? 0.002f : Client()->RenderFrameTime();
@@ -678,14 +679,14 @@ int CCamera::Deadzone() const
 {
 	// KRX's Super DynCam forces dynamic camera and zero deadzone. Keep these
 	// as effective values so toggling it does not overwrite the saved camera.
-	if(g_Config.m_KrxSuperDyncam)
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxSuperDyncam))
 		return 0;
 	return g_Config.m_ClDyncam ? g_Config.m_ClDyncamDeadzone : g_Config.m_ClMouseDeadzone;
 }
 
 int CCamera::FollowFactor() const
 {
-	return (g_Config.m_ClDyncam || g_Config.m_KrxSuperDyncam) ? g_Config.m_ClDyncamFollowFactor : g_Config.m_ClMouseFollowfactor;
+	return (g_Config.m_ClDyncam || (OpenKrx::KrxProfileActive() && g_Config.m_KrxSuperDyncam)) ? g_Config.m_ClDyncamFollowFactor : g_Config.m_ClMouseFollowfactor;
 }
 
 bool CCamera::CanUseAutoSpecCamera() const

@@ -6,6 +6,7 @@
 #include "projectile.h"
 
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <generated/client_data.h>
 
@@ -712,7 +713,8 @@ void CCharacter::HandleSkippableTiles(int Index)
 	// IsInFreeze is the preceding byte320 and is not written by this branch.
 	const bool AvoidDeath = g_Config.m_AvoidFreeze &&
 		(g_Config.m_AvoidAgentType == 2 ? g_Config.m_AvoidBlatantDeath : g_Config.m_AvoidLegitDeath);
-	if((g_Config.m_KrxPredictionDeathTile || (g_Config.m_KrxAutoEdge && g_Config.m_KrxAutoEdgeDetectDeath) ||
+	if(!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() &&
+		(g_Config.m_KrxPredictionDeathTile || (g_Config.m_KrxAutoEdge && g_Config.m_KrxAutoEdgeDetectDeath) ||
 		   (GameWorld()->m_WorldConfig.m_KrxPrediction && g_Config.m_KrxRecordReplay) ||
 		   (GameWorld()->m_WorldConfig.m_KrxPrediction && (GameWorld()->m_WorldConfig.m_KrxAvoidDeath || AvoidDeath))) &&
 		!m_Core.m_Super)
@@ -835,8 +837,8 @@ void CCharacter::HandleTiles(int Index)
 	int MapIndex = Index;
 	m_TileIndex = Collision()->GetTileIndex(MapIndex);
 	m_TileFIndex = Collision()->GetFrontTileIndex(MapIndex);
-	m_MoveRestrictions = (g_Config.m_KrxPredictionMoveRestriction ||
-				     (GameWorld()->m_WorldConfig.m_KrxPrediction && g_Config.m_KrxRecordReplay)) ?
+	m_MoveRestrictions = (GameWorld()->m_WorldConfig.m_NullPrediction || (!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() && g_Config.m_KrxPredictionMoveRestriction) ||
+				     (GameWorld()->m_WorldConfig.m_KrxPrediction && (!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() && g_Config.m_KrxRecordReplay))) ?
 				     Collision()->GetMoveRestrictions(IsSwitchActiveCb, this, m_Pos, 18.0f, MapIndex) :
 				     0;
 
@@ -1033,8 +1035,9 @@ void CCharacter::HandleTiles(int Index)
 		const bool Check = Collision()->IsCheckTeleport(MapIndex);
 		const bool AvoidTeles = GameWorld()->m_WorldConfig.m_KrxPrediction && g_Config.m_AvoidFreeze &&
 			(g_Config.m_AvoidAgentType == 2 ? g_Config.m_AvoidBlatantTeles : g_Config.m_AvoidLegitTeles);
-		if(!g_Config.m_KrxPredictionTeleports || GameWorld()->m_WorldConfig.m_KrxAvoidTeles || AvoidTeles ||
-			(g_Config.m_KrxAutoEdge && g_Config.m_KrxAutoEdgeDetectTele))
+		if(!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() &&
+			(!g_Config.m_KrxPredictionTeleports || GameWorld()->m_WorldConfig.m_KrxAvoidTeles || AvoidTeles ||
+				(g_Config.m_KrxAutoEdge && g_Config.m_KrxAutoEdgeDetectTele)))
 		{
 			if(Tele || EvilTele || CheckEvil || Check)
 			{
@@ -1264,7 +1267,7 @@ void CCharacter::DDRaceTick()
 	for(const int Tile : aTiles)
 	{
 		if(Tile == TILE_FREEZE || Tile == TILE_DFREEZE || Tile == TILE_LFREEZE ||
-			(g_Config.m_KrxRecordReplay && Tile == TILE_DEATH))
+			((!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() && g_Config.m_KrxRecordReplay) && Tile == TILE_DEATH))
 		{
 			m_Core.m_IsInFreeze = true;
 			break;
@@ -1272,7 +1275,7 @@ void CCharacter::DDRaceTick()
 	}
 	// Normal KRX 2397c0 excludes death contact; alternate recording 2170b0
 	// includes corners. Death prediction itself still marks terminal hazards.
-	if(g_Config.m_KrxRecordReplay)
+	if((!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() && g_Config.m_KrxRecordReplay))
 	{
 		m_Core.m_IsInFreeze |= (Collision()->GetCollisionAt(m_Pos.x + GetProximityRadius() / 3.f, m_Pos.y - GetProximityRadius() / 3.f) == TILE_DEATH ||
 					Collision()->GetCollisionAt(m_Pos.x + GetProximityRadius() / 3.f, m_Pos.y + GetProximityRadius() / 3.f) == TILE_DEATH ||

@@ -2712,3 +2712,16 @@ release notes содержат команду загрузки и сетевые
 research/release-v019/avoid-preset/{verification.json,github-verification.json}.
 Первоначальный package-verification.json описывает архивы до добавления
 пресета; актуальный SHA256SUMS зафиксирован в github-verification.json.
+
+
+## 2026-11-04 — OpenClient merge requested
+
+Explicit user request: base regular updated KRX60a7dee, merge Beta Null/profile
+separation+emptyHUDfix, install normalclient, rename launcherOpenClient, create
+eqsit/openclient, push sources and release Linux/Windows. README short only.
+3way from8bdde13;4conflicted files resolved keeping newKRXpipeline,deathtele
+policies and benchmarks. Added isolation for newly merged AutoEdge component
+and resets for Basic/Legit/Pilot.246Null integer defaults/min/max match original
+registration evidence. OpenKRX manualjump extension factory0;Null reset clears
+both optional extensions. User clarified factoryNull defaults, personal original
+settings will not be imported. Existing saved tuning and Beta kept intact.

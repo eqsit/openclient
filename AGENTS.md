@@ -1,3 +1,17 @@
+# OpenClient integration — current task 2026-11-04
+
+The user authorized merging Beta's Null features/profile separation into the
+updated regular OpenKRX in this tree, renaming its launcher to OpenClient,
+creating/pushing eqsit/openclient and publishing Windows+Linux artifacts.
+Use updated KRX60a7dee as base; preserve Basic/Legit/Pilot/AutoEdge/TAS updates.
+Null settings factory defaults match original; do not import a personal Null
+config or overwrite the user's saved tuning. Beta remains separate.
+Keep README short. This task explicitly authorizes commit/push/release; no
+ChatGPT Web or VM/Windows runtime comparison. Work directly and build locally.
+
+Earlier project history follows; old keep-main-unchanged restrictions applied
+before this explicit merge task and are superseded for this operation.
+
 # Текущее основное дерево OpenKRX — после переноса 2026-11-04
 
 По явному запросу пользователя OpenKRX-new стал обычным OpenKRX; v0.1.9

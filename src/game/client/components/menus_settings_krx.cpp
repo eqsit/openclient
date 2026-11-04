@@ -25,6 +25,24 @@
 // Evidence and original conditional card sizes: research/easy-port-20261030/.
 void CMenus::RenderSettingsKrx(CUIRect MainView)
 {
+	// Whole-client profiles: the selector is outside every provider's pages.
+	static CButtonContainer s_aProfiles[2];
+	CUIRect ProfileBar, ProfileButton;
+	MainView.HSplitTop(28.0f, &ProfileBar, &MainView);
+	const char *apProfiles[] = {"KRX", "NullClient"};
+	for(int Profile = 0; Profile < 2; ++Profile)
+	{
+		ProfileBar.VSplitLeft(MainView.w / 2, &ProfileButton, &ProfileBar);
+		if(DoButton_MenuTab(&s_aProfiles[Profile], apProfiles[Profile],
+			g_Config.m_OpenKrxAvoidProvider == Profile, &ProfileButton, IGraphics::CORNER_ALL))
+			g_Config.m_OpenKrxAvoidProvider = Profile;
+	}
+	MainView.HSplitTop(8.0f, nullptr, &MainView);
+	if(g_Config.m_OpenKrxAvoidProvider == 1)
+	{
+		RenderSettingsNullClient(MainView);
+		return;
+	}
 	static CButtonContainer s_aTabs[6];
 	const char *const apTabs[] = {"Aimbot", "Misc", "Visuals & HUD", "Avoid", "TAS", "Settings"};
 	CUIRect Tabs, Button;
@@ -40,6 +58,8 @@ void CMenus::RenderSettingsKrx(CUIRect MainView)
 	}
 	if(g_Config.m_KrxMenuTab == 3)
 	{
+		MainView.HSplitTop(4.0f, nullptr, &MainView);
+		MainView.HSplitTop(20.0f, &Button, &MainView);
 		// Original Avoid page has a 20-unit agent dropdown after two 2-unit gaps.
 		MainView.HSplitTop(4.0f, nullptr, &MainView);
 		MainView.HSplitTop(20.0f, &Button, &MainView);
@@ -260,7 +280,16 @@ void CMenus::RenderSettingsKrx(CUIRect MainView)
 			Check(g_Config.m_KrxAutoFire, "Auto Fire");
 			Check(g_Config.m_KrxAutoRehook, "Auto Rehook");
 			Check(g_Config.m_KrxAutoJumpSave, "Auto jump save", false, "Automatically jumps when it can save you");
-			Check(g_Config.m_KrxGrenadeSaver, "Auto grenade save", false, "Automatically shoots a grenade to try and save you");
+			if(g_Config.m_OpenKrxAvoidProvider == 1)
+			{
+				Body.HSplitTop(20.0f, &Row, &Body);
+				TextRender()->TextColor(ColorRGBA(0.55f, 0.55f, 0.55f, 1));
+				Ui()->DoLabel(&Row, Localize("Auto grenade save: part of Null Avoid"), 13.0f, TEXTALIGN_ML);
+				TextRender()->TextColor(TextRender()->DefaultTextColor());
+				Ui()->DoToolTip(&g_Config.m_KrxGrenadeSaver, &Row, Localize("NullClient uses its own weapon rescue inside Avoid. Configure Grenade in the NullClient profile."));
+			}
+			else
+				Check(g_Config.m_KrxGrenadeSaver, "Auto grenade save", false, "Automatically shoots a grenade to try and save you");
 			Check(g_Config.m_KrxQuickStop, "Quick Stop");
 			if(g_Config.m_KrxQuickStop)
 				Check(g_Config.m_KrxQuickStopGrounded, "Ground Only", true);

@@ -23,6 +23,7 @@
 #include <game/client/avoid/classic_agents.h>
 #include <game/client/avoid/pilot_bot.h>
 #include <game/client/avoid/rocket_save.h>
+#include <game/client/nullclient/component.h>
 #include <game/client/krx/aimbot.h>
 #include <game/client/krx/bots.h>
 #include <game/client/krx/misc.h>
@@ -203,6 +204,7 @@ public:
 	OpenKrx::CPilotBot m_PilotBot;
 	OpenKrx::CClassicAvoid m_ClassicAvoid;
 	OpenKrx::CRocketSave m_RocketSave;
+	OpenKrx::NullClient::CNullClient m_NullClient;
 	OpenKrx::CMiscFeatures m_KrxMisc;
 	OpenKrx::CAimbot m_Aimbot;
 	OpenKrx::CMediumBots m_MediumBots;
@@ -639,6 +641,9 @@ public:
 	void OnConnected() override;
 	void OnRender() override;
 	void OnUpdate() override;
+	void SyncFeatureProfile();
+	bool FeatureComponentActive(const CComponent *pComponent) const;
+	int m_LastFeatureProfile = -1;
 	void OnDummyDisconnect() override;
 	virtual void OnRelease();
 	void OnInit() override;

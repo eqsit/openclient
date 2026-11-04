@@ -2723,3 +2723,1974 @@ not bound
 
 Show cursor
 == 
+
+
+##### NullClient Avoid (original supplied Russian translations) #####
+
+ ticks
+==  тик.
+
+Action costs
+== Стоимость действий
+
+Activate when danger is within
+== Срабатывать, когда опасность в пределах
+
+Aim past them by
+== Целиться за них на
+
+Airborne shots are simulated, so dodging is precise.
+== Летящие выстрелы просчитываются, поэтому уклонение точное.
+
+Allowed drift radius
+== Допустимый радиус смещения
+
+Also during a fight
+== Также во время боя
+
+Anyone holding a hammer
+== Любой с молотом
+
+Automatically saves you at the last possible moment.
+== Автоматически спасает вас в последний возможный момент.
+
+Avoid ending up against a wall
+== Избегать оказаться прижатым к стене
+
+Avoid hammers
+== Избегать молотков
+
+Avoid hooking players
+== Избегать крюка по игрокам
+
+Check your own grenade before firing, within
+== Проверять свою гранату перед выстрелом в пределах
+
+Coast on after a rescue for
+== Катиться после спасения ещё
+
+Collapse this group
+== Свернуть эту группу
+
+Combat
+== Бой
+
+Decision making
+== Принятие решений
+
+Detect it from
+== Обнаруживать с расстояния
+
+Dodging shots
+== Уклонение от выстрелов
+
+Evaluate a release over
+== Оценивать отпускание на протяжении
+
+Expand this group
+== Развернуть эту группу
+
+Fight harder in crowds
+== Активнее действовать в толпе
+
+Fire your grenade to save yourself
+== Стрелять гранатой ради спасения
+
+Follow a rescue before re-planning for
+== Следовать спасению перед перепланированием в течение
+
+Full-speed penalty near danger at
+== Полный штраф за скорость у опасности на
+
+Hammer back at point-blank range
+== Отвечать молотом в упор
+
+Hold position
+== Держать позицию
+
+Hold the release for
+== Удерживать отпускание в течение
+
+Hook counter
+== Контр-крюк
+
+Hook release
+== Отпускание крюка
+
+How far ahead a rescue is judged, and how much your input counts.
+== Насколько далеко оценивается спасение и сколько весит ваш ввод.
+
+How much earlier it reacts when something affects you.
+== Насколько раньше реагирует, когда на вас воздействуют.
+
+How strongly it aims for that spot
+== Насколько упорно стремится к этой точке
+
+How strongly it avoids that range
+== Насколько сильно избегает этой зоны
+
+How strongly it pulls you back
+== Насколько сильно тянет вас назад
+
+Keep the return path clear of freeze by
+== Держать обратный путь от заморозки на
+
+Keep trying to return for
+== Пытаться вернуться в течение
+
+Maximum lead distance
+== Максимальное расстояние вперёд
+
+Minimum safety margin
+== Минимальный запас безопасности
+
+Only when idle
+== Только в покое
+
+Only whoever is hooking you
+== Только тот, кто держит вас крюком
+
+Penalty for being saved elsewhere
+== Штраф за спасение в другом месте
+
+Penalty for changing its decision
+== Штраф за смену решения
+
+Penalty for ending a rescue at speed
+== Штраф за завершение спасения на скорости
+
+Penalty for releasing a held hook
+== Штраф за отпускание удерживаемого крюка
+
+Penalty for using your air jump
+== Штраф за использование прыжка в воздухе
+
+Penalty per frozen tick
+== Штраф за каждый тик в заморозке
+
+Plan a rescue over
+== Планировать спасение на протяжении
+
+Position hold
+== Удержание позиции
+
+Prefer moving over hooking
+== Предпочитать движение крюку
+
+Prefer the smallest action
+== Предпочитать наименьшее действие
+
+React earlier at high speed
+== Реагировать раньше на высокой скорости
+
+React earlier when hit
+== Реагировать раньше при попадании
+
+React earlier while hooked
+== Реагировать раньше, пока вас держат крюком
+
+React even earlier at very high speed
+== Реагировать ещё раньше на очень высокой скорости
+
+Reflexes
+== Рефлексы
+
+Refuse a bad hook within
+== Отклонять неудачный крюк в пределах
+
+Refuse a step off the edge within
+== Отклонять шаг за край в пределах
+
+Relative cost of each move; a costly one can still be chosen.
+== Относительная цена каждого хода; дорогой всё ещё может быть выбран.
+
+Releases a hook that is dragging you into danger.
+== Отпускает крюк, который тянет вас в опасность.
+
+Reset this group to its defaults
+== Сбросить эту группу к значениям по умолчанию
+
+Resist being dragged
+== Сопротивляться перетаскиванию
+
+Respect for your input
+== Приоритет вашего ввода
+
+Return control once safer by
+== Вернуть управление, когда безопаснее на
+
+Reward returning control to you
+== Поощрять возврат управления вам
+
+Runs survival on the tee you are not controlling, using your settings.
+== Запускает выживание на ти, которым вы не управляете, с вашими настройками.
+
+Search deeper when stuck, from
+== Искать глубже при застревании, от
+
+Search one move deeper from the best option
+== Заглядывать на ход глубже от лучшего варианта
+
+Searches deeper and further for an escape when surrounded.
+== Ищет выход глубже и дальше, когда вы окружены.
+
+Show the range
+== Показывать зону
+
+Simulate a rescue over
+== Просчитывать спасение на протяжении
+
+Stays out of people's hammer range.
+== Держится вне зоны удара молотом.
+
+Stops someone from moving you against your will.
+== Не даёт другим сдвинуть вас с места.
+
+Survival
+== Выживание
+
+Switch back to your weapon afterwards
+== Затем вернуться к своему оружию
+
+Switch to a better weapon to survive
+== Переключаться на лучшее оружие ради выживания
+
+The spot it defends, and how far you can carry it with you.
+== Защищаемая точка и как далеко её можно унести с собой.
+
+Uses your own weapons to get you out of trouble.
+== Использует ваше оружие, чтобы вытащить вас из беды.
+
+Wait for the last tick that can save you
+== Ждать последнего тика, способного спасти
+
+Watch for shots within
+== Отслеживать выстрелы в пределах
+
+Watch your input for
+== Отслеживать ваш ввод в течение
+
+Weapon defense
+== Оружейная защита
+
+When hooked, moves you above or below the puller so they can't fling you.
+== При зацепе выводит вас выше или ниже того, кто тянет, чтобы вас не отбросили.
+
+Your keys move it at
+== Ваши клавиши двигают её со скоростью
+
+Avoid Freeze
+== Избегание заморозки
+
+Dummy Avoid Freeze
+== Избегание заморозки у дамми
+
+NullClient profile
+== Профиль NullClient
+
+KRX profile
+== Профиль KRX
+
+
+Do not switch back
+== Не возвращать оружие
+
+Switch back: NullClient
+== Возврат: NullClient
+
+Switch back: OpenKRX (confirmed shot)
+== Возврат: OpenKRX (подтверждённый выстрел)
+
+NullClient uses its original weapon return. OpenKRX waits for a confirmed grenade shot or a safe cancellation.
+== NullClient использует родной возврат. OpenKRX ждёт подтверждённого выстрела гранатой или безопасной отмены.
+
+Keep manual jump when Null can rescue it
+== Сохранять ручной прыжок, если Null находит спасение
+
+# NullClient original non-TAS interface strings
+
+Account
+== Аккаунт
+
+Remember me
+== Запомнить меня
+
+Signing in...
+== Вход...
+
+Sign in
+== Войти
+
+aimbot: god mode has the aim
+== aimbot: прицел занят god mode
+
+aimbot: this weapon is not ticked
+== aimbot: это оружие не тикается
+
+aimbot: the aim is in use by something unticked
+== aimbot: прицел занят чем-то нетикаемым
+
+aimbot: picked #%d but no angle reaches them
+== aimbot: выбран #%d, но ни один угол его не достаёт
+
+aimbot: nobody  (%d seen, %d far, %d behind, %d walled, %d no shot)
+== aimbot: никого  (%d видно, %d далеко, %d сзади, %d за стеной, %d нет выстрела)
+
+Reset all
+== Сбросить всё
+
+Reset Null settings
+== Сбросить настройки Null
+
+Reset every Null setting to its default value?
+== Сбросить все настройки Null к значениям по умолчанию?
+
+path: %d ticks
+== путь: %d тик.
+
+path: off
+== путь: выкл.
+
+god mode: on
+== god mode: вкл.
+
+god mode: off
+== god mode: выкл.
+
+fly mode: on
+== режим полёта: вкл.
+
+fly mode: off
+== режим полёта: выкл.
+
+Aimbot
+== Аимбот
+
+Vision
+== Обзор
+
+Misc
+== Разное
+
+Binds
+== Привязки
+
+Diagnostics
+== Диагностика
+
+Warlist
+== Список войны
+
+Never die
+== Не умирать
+
+Keep the dummy alive too
+== Держать дамми тоже живым
+
+The tee you are not controlling keeps itself alive using everything above - the same detection, dodging and reflexes. Turn it off for the serial killer, which needs freedom to move.
+== Ти, которым вы не управляете, сохраняет себе жизнь всем, что настроено выше — то же обнаружение, уклонение и рефлексы. Отключите для серийного убийцы, которому нужна свобода движения.
+
+Hammer avoidance
+== Уход от молота
+
+A hammer hits instantly, so distance is the only defense.
+== Молот бьёт мгновенно, единственная защита — дистанция.
+
+Someone moves you without your input.
+== Кто-то двигает вас без вашего ввода.
+
+When hooked, positions you on the side of them you want.
+== Когда вас цепляют, ставит вас с нужной вам стороны от них.
+
+Serial killer
+== Серийный убийца
+
+Takes control to hunt. Never die keeps you alive while it works.
+== Берёт управление для охоты. «Не умирать» держит вас в живых, пока он работает.
+
+At crosshair
+== На прицеле
+
+Nearest
+== Ближайший
+
+Locked only
+== Только зафиксированный
+
+War list
+== Список войны
+
+Attack list
+== Список атаки
+
+Same as main
+== Как у основного
+
+Hunts on the tee you are not controlling, with its own target choice.
+== Охотится на ти, которым вы не управляете, со своим выбором цели.
+
+The tee you are not controlling picks its own target and works it using the weapons and footing above. Enable Never die for the dummy too, or it will die doing this.
+== Ти, которым вы не управляете, сам выбирает цель и работает по ней оружием и позиционированием из настроек выше. Включите «Никогда не умирать» и для дабла, иначе он погибнет за этим занятием.
+
+Welcome, %s
+== Добро пожаловать, %s
+
+Status HUD
+== HUD статуса
+
+A corner panel showing which Null features are active.
+== Угловая панель, показывающая, какие функции Null активны.
+
+Top left
+== Сверху слева
+
+Top right
+== Сверху справа
+
+Bottom left
+== Снизу слева
+
+Bottom right
+== Снизу справа
+
+Middle left
+== По центру слева
+
+Middle right
+== По центру справа
+
+Only active
+== Только включённые
+
+All, with marks
+== Все, с отметками
+
+Also show inactive features
+== Показывать и выключенные функции
+
+Never die (dummy)
+== Никогда не умирать (дабл)
+
+Serial killer (dummy)
+== Серийный убийца (дабл)
+
+Warlist: type a name, e.g. !attack SomePlayer
+== Список войны: введите имя, напр. !attack SomePlayer
+
+Warlist: '%s' added to attack
+== Список войны: '%s' добавлен в атаку
+
+Warlist: '%s' is already on attack
+== Список войны: '%s' уже в атаке
+
+Warlist: '%s' removed from attack
+== Список войны: '%s' удалён из атаки
+
+Warlist: '%s' was not on attack
+== Список войны: '%s' не был в атаке
+
+Move on to the next target
+== Переходить к следующей цели
+
+Chase targets within
+== Преследовать цели в пределах
+
+Lead the target by
+== Брать упреждение на
+
+Give up after being stuck for
+== Сдаваться после застревания на
+
+Hold them with the hook
+== Удерживать их крюком
+
+Hammer at point-blank range
+== Бить молотом в упор
+
+Use the grenade in between
+== Использовать гранату между делом
+
+Never hammer a frozen player
+== Не бить молотом замороженного игрока
+
+Push them toward the freeze
+== Толкать их к заморозке
+
+Prefer dragging over hitting by
+== Приоритет волочения над ударом на
+
+Carry a frozen player up to
+== Нести замороженного игрока до
+
+Value its own footing by
+== Ценить собственную опору на
+
+Value being right on top of them by
+== Ценить нахождение прямо над ними на
+
+Value their possible retaliation by
+== Учитывать их возможный ответ на
+
+Count targets within
+== Считать цели в пределах
+
+Never target a friend
+== Никогда не выбирать друга целью
+
+Highlight the target
+== Выделять цель
+
+Serial killer on the dummy
+== Серийный убийца на дамми
+
+Hunts on the tee you are not controlling, using your settings.
+== Охотится на ти, которым вы не управляете, с вашими настройками.
+
+Let the dummy hunt your own tee
+== Позволить дамми охотиться на вашего ти
+
+The tee you are not controlling picks a target and works it using everything above - the same target rules, weapons and footing. Enable Never die for the dummy too, or it will die doing this.
+== Ти, которым вы не управляете, выбирает цель и обрабатывает её всем, что настроено выше — те же правила цели, оружие и опора. Включите «Не умирать» и для дамми, иначе он погибнет за этим.
+
+Aim assist
+== Помощь прицеливания
+
+Six independent toggles - the hook is one of them.
+== Шесть независимых переключателей — крюк один из них.
+
+Aims at a target for you, without moving your crosshair.
+== Наводится на цель за вас, не двигая ваш прицел.
+
+Stay on the current target
+== Оставаться на текущей цели
+
+Switch only if another is better by
+== Переключаться, только если другой лучше на
+
+Nearest to crosshair
+== Ближайший к прицелу
+
+Nearest to you
+== Ближайший к вам
+
+Field of view
+== Угол обзора
+
+Only target within
+== Только цели в пределах
+
+Don't show
+== Не показывать
+
+Always show
+== Всегда показывать
+
+Show only when held
+== Показывать только когда в руке
+
+Cone opacity
+== Прозрачность конуса
+
+Aim for maximum knockback
+== Целиться для максимального отбрасывания
+
+Only closer than
+== Только ближе, чем
+
+Use each weapon's true range
+== Использовать реальную дальность каждого оружия
+
+Ignore targets behind a wall
+== Игнорировать цели за стеной
+
+Bounce lasers off walls
+== Отражать лазер от стен
+
+Lob grenades over walls
+== Забрасывать гранату через стены
+
+Lead moving targets
+== Брать упреждение по движущимся целям
+
+Aim lines
+== Линии прицела
+
+Shows where a shot would go before it is fired.
+== Показывает, куда пойдёт выстрел, до его совершения.
+
+Only my own tee
+== Только мой ти
+
+Trace a fired shot for
+== Прослеживать выстрел в течение
+
+Projectile lines
+== Линии снарядов
+
+Traces projectiles already in the air.
+== Прослеживает уже летящие снаряды.
+
+Only my own projectiles
+== Только мои снаряды
+
+Projectile
+== Снаряд
+
+Trace a projectile for
+== Прослеживать снаряд в течение
+
+Predicted path
+== Прогноз пути
+
+Shows where you are really heading, using the real physics.
+== Показывает, куда вы реально движетесь, по реальной физике.
+
+Prediction length
+== Длина прогноза
+
+Line width
+== Толщина линии
+
+Fade out toward the far end
+== Затухание к дальнему концу
+
+Glow
+== Свечение
+
+Moving light pulses
+== Движущиеся световые импульсы
+
+Pulse speed
+== Скорость импульсов
+
+Stop the path when frozen and still
+== Останавливать путь при заморозке и покое
+
+Key moments along the path worth highlighting.
+== Ключевые моменты на пути, которые стоит выделить.
+
+Freeze entry point
+== Точка входа в заморозку
+
+Kill tile hit
+== Попадание на убивающий тайл
+
+End of path
+== Конец пути
+
+Ground contact
+== Касание земли
+
+Hook attach point
+== Точка зацепа крюка
+
+Also show the dummy's path
+== Также показывать путь дамми
+
+Colors
+== Цвета
+
+The line under the logo previews this palette.
+== Линия под логотипом показывает эту палитру.
+
+Path color near the tee
+== Цвет пути рядом с ти
+
+Path color far ahead
+== Цвет пути далеко впереди
+
+Path color while frozen
+== Цвет пути в заморозке
+
+Kill marker color
+== Цвет метки убийства
+
+Automation
+== Автоматизация
+
+Small actions performed for you, on top of your own input.
+== Небольшие действия, выполняемые за вас, поверх вашего ввода.
+
+Auto fire
+== Автоогонь
+
+Auto rehook
+== Авто-перецепление
+
+Protections
+== Защита
+
+What this client reports about itself to a server.
+== Что этот клиент сообщает серверу о себе.
+
+Randomize timeout code
+== Случайный код тайм-аута
+
+Version spoofing
+== Подмена версии
+
+What version this build reports to a server.
+== Какую версию эта сборка сообщает серверу.
+
+Report as
+== Сообщать как
+
+DDNet, no build hash
+== DDNet, без хеша сборки
+
+Version number
+== Номер версии
+
+Fake aim
+== Ложный прицел
+
+Reports a different aim direction than the one you use.
+== Сообщает направление прицела, отличное от вашего.
+
+Robot
+== Робот
+
+Spin
+== Вращение
+
+Random
+== Случайно
+
+Reverse
+== Обратно
+
+Turn speed
+== Скорость вращения
+
+°/s
+== °/с
+
+Send on every tick it moves
+== Отправлять на каждом тике движения
+
+Preview what others see
+== Предпросмотр того, что видят другие
+
+Other
+== Прочее
+
+Miscellaneous options that change what this client sends.
+== Разные опции, меняющие то, что отправляет клиент.
+
+Kill on freeze
+== Самоубийство при заморозке
+
+Kill on deep freeze
+== Самоубийство при глубокой заморозке
+
+Hide chat bubble
+== Скрывать облачко чата
+
+Keep playing while the menu is open
+== Продолжать игру при открытом меню
+
+Fly mode
+== Режим полёта
+
+You steer a marker and the tee is held on it.
+== Вы управляете маркером, а ти удерживается на нём.
+
+Marker speed
+== Скорость маркера
+
+Lookahead
+== Просмотр вперёд
+
+Check this far beyond each move
+== Проверять настолько дальше каждого хода
+
+Pathfinding
+== Поиск пути
+
+Routes around obstacles instead of into them.
+== Обходит препятствия, а не врезается в них.
+
+Show the route
+== Показывать маршрут
+
+Keep the route out of freeze
+== Держать маршрут вне заморозки
+
+Recalculate every
+== Пересчитывать каждые
+
+How much of the map it scans
+== Какую часть карты сканирует
+
+Larger is more thorough but slower.
+== Больше — тщательнее, но медленнее.
+
+Surface scan resolution
+== Разрешение сканирования поверхности
+
+Simulated surroundings
+== Симулируемое окружение
+
+Profiles
+== Профили
+
+Save all settings under a name; the file is yours to share.
+== Сохраните все настройки под именем; файл ваш, делитесь им.
+
+Profile name
+== Имя профиля
+
+my settings
+== мои настройки
+
+Load
+== Загрузить
+
+No profiles saved yet
+== Пока нет сохранённых профилей
+
+Bind a key to toggle a feature on and off. Fly mode also has a hold key: it flies while held and stops when released. A feature your plan does not include cannot be bound.
+== Назначьте клавишу для включения и выключения функции. У режима полёта есть клавиша удержания: летит, пока зажата, и останавливается при отпускании. Функцию, не входящую в ваш план, привязать нельзя.
+
+Debug overlay
+== Отладочный слой
+
+A death takes one tick; the twenty before it explain why.
+== Смерть длится один тик; двадцать до неё объясняют причину.
+
+Ring around the tee while it acts
+== Кольцо вокруг ти во время работы
+
+Write the last 100 ticks to a file on death
+== Записывать последние 100 тиков в файл при смерти
+
+Fight replay
+== Повтор боя
+
+Records both tees, the projectiles and a snapshot of the tiles.
+== Записывает оба ти, снаряды и снимок тайлов.
+
+When you finish
+== Когда вы закончили
+
+And when you finish someone off
+== И когда вы прикончили кого-то
+
+More thorough, at the cost of frame time.
+== Тщательнее ценой времени кадра.
+
+But watch players within
+== Но отслеживать игроков в пределах
+
+Assume other players are attacking
+== Считать, что другие игроки атакуют
+
+Ads
+== Реклама
+
+Occasionally whispers nullclient.fun to a random player. Upgrade to make this optional.
+== Изредка шепчет nullclient.fun случайному игроку. Улучшите, чтобы сделать это необязательным.
+
+REQUIRED
+== ОБЯЗАТЕЛЬНО
+
+Whisper Null to strangers on the server
+== Шептать про Null незнакомцам на сервере
+
+Off by default. Turn on to occasionally whisper nullclient.fun to a random player and help spread the client.
+== По умолчанию выключено. Включите, чтобы изредка шептать nullclient.fun случайному игроку и помочь распространению клиента.
+
+Categories
+== Категории
+
+New category
+== Новая категория
+
+Category color
+== Цвет категории
+
+war is permanent
+== война постоянна
+
+Delete category
+== Удалить категорию
+
+Members of '%s'
+== Участники «%s»
+
+No one here yet
+== Здесь пока никого нет
+
+Join a server to see players
+== Зайдите на сервер, чтобы увидеть игроков
+
+Warlist: type a name, e.g. !war SomePlayer
+== Список войны: введите имя, напр. !war ИмяИгрока
+
+Warlist: '%s' added to war
+== Список войны: «%s» добавлен в войну
+
+Warlist: '%s' is already at war
+== Список войны: «%s» уже в войне
+
+Warlist: '%s' removed from war
+== Список войны: «%s» убран из войны
+
+Warlist: '%s' was not at war
+== Список войны: «%s» не был в войне
+
+Draw the path your held input leads to
+== Рисовать путь, куда ведёт зажатый ввод
+
+How far ahead the path is simulated, in ticks (50 ticks = 1 second)
+== Насколько далеко вперёд просчитывается путь, тики (50 тиков = 1 секунда)
+
+Width of the path line
+== Толщина линии пути
+
+Opacity of the path line
+== Прозрачность линии пути
+
+Make the path thinner and fainter further ahead
+== Делать путь тоньше и бледнее дальше вперёд
+
+Draw a soft glow around the path
+== Рисовать мягкое свечение вокруг пути
+
+Animate light pulses moving along the path
+== Анимировать световые импульсы вдоль пути
+
+Speed of the light pulses along the path
+== Скорость световых импульсов вдоль пути
+
+Stop the path once the tee rests in freeze
+== Останавливать путь, когда ти замирает в заморозке
+
+Also draw the path of the dummy
+== Также рисовать путь дамми
+
+Mark where the tee enters freeze
+== Отмечать точку входа ти в заморозку
+
+Mark where the tee would hit a kill tile
+== Отмечать точку попадания ти на убивающий тайл
+
+Mark the end of the predicted path
+== Отмечать конец прогнозируемого пути
+
+Mark where the tee touches ground
+== Отмечать места касания ти земли
+
+Mark where the hook attaches
+== Отмечать места зацепа крюка
+
+Draw the Null backdrop behind the menus instead of the map
+== Рисовать фон Null за меню вместо карты
+
+Take over your input at the last tick that still avoids death
+== Перехватывать ввод на последнем тике, ещё позволяющем избежать смерти
+
+Run the same survival on the tee you are not controlling
+== Запускать то же выживание на ти, которым вы не управляете
+
+How far ahead your input is simulated to check if it kills you, in ticks
+== Насколько далеко вперёд просчитывается ваш ввод для проверки смертельности, тики
+
+How close to death god mode waits before taking over, in ticks
+== Насколько близко к смерти god mode ждёт перед вмешательством, тики
+
+How far ahead a rescue is simulated, in ticks
+== Насколько далеко вперёд просчитывается спасение, тики
+
+Search deeper for an escape when surrounded (uses more CPU)
+== Искать выход глубже в окружении (больше нагрузка на процессор)
+
+How far a rescue is simulated during the deeper search, in ticks
+== Насколько далеко просчитывается спасение при глубоком поиске, тики
+
+How many top moves are explored further during the deeper search
+== Сколько лучших ходов исследуется глубже при глубоком поиске
+
+How much god mode favours the keys you are holding
+== Насколько god mode учитывает зажатые вами клавиши
+
+How hard god mode keeps your ground, as a percentage of fly mode's hold
+== Насколько сильно god mode держит вашу позицию (в процентах от удержания режима полёта)
+
+How much safer things must look before god mode hands control back, in ticks
+== Насколько безопаснее должно стать, прежде чем god mode вернёт управление, тики
+
+How fast your keys move the held spot, in units per second
+== Как быстро ваши клавиши двигают удерживаемую точку, единиц/сек
+
+How far ahead of the tee the held spot may be dragged, in world units
+== Насколько впереди ти можно тянуть удерживаемую точку, единиц
+
+Penalty for god mode changing its own plan, versus contradicting you
+== Штраф за смену собственного плана god mode (против противоречия вам)
+
+Free drift radius around the held spot, in world units
+== Свободный радиус смещения вокруг удерживаемой точки, единиц
+
+Penalty for leftover speed at the end of a rescue
+== Штраф за остаточную скорость в конце спасения
+
+How much a frozen tick is worth avoiding; 0 ignores freeze
+== Насколько важно избегать тика в заморозке; 0 игнорирует заморозку
+
+Ignore entities beyond this range; 0 simulates only your tee, in world units
+== Игнорировать объекты за этим радиусом; 0 — только ваш ти, единиц
+
+How much of what other players could do is assumed (0-2)
+== Насколько учитываются возможные действия других игроков (0-2)
+
+How far away another tee is kept in the simulation, in world units
+== На каком расстоянии другой ти учитывается в симуляции, единиц
+
+How many ticks earlier it reacts while a hook is attached to you
+== На сколько тиков раньше реагирует, пока к вам прицеплен крюк
+
+How finely surroundings are scanned for hookable surfaces
+== Насколько детально сканируется окружение на зацепляемые поверхности
+
+Show a ring around the tee while god mode is steering
+== Показывать кольцо вокруг ти, пока god mode управляет
+
+Record the last 100 ticks of god mode's decisions and dump them on death
+== Записывать последние 100 тиков решений god mode и выгружать при смерти
+
+Show what god mode is thinking above the tee
+== Показывать над ти, о чём думает god mode
+
+Before planning, wait for the last tick where simply releasing the hook still saves you
+== Перед планированием ждать последнего тика, когда простое отпускание крюка ещё спасает
+
+How long a hook release keeps hold, in ticks
+== Как долго удерживается отпускание крюка, тики
+
+How long a release is evaluated over; 0 uses the rescue window, in ticks
+== На каком окне оценивается отпускание; 0 — окно спасения, тики
+
+Penalty per world unit between you and where a rescue leaves you
+== Штраф за каждую единицу между вами и местом, куда спасение вас приводит
+
+Score a rescue as if your keys resume when it ends
+== Оценивать спасение так, будто ваши клавиши возобновляются в конце
+
+Hand over only on the last tick that still has an escape
+== Передавать управление только на последнем тике, где ещё есть выход
+
+How far ahead a hook you are about to throw is checked, in ticks; 0 off
+== На сколько тиков вперёд проверяется бросаемый крюк, тики; 0 выкл.
+
+How many ticks are played before re-checking whether a rescue is still possible
+== Сколько тиков проигрывается перед повторной проверкой возможности спасения
+
+How far ahead a grenade you are about to fire is checked, in ticks; 0 off
+== На сколько тиков вперёд проверяется выпускаемая граната, тики; 0 выкл.
+
+How far ahead a step is checked so a tap cannot carry you over an edge, in ticks; 0 off
+== На сколько тиков вперёд проверяется шаг, чтобы нажатие не увело за край, тики; 0 выкл.
+
+How much your speed brings the reaction earlier, as a percentage of a tick per unit
+== Насколько скорость ускоряет реакцию (в процентах тика на единицу)
+
+Extra reaction brought forward at high speed, scaling with speed squared
+== Дополнительная реакция на высокой скорости (растёт с квадратом скорости)
+
+How much a sudden velocity change brings the reaction earlier
+== Насколько резкое изменение скорости ускоряет реакцию
+
+Treat contact range (a hammer swing, a point-blank blast) as ground to avoid
+== Считать зону контакта (удар молота, взрыв в упор) опасной зоной
+
+Who counts as a threat: 0 only whoever is hooking you, 1 anyone with a hammer or grenade
+== Кто считается угрозой: 0 только держащий вас крюком, 1 любой с молотом или гранатой
+
+How far ahead your input is checked for walking into a swing, in ticks
+== На сколько тиков вперёд проверяется, не входите ли вы под удар, тики
+
+While airborne, get above someone aiming a grenade at you
+== В воздухе подниматься над тем, кто целит в вас гранатой
+
+How near someone with a grenade must be to be watched, in world units
+== Насколько близко должен быть игрок с гранатой, чтобы за ним следить, единиц
+
+Penalty for a tick where their grenade would land
+== Штраф за тик там, куда упадёт их граната
+
+How far a blast can move you, in world units
+== На какое расстояние взрыв может вас сдвинуть, единиц
+
+How wide a fan of directions counts as behind you, in degrees
+== Ширина сектора направлений, считающихся позади вас, градусы
+
+How near someone with a grenade must be to count, in world units
+== Насколько близко должен быть игрок с гранатой, чтобы учитываться, единиц
+
+How far ahead someone walking a grenade at you is tracked, in ticks
+== На сколько тиков вперёд отслеживается идущий на вас с гранатой, тики
+
+Let it fire or hammer back at someone cornering you with a grenade
+== Разрешить отвечать выстрелом или молотом на прижимающего вас гранатой
+
+Penalty for a tick spent inside enemy hammer reach
+== Штраф за тик в зоне вражеского молота
+
+Draw a thin ring at the avoided hammer reach
+== Рисовать тонкое кольцо на границе зоны молота
+
+Keep the ground you are on when something moves you, not only when you would die
+== Удерживать позицию, когда вас двигают, а не только при угрозе смерти
+
+Resist being moved mid-fight too, not only when idle (0/1)
+== Сопротивляться перемещению и в бою, не только в покое (0/1)
+
+How hard it pulls you back to where you were shoved off, as a percentage of fly mode's hold
+== Насколько сильно тянет вас обратно, откуда столкнули (в процентах от удержания режима полёта)
+
+How long it keeps trying to regain your ground after a shove, in ticks
+== Как долго пытается вернуть вашу позицию после толчка, тики
+
+How much room the way back keeps from freeze, in world units; 0 off
+== Насколько путь назад держится от заморозки, единиц; 0 выкл.
+
+How much harder it holds your ground while being pulled or pushed, as a percentage of normal; 100 off
+== Насколько сильнее держит позицию при рывке или толчке (в процентах от обычного); 100 выкл.
+
+When hooked, steer to the far side of the puller (Elite)
+== При зацепе уходить на дальнюю сторону от тянущего (Elite)
+
+How far past the puller to aim, in world units
+== Насколько за тянущего целиться, единиц
+
+How hard it goes for the far side of the puller, as a percentage of fly mode's hold
+== Насколько упорно стремится на дальнюю сторону тянущего (в процентах от удержания режима полёта)
+
+See incoming grenades, bullets and lasers and dodge them
+== Видеть летящие гранаты, пули и лазеры и уклоняться
+
+How far away a shot is kept in the simulation, in world units
+== На каком расстоянии выстрел учитывается в симуляции, единиц
+
+Draw where the shells in the air are going and where each goes off
+== Рисовать траектории летящих снарядов и точки их взрыва
+
+How far ahead a shell is drawn, in ticks (50 ticks = 1 second)
+== На сколько тиков вперёд рисуется снаряд (50 тиков = 1 секунда)
+
+Let it fire your grenade to save you when moving cannot
+== Разрешить стрелять вашей гранатой ради спасения, когда движение не помогает
+
+Let it hammer back at someone on top of you
+== Разрешить отвечать молотом тому, кто на вас сверху
+
+Let it switch to a better weapon to save you
+== Разрешить переключаться на лучшее оружие ради спасения
+
+Last resort: bounce a laser off a wall to unfreeze yourself
+== Крайняя мера: отразить лазер от стены, чтобы разморозить себя
+
+Penalty for spending your air jump in a rescue; 0 uses the built-in price
+== Штраф за трату прыжка в воздухе при спасении; 0 — встроенная цена
+
+How many ticks of a rescue are followed before re-planning; 0 sends only first ticks
+== Сколько тиков спасения выполняется до перепланирования; 0 — только первые тики
+
+Penalty per tick a rescue keeps a key held
+== Штраф за каждый тик удержания клавиши в спасении
+
+Penalty for throwing a hook, so walking is preferred where it works
+== Штраф за бросок крюка, чтобы предпочитать ходьбу, где она работает
+
+Penalty per tick a rescue keeps holding its own hook
+== Штраф за каждый тик удержания собственного крюка в спасении
+
+Penalty for a tick with your sideways motion stopped by a wall
+== Штраф за тик, когда стена останавливает ваше боковое движение
+
+Penalty for ending a rescue with your hook stuck in another tee
+== Штраф за завершение спасения с крюком, застрявшим в другом ти
+
+How many top moves get their follow-ups explored when none end safely; 0 off
+== Сколько лучших ходов исследуются дальше, если ни один не кончается безопасно; 0 выкл.
+
+How many ticks past a rescue you are coasted to see where its speed leads; 0 off
+== Сколько тиков после спасения вы катитесь, чтобы увидеть, куда ведёт скорость; 0 выкл.
+
+Speed at which pointing into freeze costs full price, in tenths of a unit per tick; 0 always full
+== Скорость, при которой курс в заморозку штрафуется полностью, десятые единицы/тик; 0 всегда полный
+
+Draw where a shot would go if fired right now
+== Рисовать, куда пойдёт выстрел, если сделать его сейчас
+
+Only your own tee
+== Только ваш ти
+
+Draw the pistol
+== Рисовать пистолет
+
+Draw the shotgun
+== Рисовать дробовик
+
+Draw the grenade, arc and all
+== Рисовать гранату вместе с дугой
+
+Draw the laser, bounces and all
+== Рисовать лазер вместе с отражениями
+
+Opacity of the aim lines
+== Прозрачность линий прицела
+
+How far ahead a thrown shot is drawn, in ticks (50 ticks = 1 second)
+== На сколько тиков вперёд рисуется брошенный выстрел (50 тиков = 1 секунда)
+
+Only shells you fired
+== Только выпущенные вами снаряды
+
+Draw pistol bullets
+== Рисовать пули пистолета
+
+Draw shotgun bullets
+== Рисовать дробь
+
+Draw grenades
+== Рисовать гранаты
+
+Opacity of the bullet lines
+== Прозрачность линий снарядов
+
+Keep firing while the fire button is held, at the engine's reload rate
+== Продолжать стрелять при зажатой кнопке, с темпом перезарядки движка
+
+Re-grab the moment your hook comes off, while the button is held
+== Перецепляться, как только крюк срывается, при зажатой кнопке
+
+Make a new timeout code before each connection (you lose your tee on a drop)
+== Создавать новый код тайм-аута перед каждым подключением (теряете ти при обрыве)
+
+How long the hook keeps aiming at a target it lost, in ticks
+== Как долго крюк продолжает целиться в потерянную цель, тики
+
+Kill yourself the moment you freeze
+== Убивать себя в момент заморозки
+
+Kill yourself on deep freeze
+== Убивать себя при глубокой заморозке
+
+Don't show the typing bubble, and keep moving while you type
+== Не показывать облачко набора и продолжать двигаться при наборе
+
+Key that toggles Never die (0 = unbound)
+== Клавиша переключения «Не умирать» (0 = не назначена)
+
+Key that toggles Never die for the dummy (0 = unbound)
+== Клавиша «Не умирать» для дамми (0 = не назначена)
+
+Key that toggles Dodging shots (0 = unbound)
+== Клавиша «Уклонение от выстрелов» (0 = не назначена)
+
+Key that toggles Hammer avoidance (0 = unbound)
+== Клавиша «Уход от молота» (0 = не назначена)
+
+Key that toggles Stepping off the edge (0 = unbound)
+== Клавиша «Шаг за край» (0 = не назначена)
+
+Key that toggles the Serial killer (0 = unbound)
+== Клавиша «Серийный убийца» (0 = не назначена)
+
+Key that toggles the Serial killer for the dummy (0 = unbound)
+== Клавиша «Серийный убийца» для дамми (0 = не назначена)
+
+Key that toggles the Aimbot (0 = unbound)
+== Клавиша «Аимбот» (0 = не назначена)
+
+Key that toggles Fake aim (0 = unbound)
+== Клавиша «Ложный прицел» (0 = не назначена)
+
+Key that toggles Fly mode (0 = unbound)
+== Клавиша «Режим полёта» (0 = не назначена)
+
+Key that flies while held: hold it and move the mouse to fly, release to stop (0 = unbound)
+== Клавиша полёта при удержании: держите и двигайте мышь, отпустите для остановки (0 = не назначена)
+
+Key that toggles Version spoofing (0 = unbound)
+== Клавиша «Подмена версии» (0 = не назначена)
+
+Pick a target and hunt them down: walk to them, hook in, hammer and grenade
+== Выбрать цель и преследовать: подойти, зацепить, молот и граната
+
+Run the serial killer on the tee you are not controlling (enable Never die for it too)
+== Запустить серийного убийцу на ти, которым не управляете (включите для него «Не умирать»)
+
+Let the serial killer hunt your own other tee (for testing alone)
+== Разрешить серийному убийце охотиться на вашего второго ти (для теста в одиночку)
+
+How the victim is chosen: 0 nearest the crosshair, 1 nearest you, 2 only a locked target
+== Как выбирается жертва: 0 у прицела, 1 к вам, 2 только зафиксированная
+
+Move on to the next victim once the current one is finished
+== Переходить к следующей жертве после текущей
+
+How far away a victim may be and still be chased, in world units
+== На каком расстоянии жертву ещё преследуют, единиц
+
+How far ahead of the victim it aims, in ticks of their speed; 0 aims at them
+== Насколько впереди жертвы целится, в тиках их скорости; 0 — в них
+
+Use the hook to close the distance, thrown along the clear route
+== Использовать крюк для сближения, бросая вдоль свободного маршрута
+
+Use the hammer at point-blank range
+== Использовать молот в упор
+
+Use the grenade, alternating with the hammer up close
+== Использовать гранату, чередуя с молотом вблизи
+
+Never hammer a frozen player (a hammer unfreezes them); use the grenade instead
+== Не бить молотом замороженного (молот размораживает); использовать гранату
+
+Give up a target once frozen and stuck in freeze for this many ticks (50 = 1s); 0 never
+== Отпускать цель после заморозки и застревания в ней на столько тиков (50 = 1с); 0 никогда
+
+Stand on the side that throws them toward freeze
+== Стоять с той стороны, что бросает их к заморозке
+
+How far from the victim to look for freeze to throw them into, in world units
+== На каком расстоянии от жертвы искать заморозку, единиц
+
+How far it will carry a frozen player to find lasting freeze, in world units
+== Как далеко тащит замороженного до надёжной заморозки, единиц
+
+How much it prefers hauling them toward freeze over landing hits
+== Насколько предпочитает тащить к заморозке, а не бить
+
+How far around a standing spot it looks for hazards to itself, in world units
+== На каком радиусе вокруг позиции ищет опасности для себя, единиц
+
+How much a standing spot's safety counts against how well it throws them
+== Насколько безопасность позиции важнее удобства броска
+
+How much it wants to be right on top of them
+== Насколько стремится быть прямо над ними
+
+How much it weighs what the target could do to a spot before standing there
+== Насколько учитывает, что цель может сделать с позицией до выхода на неё
+
+How far a target must be from a spot to be able to reach it, in world units
+== На каком расстоянии цель считается способной достать позицию, единиц
+
+Never pick someone on your friends list
+== Не выбирать игрока из списка друзей
+
+How many ticks between route recalculations
+== Сколько тиков между пересчётами маршрута
+
+Show the sign-in screen and block everything until an account is logged in
+== Показывать экран входа и блокировать всё до входа в аккаунт
+
+Base URL of the licence server; must start with https://
+== Базовый URL сервера лицензий; должен начинаться с https://
+
+Remember the sign-in; stored encrypted and tied to this install
+== Запоминать вход; хранится в зашифрованном виде и привязан к установке
+
+The encrypted saved sign-in; not meant to be edited by hand
+== Зашифрованный сохранённый вход; не для ручного редактирования
+
+Write a report of how a fight ended to null_autopsy.txt: 0 off, 1 deaths, 2 also kills
+== Записывать отчёт о конце боя в null_autopsy.txt: 0 выкл., 1 смерти, 2 также убийства
+
+Whisper a short nullclient.fun promo to a random player now and then
+== Изредка шептать краткую рекламу nullclient.fun случайному игроку
+
+Ring the victim: solid while locked, faint while taking whoever is nearest
+== Обводить жертву кольцом: ярко при фиксации, бледно при ближайшем
+
+Point the aim at a target for you; stands down whenever god mode steers. Your crosshair never moves
+== Наводить прицел на цель за вас; отключается, когда управляет god mode. Ваш прицел не двигается
+
+Aim the hook (separate from the weapons)
+== Наводить крюк (отдельно от оружия)
+
+Aim the hammer
+== Наводить молот
+
+Aim the pistol
+== Наводить пистолет
+
+Aim the shotgun
+== Наводить дробовик
+
+Aim the grenade
+== Наводить гранату
+
+Aim the laser
+== Наводить лазер
+
+How wide the field of view is around your aim, in degrees; 360 is a full circle
+== Ширина поля зрения вокруг прицела, градусы; 360 — полный круг
+
+How far the aim reaches along your facing, in world units
+== Насколько далеко достаёт прицел вдоль направления, единиц
+
+Field of view for the hook, in degrees
+== Поле зрения для крюка, градусы
+
+Field of view for the hammer, in degrees
+== Поле зрения для молота, градусы
+
+Field of view for the pistol, in degrees
+== Поле зрения для пистолета, градусы
+
+Field of view for the shotgun, in degrees
+== Поле зрения для дробовика, градусы
+
+Field of view for the grenade, in degrees
+== Поле зрения для гранаты, градусы
+
+Field of view for the laser, in degrees
+== Поле зрения для лазера, градусы
+
+Range for the hook, in world units
+== Дальность крюка, единиц
+
+Range for the hammer, in world units
+== Дальность молота, единиц
+
+Range for the pistol, in world units
+== Дальность пистолета, единиц
+
+Range for the shotgun, in world units
+== Дальность дробовика, единиц
+
+Range for the grenade, in world units
+== Дальность гранаты, единиц
+
+Range for the laser, in world units
+== Дальность лазера, единиц
+
+Which weapon the per-weapon aim settings edit
+== Какое оружие настраивают параметры прицела по оружию
+
+Aim the pistol for maximum knockback up close
+== Наводить пистолет для максимального отбрасывания вблизи
+
+Aim the shotgun for maximum knockback up close
+== Наводить дробовик для максимального отбрасывания вблизи
+
+Aim the grenade for maximum knockback up close
+== Наводить гранату для максимального отбрасывания вблизи
+
+Aim the laser for maximum knockback up close
+== Наводить лазер для максимального отбрасывания вблизи
+
+How close a target must be for the max-knockback aim, in world units
+== Насколько близко цель для прицела на максимальное отбрасывание, единиц
+
+Who the hook picks: 0 nearest the crosshair, 1 nearest you
+== Кого выбирает крюк: 0 ближе к прицелу, 1 ближе к вам
+
+Who the hammer picks: 0 nearest the crosshair, 1 nearest you
+== Кого выбирает молот: 0 ближе к прицелу, 1 ближе к вам
+
+Who the pistol picks: 0 nearest the crosshair, 1 nearest you
+== Кого выбирает пистолет: 0 ближе к прицелу, 1 ближе к вам
+
+Who the shotgun picks: 0 nearest the crosshair, 1 nearest you
+== Кого выбирает дробовик: 0 ближе к прицелу, 1 ближе к вам
+
+Who the grenade picks: 0 nearest the crosshair, 1 nearest you
+== Кого выбирает граната: 0 ближе к прицелу, 1 ближе к вам
+
+Who the laser picks: 0 nearest the crosshair, 1 nearest you
+== Кого выбирает лазер: 0 ближе к прицелу, 1 ближе к вам
+
+The hook's wedge: 0 off, 1 always, 2 only while hooking
+== Сектор крюка: 0 выкл., 1 всегда, 2 только при зацепе
+
+The hammer's wedge: 0 off, 1 always, 2 only in hand
+== Сектор молота: 0 выкл., 1 всегда, 2 только в руке
+
+The pistol's wedge: 0 off, 1 always, 2 only in hand
+== Сектор пистолета: 0 выкл., 1 всегда, 2 только в руке
+
+The shotgun's wedge: 0 off, 1 always, 2 only in hand
+== Сектор дробовика: 0 выкл., 1 всегда, 2 только в руке
+
+The grenade's wedge: 0 off, 1 always, 2 only in hand
+== Сектор гранаты: 0 выкл., 1 всегда, 2 только в руке
+
+The laser's wedge: 0 off, 1 always, 2 only in hand
+== Сектор лазера: 0 выкл., 1 всегда, 2 только в руке
+
+Opacity of the hook's wedge
+== Прозрачность сектора крюка
+
+Opacity of the hammer's wedge
+== Прозрачность сектора молота
+
+Opacity of the pistol's wedge
+== Прозрачность сектора пистолета
+
+Opacity of the shotgun's wedge
+== Прозрачность сектора дробовика
+
+Opacity of the grenade's wedge
+== Прозрачность сектора гранаты
+
+Opacity of the laser's wedge
+== Прозрачность сектора лазера
+
+Ignore anyone behind a wall
+== Игнорировать всех за стеной
+
+Draw the FOV wedge and mark whoever is picked
+== Рисовать сектор обзора и отмечать выбранного
+
+Who wins when several are in range: 0 nearest the crosshair, 1 simply nearest
+== Кто выигрывает при нескольких в зоне: 0 ближе к прицелу, 1 просто ближайший
+
+Let each weapon reach as far as it really does, not one shared range
+== Позволить каждому оружию использовать реальную дальность, не общую
+
+Lob a grenade over a wall when the flat shot is blocked
+== Забрасывать гранату через стену, если прямой выстрел закрыт
+
+Aim where the target will be, not where they are, for weapons with flight time
+== Целиться туда, где будет цель, а не где она сейчас, для оружия с временем полёта
+
+Stay on your current target instead of flicking to whoever is momentarily best
+== Оставаться на текущей цели, а не дёргаться к сиюминутно лучшей
+
+How much better a rival must be to steal the aim, as a percent
+== Насколько соперник должен быть лучше, чтобы перехватить прицел, в процентах
+
+Aim a laser off a wall to reach someone behind it
+== Наводить лазер через стену рикошетом, чтобы достать за ней
+
+How many aim angles to try when searching for a wall bounce
+== Сколько углов пробовать при поиске рикошета от стены
+
+Send a different DDNet version than this build's
+== Отправлять другую версию DDNet, чем у этой сборки
+
+The name sent with it; empty removes the build hash (the real tell)
+== Отправляемое имя; пустое убирает хеш сборки (главную улику)
+
+The version number sent; a DDNet server gates features on it
+== Отправляемый номер версии; сервер DDNet по нему открывает функции
+
+Send a different aim than the one you use; stands down on ticks a hook or shot goes out. Your crosshair never moves
+== Отправлять прицел, отличный от вашего; отключается на тиках броска или выстрела. Ваш прицел не двигается
+
+What the sent aim does: Mouse your real aim, Robot only when real, Spin, Random, Reverse, Nearest
+== Что делает отправляемый прицел: Мышь — ваш реальный, Робот — только когда реальный, Вращение, Случайно, Обратно, Ближайший
+
+How fast the turning modes turn, in degrees per second (per tick, not per frame)
+== Скорость вращающихся режимов, градусы/сек (за тик, не за кадр)
+
+Send a packet whenever the fake aim moves (off by default)
+== Отправлять пакет при каждом движении ложного прицела (по умолчанию выкл.)
+
+Render your own tee from the aim you send, so it looks as others see it
+== Отрисовывать вашего ти по отправляемому прицелу, как видят другие
+
+Hold the tee on a marker you steer with WASD or by dragging with the left mouse
+== Удерживать ти на маркере, управляемом WASD или перетаскиванием ЛКМ
+
+How fast WASD moves the marker, in world units per second
+== Как быстро WASD двигает маркер, единиц/сек
+
+How many ticks ahead each candidate move is simulated
+== На сколько тиков вперёд просчитывается каждый ход-кандидат
+
+How finely surroundings are scanned for surfaces to hold on to
+== Насколько детально сканируется окружение на поверхности для зацепа
+
+Report how long planning takes and how many ticks it simulates, to the console
+== Выводить в консоль время планирования и число просчитанных тиков
+
+Ignore entities beyond this range; 0 leaves only your tee and the map, in world units
+== Игнорировать объекты за этим радиусом; 0 — только ваш ти и карта, единиц
+
+Colour of the fly mode marker
+== Цвет маркера режима полёта
+
+Route around walls when the marker cannot be reached in a straight line
+== Обходить стены, когда до маркера нет прямой линии
+
+Cap on tiles the route search may examine before giving up
+== Лимит тайлов, которые поиск маршрута проверяет до отказа
+
+Draw the route on screen
+== Рисовать маршрут на экране
+
+Ticks to keep simulating past a move, rejecting it if nothing survives (off by default)
+== Тики симуляции после хода, отклоняя его, если ничто не выживает (по умолчанию выкл.)
+
+Path colour close to the tee
+== Цвет пути рядом с ти
+
+Path colour at the far end
+== Цвет пути на дальнем конце
+
+Path colour while the tee is frozen
+== Цвет пути, пока ти заморожен
+
+Colour of the kill marker
+== Цвет метки убийства
+
+Ring around the tee
+== Кольцо вокруг ти
+
+A ring around your tee while god mode is acting. Turn it off for a cleaner view.
+== Кольцо вокруг вашего ти, пока действует god mode. Отключите для более чистого вида.
+
+Show the ring while it acts
+== Показывать кольцо во время действия
+
+Last resort: bounce a laser off a wall to unfreeze
+== Крайняя мера: отразить лазер от стены, чтобы разморозиться
+
+Route search effort (tiles)
+== Усилие поиска маршрута (тайлы)
+
+Report planning time to the console
+== Выводить время планирования в консоль
+
+Null backdrop behind the menus
+== Фон Null за меню
+
+Your client is out of date — update at nullclient.fun
+== Ваш клиент устарел — обновите на nullclient.fun
+
+A new version (%s) is available — nullclient.fun
+== Доступна новая версия (%s) — nullclient.fun
+
+Auto hammer
+== Автомолот
+
+With a hammer in hand, swing at whoever comes into its reach.
+== Пока в руках молот, бьёт любого, кто входит в радиус удара.
+
+Bind a hold key under Binds to swing only while it is held; the key keeps its own job (hold mouse1 and it both fires and hammers). With no key bound it swings whenever a hammer is in hand.
+== Назначьте клавишу удержания в «Binds», чтобы бить только пока она зажата; клавиша сохраняет свою функцию (зажмите mouse1 — и стреляет, и бьёт молотом). Без клавиши бьёт всегда, пока в руках молот.
+
+Quick stop
+== Быстрая остановка
+
+Let go of the movement keys and stop dead instead of sliding.
+== Отпустите клавиши движения и мгновенно остановитесь, а не скользите.
+
+Only on the ground, never in the air
+== Только на земле, никогда в воздухе
+
+Auto hammer (hold)
+== Автомолот (удержание)
+
+Aimbot hook
+== Крюк аимбота
+
+Touch
+== Касание
+
+Near
+== Близко
+
+Max
+== Макс
+
+Hold key
+== Клавиша удержания
+
+With no key bound it swings whenever a hammer is in hand. The key keeps its own job - hold mouse1 and it both fires and hammers.
+== Без клавиши бьёт всегда, пока в руках молот. Клавиша сохраняет свою функцию - зажмите mouse1, и стреляет, и бьёт молотом.
+
+%s settings
+== Настройки: %s
+
+Aim this weapon
+== Наводить это оружие
+
+Reach out to
+== Дальность
+
+On-screen range ring
+== Кольцо дальности на экране
+
+Ring opacity
+== Прозрачность кольца
+
+Shared by all weapons
+== Общее для всех орудий
+
+Fly
+== Полёт
+
+Calculation depth
+== Глубина вычислений
+
+The base variables behind every calculation. Raising these can cause serious FPS drops.
+== Базовые переменные всех вычислений. Их повышение может вызвать серьёзные просадки FPS.
+
+Shows what Avoid Freeze and the aimbot are calculating and thinking, live. For developers.
+== Показывает, что Avoid Freeze и аимбот вычисляют и «думают» в реальном времени (для разработчиков).
+
+Writes a very detailed report of your deaths and saves it. For developers.
+== Составляет и сохраняет очень подробный отчёт о ваших смертях. Для разработчиков.
+
+Clear
+== Очистить
+
+Record
+== Запись
+
+Stop
+== Стоп
+
+Stop recording
+== Остановить запись
+
+Open editor
+== Открыть редактор
+
+Close editor
+== Закрыть редактор
+
+Files
+== Файлы
+
+Keys
+== Клавиши
+
+Record & play
+== Запись и воспроизведение
+
+Playback
+== Воспроизведение
+
+Lines · what to draw
+== Линии · что рисовать
+
+Timing · how it moves
+== Тайминг · как движется
+
+Editor keys
+== Клавиши редактора
+
+More keys
+== Ещё клавиши
+
+Fake aim while a TAS plays
+== Фейк-эйм во время проигрывания TAS
+
+Loop when it finishes
+== Зациклить по завершении
+
+Restart if the tee freezes
+== Перезапуск при заморозке
+
+Send /kill after a run
+== Отправлять /kill после прогона
+
+Route on the map
+== Маршрут на карте
+
+Look-ahead (drift + fire)
+== Предпросмотр (дрейф + выстрел)
+
+Hook preview
+== Предпросмотр крюка
+
+Weapon laser (always on)
+== Лазер оружия (всегда)
+
+Predict fire in the look-ahead
+== Учитывать стрельбу в предпросмотре
+
+Orange ring at the run's end
+== Оранжевое кольцо в конце прогона
+
+Coast
+== Дрейф
+
+Reach
+== Дальность
+
+Rewind
+== Откат
+
+Auto-rewind on freeze
+== Авто-откат при заморозке
+
+Give the sandbox all weapons
+== Дать песочнице всё оружие
+
+Saved runs (%d)
+== Сохранённые прогоны (%d)
+
+The working run autosaves on its own every few seconds. Give it a name and Save to keep a copy; the list shows each run's length and the weapons it uses.
+== Текущий прогон сам сохраняется каждые несколько секунд. Задайте имя и нажмите «Сохранить», чтобы оставить копию; список показывает длительность каждого прогона и используемое оружие.
+
+Control menu
+== Меню управления
+
+Keep flowing (hold)
+== Держать течение времени (удерж.)
+
+Seek back
+== Перемотать назад
+
+Seek forward
+== Перемотать вперёд
+
+Weapon laser (hold)
+== Лазер оружия (удерж.)
+
+Speed up
+== Быстрее
+
+Speed down
+== Медленнее
+
+Boost aim assist
+== Помощник буста
+
+Play / stop (on server)
+== Играть / стоп (на сервере)
+
+tool-assisted speedrun recorder
+== запись прохождения с инструментами (TAS)
+
+recording · %d frames
+== запись · %d кадров
+
+armed · walk to the green start
+== готово · дойдите до зелёного старта
+
+editing · tick %d / %d
+== редактирование · тик %d / %d
+
+playing · %d / %d
+== воспроизведение · %d / %d
+
+paused · %d / %d
+== пауза · %d / %d
+
+ready · %d frames
+== готово · %d кадров
+
+empty
+== пусто
+
+Draw the recorded route and its start on the map
+== Рисовать записанный маршрут и его старт на карте
+
+Editor: draw the orange ring where the run ends (off by default)
+== Редактор: рисовать оранжевое кольцо в конце прогона (по умолчанию выкл.)
+
+Loop a playback back to the start when it finishes
+== По завершении воспроизведения начинать заново
+
+Restart the run if the tee freezes during playback
+== Перезапускать прогон, если ти замерзает при воспроизведении
+
+Send /kill after a playback finishes
+== Отправлять /kill после завершения воспроизведения
+
+How many ticks a second the editor advances while a step key is held
+== Сколько тиков в секунду продвигает редактор при удержании клавиши шага
+
+How many ticks the editor keeps time flowing after you stop steering, before it freezes
+== Сколько тиков редактор продолжает время после отпускания, прежде чем замереть
+
+Editor: when the tee slides into freeze, jump back so you can retry the move
+== Редактор: при попадании в заморозку откатывать, чтобы повторить манёвр
+
+Editor: how many ticks to jump back when the auto-rewind on freeze fires
+== Редактор: на сколько тиков откатывать при срабатывании авто-отката на заморозке
+
+Editor: draw the look-ahead line (where the current input carries the tee, plus each shot's flight)
+== Редактор: рисовать линию предпросмотра (куда ведёт текущий ввод, а также полёт каждого выстрела)
+
+Editor: give the sandbox tee every weapon with endless ammo (for building weapon runs)
+== Редактор: выдать ти в песочнице всё оружие с бесконечным боезапасом (для оружейных прогонов)
+
+Editor: the look-ahead assumes you keep firing the held weapon, so its knockback shows in the path
+== Редактор: предпросмотр считает, что вы стреляете непрерывно, поэтому виден отброс на пути
+
+Editor: show where a hook thrown along your aim would grab, and the swing it pulls you into
+== Редактор: показывать, куда зацепится крюк по наводке и в какую дугу вас качнёт
+
+Editor: always draw the held weapon's aim line (otherwise it shows only while you hold S)
+== Редактор: всегда рисовать линию прицела оружия (иначе видна только при удержании S)
+
+Editor: how far ahead (in ticks) the drift/hook/fire look-ahead paths are drawn
+== Редактор: насколько далеко (в тиках) рисуются линии предпросмотра дрейфа/крюка/выстрела
+
+finish %.2fs
+== финиш %.2fs
+
+With a grenade in hand, answer whoever HAMMERS you - throw a shell dead on them for maximum knockback
+== С гранатой в руке ответь тому, кто бьёт тебя МОЛОТОМ - брось снаряд прямо в него для максимальной отдачи
+
+How many ticks after the hammer hit to throw the grenade (0 = at once)
+== Через сколько тиков после удара молотом бросать гранату (0 = сразу)
+
+How near the hammerer must be (in tiles) to count and be answered
+== Насколько близко должен быть ударивший (в тайлах), чтобы засчитаться и получить ответ
+
+How hard a knock counts as a hammer hit (velocity jump); lower is more sensitive
+== Насколько сильным должен быть толчок, чтобы считаться ударом молота (скачок скорости); меньше = чувствительнее
+
+While a hammer is in hand, swing it at whoever comes into its reach
+== Пока молот в руке, бить всякого, кто входит в его досягаемость
+
+How close a target must be to trigger the swing: 0 touch (true hit range), 1 near, 2 max
+== Насколько близко должна быть цель для удара: 0 касание (истинная дистанция удара), 1 близко, 2 макс
+
+Key held to auto-grenade; the key keeps its own bind (0 = unbound, always on)
+== Клавиша для авто-гранаты; клавиша сохраняет свою привязку (0 = не назначено, всегда включено)
+
+Key held to auto-hammer; the key keeps its own bind (0 = unbound, always on)
+== Клавиша для авто-молота; клавиша сохраняет свою привязку (0 = не назначено, всегда включено)
+
+After an auto-weapon switch, switch back to the weapon you were holding
+== После авто-смены оружия вернуться к оружию, которое было в руках
+
+Show a small panel of which Null features are active while you play
+== Показывать небольшую панель с активными функциями Null во время игры
+
+Where the status panel sits: 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right, 4 middle-left, 5 middle-right
+== Где расположена панель статуса: 0 сверху-слева, 1 сверху-справа, 2 снизу-слева, 3 снизу-справа, 4 по центру слева, 5 по центру справа
+
+Panel mode: 0 lists only the features that are on, adding and removing them as you toggle; 1 lists every feature with an on/off mark
+== Режим панели: 0 показывает только включённые функции, добавляя и убирая их при переключении; 1 показывает все функции с отметкой вкл/выкл
+
+Size of the status panel, in percent
+== Размер панели статуса, в процентах
+
+Kill your horizontal momentum the instant you let go of the movement keys
+== Гасить горизонтальный импульс в тот же миг, как отпускаешь клавиши движения
+
+Only stop while on the ground, never in the air
+== Останавливаться только на земле, никогда в воздухе
+
+How the victim is chosen: 0 nearest the crosshair, 1 nearest you, 2 nearest on the war list, 3 nearest on the attack list
+== Как выбирается жертва: 0 ближайшая к прицелу, 1 ближайшая к тебе, 2 ближайшая из списка войны, 3 ближайшая из списка атаки
+
+How the dummy's victim is chosen: 0 nearest it, 1 nearest on the war list, 2 nearest on the attack list, 3 the same target as your main serial killer
+== Как выбирается жертва дамми: 0 ближайшая к нему, 1 ближайшая из списка войны, 2 ближайшая из списка атаки, 3 та же цель, что у основного serial killer
+
+Key held to balance-bot; drives a/d to line your X up with the nearest player (the key keeps its own bind)
+== Клавиша для balance-bot; ведёт a/d, чтобы выровнять твой X с ближайшим игроком (клавиша сохраняет свою привязку)
+
+Ping compensation (experimental): lead every target by up to this many ticks, scaled to your live ping, so aim and hooks connect through latency (0 = off)
+== Компенсация пинга (экспериментально): вести каждую цель максимум на столько тиков, масштабируясь по твоему пингу, чтобы прицел и крюк попадали сквозь задержку (0 = выкл)
+
+Balance bot (hold)
+== Balance bot (удержание)
+
+Ping compensation (ticks)
+== Компенсация пинга (тики)

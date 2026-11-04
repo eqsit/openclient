@@ -767,6 +767,11 @@ MACRO_CONFIG_INT(PilotBudgetMs, openkrx_pilot_budget_ms, 8, 0, 1000, CFGFLAG_CLI
 #include "krx_new_tas_config.h"
 #include "krx_new_misc_visuals_config.h"
 #include "krx_new_classic_config.h"
+#include "nullclient_config.h"
+#include "nullclient_features_config.h"
+MACRO_CONFIG_INT(OpenKrxAvoidProvider, openkrx_profile, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Whole client profile: 0 KRX, 1 NullClient; inactive profile never processes input")
+MACRO_CONFIG_INT(NullRocketRestoreWeapon, openkrx_null_rocket_restore_weapon, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Return to the previous weapon after a confirmed NullClient grenade rescue or a safe cancellation")
+MACRO_CONFIG_INT(NullPreserveJump, openkrx_null_preserve_jump, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Try a rescue retaining a pending manual jump before accepting NullClient's jump suppression (0 = original Null policy)")
 MACRO_CONFIG_INT(KrxPredictionTeleports, krx_predictionteleports, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Prediction teleport support on/off")
 MACRO_CONFIG_INT(KrxPredictionAdvancedSettings, krx_predictionadvancedsettings, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Show advanced prediction settings")
 MACRO_CONFIG_INT(KrxPredictionPlayers, krx_predictionplayers, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Prediction player collision loop on/off")

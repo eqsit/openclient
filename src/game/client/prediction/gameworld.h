@@ -86,6 +86,7 @@ public:
 		bool m_PredictEvents;
 		bool m_OldLaser;
 		// Recovered KRX speculative physics; ordinary client prediction is unchanged.
+		bool m_NullPrediction = false; // Never consume KRX global physics options.
 		bool m_KrxPrediction = false;
 		bool m_KrxAvoidDeath = false;
 		bool m_KrxAvoidTeles = false;

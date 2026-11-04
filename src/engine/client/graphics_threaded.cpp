@@ -17,6 +17,7 @@
 #include <engine/gfx/image_manipulation.h>
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/jobs.h>
 #include <engine/storage.h>
 
@@ -1213,7 +1214,7 @@ int CGraphics_Threaded::CreateRectQuadContainer(float x, float y, float w, float
 // status colors and text retain their own colors.
 static ColorRGBA KrxMenuColor(ColorRGBA Color, float FrameTime)
 {
-	if(!g_Config.m_KrxCustomTheme)
+	if(!(OpenKrx::KrxProfileActive() && g_Config.m_KrxCustomTheme))
 		return Color;
 	const bool White = Color.r == 1.0f && Color.g == 1.0f && Color.b == 1.0f;
 	const bool Black = Color.r == 0.0f && Color.g == 0.0f && Color.b == 0.0f;
@@ -1244,7 +1245,7 @@ void CGraphics_Threaded::DrawRect(float x, float y, float w, float h, ColorRGBA 
 {
 	// Native KRX themes the single-color graphics rectangle entrypoint,
 	// including direct graphics consumers. Four-corner gradients are unmodified.
-	if(g_Config.m_KrxCustomTheme)
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxCustomTheme))
 	{
 		IClient *pClient = Kernel() ? Kernel()->RequestInterface<IClient>() : nullptr;
 		Color = KrxMenuColor(Color, pClient ? pClient->RenderFrameTime() : 1.0f / 60.0f);
@@ -2156,7 +2157,7 @@ int CGraphics_Threaded::IssueInit()
 		Flags |= IGraphicsBackend::INITFLAG_VSYNC;
 	}
 
-	const int Result = m_pBackend->Init("OpenKRX-new", &g_Config.m_GfxScreen, &g_Config.m_GfxScreenWidth, &g_Config.m_GfxScreenHeight, &g_Config.m_GfxScreenRefreshRate, &g_Config.m_GfxFsaaSamples, Flags, &m_DesktopSize.x, &m_DesktopSize.y, &m_ScreenWidth, &m_ScreenHeight, m_pStorage);
+	const int Result = m_pBackend->Init("OpenClient", &g_Config.m_GfxScreen, &g_Config.m_GfxScreenWidth, &g_Config.m_GfxScreenHeight, &g_Config.m_GfxScreenRefreshRate, &g_Config.m_GfxFsaaSamples, Flags, &m_DesktopSize.x, &m_DesktopSize.y, &m_ScreenWidth, &m_ScreenHeight, m_pStorage);
 	m_DrawableWidth = m_ScreenWidth;
 	m_DrawableHeight = m_ScreenHeight;
 	AddBackEndWarningIfExists();

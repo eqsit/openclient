@@ -5,6 +5,7 @@
 #include "character.h"
 
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <generated/protocol.h>
 
@@ -34,7 +35,7 @@ void CPickup::Tick()
 			switch(m_Type)
 			{
 			case POWERUP_FREEZE:
-				if(!GameWorld()->m_WorldConfig.m_PredictDDRace || !g_Config.m_KrxPredictionHeart)
+				if(!GameWorld()->m_WorldConfig.m_PredictDDRace || (!GameWorld()->m_WorldConfig.m_NullPrediction && OpenKrx::KrxProfileActive() && !g_Config.m_KrxPredictionHeart))
 					continue;
 				// 21bb90/218310 only changes the freeze state for heart pickups.
 				pChr->Freeze();

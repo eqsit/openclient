@@ -426,6 +426,13 @@ namespace OpenKrx
 
 	CNetObj_PlayerInput CRocketSave::AdjustInput(CGameClient *pGameClient, CNetObj_PlayerInput Input, int ClientId, bool ManualJump)
 	{
+		if(g_Config.m_OpenKrxAvoidProvider == 1)
+		{
+			if(m_GeneratedFire >= 0 && Input.m_Fire == m_GeneratedFire && (Input.m_Fire & 1))
+				Input.m_Fire = (Input.m_Fire + 1) & INPUT_STATE_MASK;
+			OnReset();
+			return Input;
+		}
 		const auto *pCharacter = pGameClient->KrxGameWorld().GetCharacterById(ClientId);
 		const bool Valid = g_Config.m_RocketRestoreWeapon && g_Config.m_KrxGrenadeSaver && pCharacter &&
 				   pGameClient->Client()->State() == IClient::STATE_ONLINE &&

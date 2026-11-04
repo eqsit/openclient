@@ -43,6 +43,7 @@
 #include <engine/shared/assertion_logger.h>
 #include <engine/shared/compression.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/demo.h>
 #include <engine/shared/fifo.h>
 #include <engine/shared/filecollection.h>
@@ -743,7 +744,7 @@ void CClient::Connect(const char *pAddress, const char *pPassword)
 	m_aInputtimeMarginGraphs[CONN_MAIN].Init(-150.0f, 150.0f);
 	m_aGametimeMarginGraphs[CONN_MAIN].Init(-150.0f, 150.0f);
 
-	if(g_Config.m_KrxRandomTimeoutSeed)
+	if(OpenKrx::KrxProfileActive() ? g_Config.m_KrxRandomTimeoutSeed : g_Config.m_NullRandomTimeoutSeed)
 		GenerateTimeoutSeed();
 	GenerateTimeoutCodes(aConnectAddrs, NumConnectAddrs);
 }
@@ -1984,7 +1985,7 @@ void CClient::ProcessServerPacket(CNetChunk *pPacket, int Conn, bool Dummy)
 			{
 				return;
 			}
-			if(!g_Config.m_KrxSendChecksum)
+			if(!OpenKrx::KrxProfileActive() || !g_Config.m_KrxSendChecksum)
 				return;
 			int ResultCheck = HandleChecksum(Conn, *pUuid, &Unpacker);
 			if(ResultCheck)
@@ -4443,7 +4444,7 @@ int CClient::HandleChecksum(int Conn, CUuid Uuid, CUnpacker *pUnpacker)
 	int Length = pUnpacker->GetInt();
 	// Original 2bb060 logs decimal byte values separated by comma + space.
 	const auto Log = [&](int Result, const SHA256_DIGEST *pDigest = nullptr) {
-		if(g_Config.m_KrxChecksumLog)
+		if(OpenKrx::KrxProfileActive() && g_Config.m_KrxChecksumLog)
 		{
 			char aLine[512];
 			const auto Print = [&](const char *pLabel, int Value) {
@@ -5261,7 +5262,7 @@ int main(int argc, const char **argv)
 		pConsole->ExecuteFile(AUTOEXEC_FILE, IConsole::CLIENT_ID_UNSPECIFIED);
 	}
 
-	pDiscord->Initialize(g_Config.m_KrxDiscordRpc != 0, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
+	pDiscord->Initialize(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc != 0, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
 
 	if(g_Config.m_ClConfigVersion < 1)
 	{

@@ -5,6 +5,7 @@
 #include <engine/demo.h>
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <generated/client_data.h>
 #include <generated/protocol.h>
@@ -84,7 +85,8 @@ void CItems::RenderProjectile(const CProjectileData *pCurrent, int ItemId, const
 		}
 	}
 
-	GameClient()->m_MediumVisuals.RenderBulletLines(*pCurrent, Curvature, Speed, Ct);
+	if(OpenKrx::KrxProfileActive())
+		GameClient()->m_MediumVisuals.RenderBulletLines(*pCurrent, Curvature, Speed, Ct);
 	vec2 Pos = CalcPos(pCurrent->m_StartPos, pCurrent->m_StartVel, Curvature, Speed, Ct);
 	if(!ScreenRect.Inside(Pos))
 		return;

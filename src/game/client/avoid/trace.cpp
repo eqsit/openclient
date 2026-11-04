@@ -305,6 +305,40 @@ namespace OpenKrx
 		Int(J, "snap_input_emitted", Emitted);
 		Int(J, "input_pipeline_ran", PipelineRan);
 		Int(J, "physical_jump", pClient->m_Controls.m_PhysicalJump);
+		Int(J, "physical_hook", pClient->m_Controls.m_aPhysicalHook[Slot]);
+		Int(J, "avoid_provider", g_Config.m_OpenKrxAvoidProvider);
+		if(g_Config.m_OpenKrxAvoidProvider == 1)
+		{
+			const auto &Controller = pClient->m_NullClient.Controller(Slot);
+			const auto &Output = Controller.Output();
+			J.WriteAttribute("nullclient");
+			J.BeginObject();
+			Str(J, "stage", Controller.Stage());
+			Int(J, "decision_tick", Controller.LastTick());
+			Int(J, "baseline_life", Controller.BaselineLife());
+			Int(J, "reaction", Controller.Reaction());
+			Int(J, "active", Controller.Active());
+			Int(J, "has_plan", Output.m_HasPlan);
+			Int(J, "weapon_action", Output.m_WeaponAction);
+			Int(J, "has_veto", Output.m_HasVeto);
+			Int(J, "veto_jump", Output.m_VetoJump);
+			Int(J, "veto_hook", Output.m_VetoHook);
+			Int(J, "veto_fire", Output.m_VetoFire);
+			Int(J, "hook_hold_ticks", Output.m_HookTicks);
+			Int(J, "cut_ticks", Output.m_CutTicks);
+			Int(J, "cut_mask", Output.m_CutMask);
+			Input(J, "plan", Output.m_Plan);
+			J.WriteAttribute("settings");
+			J.BeginObject();
+#define MACRO_CONFIG_INT(Name, ScriptName, Def, Min, Max, Save, Desc) Int(J, #ScriptName, g_Config.m_##Name);
+#include <engine/shared/nullclient_config.h>
+#undef MACRO_CONFIG_INT
+			Int(J, "openkrx_null_rocket_restore_weapon", g_Config.m_NullRocketRestoreWeapon);
+			Int(J, "openkrx_null_preserve_jump", g_Config.m_NullPreserveJump);
+			J.EndObject();
+			J.EndObject();
+		}
+
 		Input(J, "raw", Raw);
 		Input(J, "after_avoid", AfterAvoid);
 		Input(J, "after_rocket", Final);

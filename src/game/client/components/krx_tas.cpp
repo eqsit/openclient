@@ -12,6 +12,7 @@
 #include <engine/http.h>
 #include <engine/serverbrowser.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 #include <engine/storage.h>
 
 #include <game/client/gameclient.h>
@@ -63,7 +64,7 @@ namespace OpenKrx
 		}
 	}
 
-	bool CKrxTas::Active() const { return g_Config.m_KrxRecordReplay && m_pWorld != nullptr; }
+	bool CKrxTas::Active() const { return OpenKrx::KrxProfileActive() && g_Config.m_KrxRecordReplay && m_pWorld != nullptr; }
 	CKrxTas::~CKrxTas()
 	{
 		CancelPathFinding();
@@ -257,6 +258,8 @@ namespace OpenKrx
 
 	bool CKrxTas::ProcessInput()
 	{
+		if(!OpenKrx::KrxProfileActive())
+			return false;
 		if(Client()->State() != IClient::STATE_ONLINE)
 			return false;
 		const int Slot = g_Config.m_ClDummy;

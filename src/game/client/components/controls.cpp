@@ -9,6 +9,7 @@
 
 #include <engine/client.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <generated/protocol.h>
 
@@ -17,6 +18,7 @@
 #include <game/client/components/menus.h>
 #include <game/client/components/scoreboard.h>
 #include <game/client/gameclient.h>
+#include <game/client/nullclient/input_restore.h>
 #include <game/client/prediction/entities/character.h>
 #include <game/collision.h>
 #include <game/localization.h>
@@ -153,6 +155,7 @@ void CControls::ConKeyInputSet(IConsole::IResult *pResult, void *pUserData)
 	if(pResult->GetInteger(0))
 	{
 		pSet->m_pControls->GameClient()->m_RocketSave.CancelWeaponRestore();
+		pSet->m_pControls->GameClient()->m_NullClient.CancelWeaponReturn(g_Config.m_ClDummy);
 		*pSet->m_apVariables[g_Config.m_ClDummy] = pSet->m_Value;
 	}
 }
@@ -161,7 +164,10 @@ void CControls::ConKeyInputNextPrevWeapon(IConsole::IResult *pResult, void *pUse
 {
 	CInputSet *pSet = (CInputSet *)pUserData;
 	if(pResult->GetInteger(0))
+	{
 		pSet->m_pControls->GameClient()->m_RocketSave.CancelWeaponRestore();
+		pSet->m_pControls->GameClient()->m_NullClient.CancelWeaponReturn(g_Config.m_ClDummy);
+	}
 	ConKeyInputCounter(pResult, pSet);
 	pSet->m_pControls->m_aInputData[g_Config.m_ClDummy].m_WantedWeapon = 0;
 }
@@ -283,9 +289,11 @@ void CControls::OnMessage(int Msg, void *pRawMsg)
 
 int CControls::SnapInput(int *pData)
 {
+	GameClient()->SyncFeatureProfile();
+	OpenKrx::NullClient::CScopedInputRestore NullInputRestore;
 	// 23e670 -> 2f7650: playback bypasses the live input/bot pipeline and
 	// always supplies a full input, including unchanged frames.
-	if(g_Config.m_KrxLoadReplay && !g_Config.m_KrxRecordReplay)
+	if(OpenKrx::KrxProfileActive() && g_Config.m_KrxLoadReplay && !g_Config.m_KrxRecordReplay)
 	{
 		// A completed Fent search must be imported before playback can inspect
 		// the replay. Otherwise this branch only sees its neutral prefix.
@@ -297,9 +305,11 @@ int CControls::SnapInput(int *pData)
 		mem_copy(pData, &Input, sizeof(Input));
 		return sizeof(Input);
 	}
-	GameClient()->m_KrxMiscPreTas.BeforeSnapInput();
+	if(OpenKrx::KrxProfileActive())
+		GameClient()->m_KrxMiscPreTas.BeforeSnapInput();
 	// Original 23e670 runs AutoTeam before rebuilding player flags.
-	GameClient()->m_KrxMisc.AutoTeam(GameClient());
+	if(OpenKrx::KrxProfileActive())
+		GameClient()->m_KrxMisc.AutoTeam(GameClient());
 	CNetObj_PlayerInput TraceRaw = {};
 	CNetObj_PlayerInput TraceAvoid = {};
 	bool TraceEvaluated = false;
@@ -308,7 +318,8 @@ int CControls::SnapInput(int *pData)
 	// Explicit PLAYING also handles menu -> chat without retaining IN_MENU.
 	// Extend this opt-in input gate to menus so the normal helper pipeline,
 	// including Avoid and Rocket Save, keeps running while the UI owns keys.
-	if(g_Config.m_KrxHideBubble)
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxHideBubble) ||
+		(OpenKrx::NullProfileActive() && ((GameClient()->m_Chat.IsActive() && g_Config.m_NullHideChatBubble) || (GameClient()->m_Menus.IsActive() && g_Config.m_NullPlayInMenu))))
 		m_aInputData[g_Config.m_ClDummy].m_PlayerFlags = PLAYERFLAG_PLAYING;
 	else if(GameClient()->m_Chat.IsActive())
 		m_aInputData[g_Config.m_ClDummy].m_PlayerFlags = PLAYERFLAG_CHATTING;
@@ -443,87 +454,97 @@ int CControls::SnapInput(int *pData)
 			m_aInputData[g_Config.m_ClDummy].m_TargetY = (int)(std::cos(t * 3) * 100.0f);
 		}
 
-		// KRX's overridden SnapInput (0x14023e670) runs Avoid after preparing
-		// this tick's direction/aim and dummy controls, before comparing with
-		// the last sent input. Running it earlier loses direction and aim;
-		// running it after SnapInput can skip a necessary rescue packet.
-		const int KrxSlot = g_Config.m_ClDummy;
-		const int KrxClientId = GameClient()->m_aLocalIds[KrxSlot];
-		// The reference reads the authoritative world here. HookTick from the
-		// prediction can be ahead by several ticks and release the hook early.
-		CCharacter *pKrxCharacter = GameClient()->m_GameWorld.GetCharacterById(KrxClientId);
-		const CCharacterCore *pKrxCore = pKrxCharacter ? pKrxCharacter->Core() : nullptr;
-		GameClient()->m_PreTasVisuals.PredictTrajectory();
-		m_aKrxInput[0].ApplyMoonwalk(m_aInputData[KrxSlot], m_aLastData[KrxSlot],
-			m_aInputDirectionLeft[KrxSlot] != 0, m_aInputDirectionRight[KrxSlot] != 0, g_Config.m_KrxMoonwalk);
-		GameClient()->m_KrxMovementPreTas.GhostMove(m_aInputData[KrxSlot]);
-		m_aInputData[KrxSlot] = GameClient()->m_MediumBots.HookRide(GameClient(), m_aInputData[KrxSlot]);
-		m_aInputData[KrxSlot] = GameClient()->m_MediumBots.HookNearest(GameClient(), m_aInputData[KrxSlot]);
-		GameClient()->m_KrxMisc.BeforeAvoid(GameClient());
-		m_aKrxInput[0].ApplyAutoFire(m_aInputData[KrxSlot], g_Config.m_KrxAutoFire);
-		m_aKrxInput[0].ApplyAutoRehook(m_aInputData[KrxSlot],
-			pKrxCore ? pKrxCore->HookedPlayer() : -1, pKrxCore ? pKrxCore->m_HookTick : 0,
-			g_Config.m_KrxAutoRehook, pKrxCharacter != nullptr);
-		GameClient()->m_RescueBots.AdjustDummyFly(GameClient());
-		GameClient()->m_KrxMiscPreTas.VoteBeforeHookSpam();
-		m_aKrxInput[0].ApplyHookSpam(m_aInputData[KrxSlot], g_Config.m_KrxHookSpam);
-		m_aInputData[KrxSlot] = GameClient()->m_RescueBots.AdjustAutoShotgun(GameClient(), m_aInputData[KrxSlot], KrxClientId);
-		m_aInputData[KrxSlot] = GameClient()->m_MediumBots.JetRide(GameClient(), m_aInputData[KrxSlot]);
-		m_aInputData[KrxSlot] = GameClient()->m_RescueBots.AdjustAutoAled(GameClient(), m_aInputData[KrxSlot], KrxClientId);
-		GameClient()->m_KrxAutoEdgeNew.AutoEdge(m_aInputData[KrxSlot]);
-		GameClient()->m_MediumVisuals.UpdateIdentity();
-		GameClient()->m_KrxMiscPreTas.BeforeInput();
-		// Settings are current, while AutoDrag's target world is from the preceding refresh.
-		auto AimbotSettings = CurrentKrxAimbotSettings();
-		GameClient()->m_Aimbot.SetSettings(AimbotSettings);
-		TracePipelineStart = g_Config.m_AvoidDebug ? time_get_nanoseconds().count() : 0;
-		TraceRaw = m_aInputData[g_Config.m_ClDummy];
-		TraceEvaluated = true;
-		m_aInputData[g_Config.m_ClDummy] = GameClient()->m_Avoid.AdjustInput(
-			GameClient(), m_aInputData[g_Config.m_ClDummy],
-			GameClient()->m_aLocalIds[g_Config.m_ClDummy], m_aMousePos[g_Config.m_ClDummy], m_aPhysicalHook[g_Config.m_ClDummy] != 0);
-		TraceAvoid = m_aInputData[g_Config.m_ClDummy];
-		m_aInputData[KrxSlot] = GameClient()->m_PilotBot.AdjustInput(GameClient(), m_aInputData[KrxSlot], KrxClientId);
-		m_aInputData[KrxSlot] = GameClient()->m_ClassicAvoid.AdjustInput(GameClient(), m_aInputData[KrxSlot], KrxClientId);
-		// 26d2d0 runs Avoid before the main aimbot. AutoDrag above consumes
-		// the retained private world from the preceding aimbot refresh.
-		// Preserve that order before fake aim and the later Rocket Save pass.
-		const auto AimDecision = GameClient()->m_Aimbot.AdjustInput(GameClient(), m_aInputData[KrxSlot], KrxClientId, m_aMousePos[KrxSlot], AimbotSettings);
-		m_aInputData[KrxSlot] = AimDecision.m_Input;
-		if(AimDecision.m_ChangeVisibleAim)
-			m_aMousePos[KrxSlot] = AimDecision.m_VisibleAim;
-		m_aInputData[KrxSlot] = GameClient()->m_MediumBots.FakeAim(GameClient(), m_aInputData[KrxSlot]);
-		GameClient()->m_KrxMisc.AfterAvoid(GameClient());
-		m_aInputData[KrxSlot] = GameClient()->m_RescueBots.AdjustAutoUnfreeze(GameClient(), m_aInputData[KrxSlot], KrxClientId);
-		m_aInputData[KrxSlot] = GameClient()->m_MediumBots.Balance(GameClient(), m_aInputData[KrxSlot]);
-		// Original 26d2d0 applies PixelWalk and QuickStop after Avoid.
-		bool KrxGrounded = false;
-		if(g_Config.m_KrxQuickStop && g_Config.m_KrxQuickStopGrounded && KrxClientId >= 0 && KrxClientId < MAX_CLIENTS)
+		if(OpenKrx::KrxProfileActive())
 		{
-			const vec2 Pos = GameClient()->m_aClients[KrxClientId].m_Predicted.m_Pos;
-			KrxGrounded = Collision()->CheckPoint(round_to_int(Pos.x + 14.0f), round_to_int(Pos.y + 19.0f)) ||
-				      Collision()->CheckPoint(round_to_int(Pos.x - 14.0f), round_to_int(Pos.y + 19.0f)) ||
-				      (Collision()->GetMoveRestrictions(Pos + vec2(0, 18.0f), 0.0f) & CANTMOVE_DOWN);
+			// KRX's overridden SnapInput (0x14023e670) runs Avoid after preparing
+			// this tick's direction/aim and dummy controls, before comparing with
+			// the last sent input. Running it earlier loses direction and aim;
+			// running it after SnapInput can skip a necessary rescue packet.
+			const int KrxSlot = g_Config.m_ClDummy;
+			const int KrxClientId = GameClient()->m_aLocalIds[KrxSlot];
+			// The reference reads the authoritative world here. HookTick from the
+			// prediction can be ahead by several ticks and release the hook early.
+			CCharacter *pKrxCharacter = GameClient()->m_GameWorld.GetCharacterById(KrxClientId);
+			const CCharacterCore *pKrxCore = pKrxCharacter ? pKrxCharacter->Core() : nullptr;
+			GameClient()->m_PreTasVisuals.PredictTrajectory();
+			m_aKrxInput[0].ApplyMoonwalk(m_aInputData[KrxSlot], m_aLastData[KrxSlot],
+				m_aInputDirectionLeft[KrxSlot] != 0, m_aInputDirectionRight[KrxSlot] != 0, g_Config.m_KrxMoonwalk);
+			GameClient()->m_KrxMovementPreTas.GhostMove(m_aInputData[KrxSlot]);
+			m_aInputData[KrxSlot] = GameClient()->m_MediumBots.HookRide(GameClient(), m_aInputData[KrxSlot]);
+			m_aInputData[KrxSlot] = GameClient()->m_MediumBots.HookNearest(GameClient(), m_aInputData[KrxSlot]);
+			GameClient()->m_KrxMisc.BeforeAvoid(GameClient());
+			m_aKrxInput[0].ApplyAutoFire(m_aInputData[KrxSlot], g_Config.m_KrxAutoFire);
+			m_aKrxInput[0].ApplyAutoRehook(m_aInputData[KrxSlot],
+				pKrxCore ? pKrxCore->HookedPlayer() : -1, pKrxCore ? pKrxCore->m_HookTick : 0,
+				g_Config.m_KrxAutoRehook, pKrxCharacter != nullptr);
+			GameClient()->m_RescueBots.AdjustDummyFly(GameClient());
+			GameClient()->m_KrxMiscPreTas.VoteBeforeHookSpam();
+			m_aKrxInput[0].ApplyHookSpam(m_aInputData[KrxSlot], g_Config.m_KrxHookSpam);
+			m_aInputData[KrxSlot] = GameClient()->m_RescueBots.AdjustAutoShotgun(GameClient(), m_aInputData[KrxSlot], KrxClientId);
+			m_aInputData[KrxSlot] = GameClient()->m_MediumBots.JetRide(GameClient(), m_aInputData[KrxSlot]);
+			m_aInputData[KrxSlot] = GameClient()->m_RescueBots.AdjustAutoAled(GameClient(), m_aInputData[KrxSlot], KrxClientId);
+			GameClient()->m_KrxAutoEdgeNew.AutoEdge(m_aInputData[KrxSlot]);
+			GameClient()->m_MediumVisuals.UpdateIdentity();
+			GameClient()->m_KrxMiscPreTas.BeforeInput();
+			// Settings are current, while AutoDrag's target world is from the preceding refresh.
+			auto AimbotSettings = CurrentKrxAimbotSettings();
+			GameClient()->m_Aimbot.SetSettings(AimbotSettings);
+			TracePipelineStart = g_Config.m_AvoidDebug ? time_get_nanoseconds().count() : 0;
+			TraceRaw = m_aInputData[g_Config.m_ClDummy];
+			TraceEvaluated = true;
+			m_aInputData[g_Config.m_ClDummy] = GameClient()->m_Avoid.AdjustInput(
+				GameClient(), m_aInputData[g_Config.m_ClDummy],
+				GameClient()->m_aLocalIds[g_Config.m_ClDummy], m_aMousePos[g_Config.m_ClDummy], m_aPhysicalHook[g_Config.m_ClDummy] != 0);
+			TraceAvoid = m_aInputData[g_Config.m_ClDummy];
+			m_aInputData[KrxSlot] = GameClient()->m_PilotBot.AdjustInput(GameClient(), m_aInputData[KrxSlot], KrxClientId);
+			m_aInputData[KrxSlot] = GameClient()->m_ClassicAvoid.AdjustInput(GameClient(), m_aInputData[KrxSlot], KrxClientId);
+			// 26d2d0 runs Avoid before the main aimbot. AutoDrag above consumes
+			// the retained private world from the preceding aimbot refresh.
+			// Preserve that order before fake aim and the later Rocket Save pass.
+			const auto AimDecision = GameClient()->m_Aimbot.AdjustInput(GameClient(), m_aInputData[KrxSlot], KrxClientId, m_aMousePos[KrxSlot], AimbotSettings);
+			m_aInputData[KrxSlot] = AimDecision.m_Input;
+			if(AimDecision.m_ChangeVisibleAim)
+				m_aMousePos[KrxSlot] = AimDecision.m_VisibleAim;
+			m_aInputData[KrxSlot] = GameClient()->m_MediumBots.FakeAim(GameClient(), m_aInputData[KrxSlot]);
+			GameClient()->m_KrxMisc.AfterAvoid(GameClient());
+			m_aInputData[KrxSlot] = GameClient()->m_RescueBots.AdjustAutoUnfreeze(GameClient(), m_aInputData[KrxSlot], KrxClientId);
+			m_aInputData[KrxSlot] = GameClient()->m_MediumBots.Balance(GameClient(), m_aInputData[KrxSlot]);
+			// Original 26d2d0 applies PixelWalk and QuickStop after Avoid.
+			bool KrxGrounded = false;
+			if(g_Config.m_KrxQuickStop && g_Config.m_KrxQuickStopGrounded && KrxClientId >= 0 && KrxClientId < MAX_CLIENTS)
+			{
+				const vec2 Pos = GameClient()->m_aClients[KrxClientId].m_Predicted.m_Pos;
+				KrxGrounded = Collision()->CheckPoint(round_to_int(Pos.x + 14.0f), round_to_int(Pos.y + 19.0f)) ||
+					      Collision()->CheckPoint(round_to_int(Pos.x - 14.0f), round_to_int(Pos.y + 19.0f)) ||
+					      (Collision()->GetMoveRestrictions(Pos + vec2(0, 18.0f), 0.0f) & CANTMOVE_DOWN);
+			}
+			const bool KrxCanBrake = pKrxCharacter && Client()->State() == IClient::STATE_ONLINE &&
+						 (m_aInputData[KrxSlot].m_PlayerFlags & PLAYERFLAG_PLAYING) && !GameClient()->m_Snap.m_SpecInfo.m_Active &&
+						 !OpenKrx::IsKrxCharacterFrozen(GameClient(), KrxClientId);
+			m_aKrxInput[0].ApplyLate(m_aInputData[KrxSlot], GameClient()->m_PredictedChar.m_Vel.x,
+				KrxCanBrake, KrxGrounded, g_Config.m_KrxPixelWalk, g_Config.m_KrxQuickStop, g_Config.m_KrxQuickStopGrounded);
+
+			m_aInputData[KrxSlot] = GameClient()->m_MediumBots.AutoJumpSave(GameClient(), m_aInputData[KrxSlot]);
+
+			// KRX's pipeline evaluates the grenade saver after Avoid and before
+			// packet change detection, so a rescue shot cannot be dropped.
+			m_aInputData[g_Config.m_ClDummy] = GameClient()->m_RocketSave.AdjustInput(
+				GameClient(), m_aInputData[g_Config.m_ClDummy], GameClient()->m_aLocalIds[g_Config.m_ClDummy], m_PhysicalJump && !m_ManualJumpConsumed);
 		}
-		const bool KrxCanBrake = pKrxCharacter && Client()->State() == IClient::STATE_ONLINE &&
-					 (m_aInputData[KrxSlot].m_PlayerFlags & PLAYERFLAG_PLAYING) && !GameClient()->m_Snap.m_SpecInfo.m_Active &&
-					 !OpenKrx::IsKrxCharacterFrozen(GameClient(), KrxClientId);
-		m_aKrxInput[0].ApplyLate(m_aInputData[KrxSlot], GameClient()->m_PredictedChar.m_Vel.x,
-			KrxCanBrake, KrxGrounded, g_Config.m_KrxPixelWalk, g_Config.m_KrxQuickStop, g_Config.m_KrxQuickStopGrounded);
-
-		m_aInputData[KrxSlot] = GameClient()->m_MediumBots.AutoJumpSave(GameClient(), m_aInputData[KrxSlot]);
-
-		// KRX's pipeline evaluates the grenade saver after Avoid and before
-		// packet change detection, so a rescue shot cannot be dropped.
-		m_aInputData[g_Config.m_ClDummy] = GameClient()->m_RocketSave.AdjustInput(
-			GameClient(), m_aInputData[g_Config.m_ClDummy], GameClient()->m_aLocalIds[g_Config.m_ClDummy], m_PhysicalJump && !m_ManualJumpConsumed);
+		// Keep Null's emitted movement out of the persistent key state. The
+		// original restores after copying both the packet and m_aLastData,
+		// including a no-send frame. Capture after other providers' helpers
+		// so their independent input policies remain intact.
+		if(GameClient()->m_NullClient.Selected() && !GameClient()->m_Tas.Active())
+			NullInputRestore.Capture(m_aInputData[g_Config.m_ClDummy]);
+		m_aInputData[g_Config.m_ClDummy] = GameClient()->m_NullClient.Apply(m_aInputData[g_Config.m_ClDummy], g_Config.m_ClDummy);
 		// One real key press permits one jump. If Avoid later releases Jump,
 		// holding the key must not create another air jump automatically.
 		if(m_PhysicalJump && m_aInputData[g_Config.m_ClDummy].m_Jump)
 			m_ManualJumpConsumed = true;
 
 		// check if we need to send input
-		Send = Send || g_Config.m_KrxFakeAimSendAlways;
+		Send = Send || (OpenKrx::KrxProfileActive() ? g_Config.m_KrxFakeAimSendAlways : (g_Config.m_NullFakeAimSendAlways && GameClient()->m_NullClient.ForceFakeAimSend(g_Config.m_ClDummy)));
 		Send = Send || m_aInputData[g_Config.m_ClDummy].m_Direction != m_aLastData[g_Config.m_ClDummy].m_Direction;
 		Send = Send || m_aInputData[g_Config.m_ClDummy].m_Jump != m_aLastData[g_Config.m_ClDummy].m_Jump;
 		Send = Send || m_aInputData[g_Config.m_ClDummy].m_Fire != m_aLastData[g_Config.m_ClDummy].m_Fire;
@@ -535,7 +556,7 @@ int CControls::SnapInput(int *pData)
 		Send = Send || (GameClient()->m_Snap.m_pLocalCharacter && GameClient()->m_Snap.m_pLocalCharacter->m_Weapon == WEAPON_NINJA && (m_aInputData[g_Config.m_ClDummy].m_Direction || m_aInputData[g_Config.m_ClDummy].m_Jump || m_aInputData[g_Config.m_ClDummy].m_Hook));
 	}
 
-	if(g_Config.m_AvoidDebug)
+	if(OpenKrx::KrxProfileActive() && g_Config.m_AvoidDebug)
 	{
 		if(TraceEvaluated)
 			GameClient()->m_Avoid.m_Trace.Record(GameClient(), GameClient()->m_Avoid, TraceRaw,
@@ -548,7 +569,8 @@ int CControls::SnapInput(int *pData)
 		GameClient()->m_Avoid.m_Trace.Reset();
 
 	// GoodCrack 23e670 -> 2f7750: TAS update precedes final packet copy.
-	GameClient()->m_Fent.Update();
+	if(OpenKrx::KrxProfileActive())
+		GameClient()->m_Fent.Update();
 	const bool TasRecording = GameClient()->m_Tas.ProcessInput();
 	if(TasRecording)
 	{
@@ -681,7 +703,7 @@ void CControls::ClampMousePos()
 		if(MouseDistance < MouseMin)
 			m_aMousePos[g_Config.m_ClDummy] = normalize_pre_length(m_aMousePos[g_Config.m_ClDummy], MouseDistance) * MouseMin;
 		MouseDistance = length(m_aMousePos[g_Config.m_ClDummy]);
-		if(!g_Config.m_KrxSuperDyncam && MouseDistance > MouseMax)
+		if(!(OpenKrx::KrxProfileActive() && g_Config.m_KrxSuperDyncam) && MouseDistance > MouseMax)
 			m_aMousePos[g_Config.m_ClDummy] = normalize_pre_length(m_aMousePos[g_Config.m_ClDummy], MouseDistance) * MouseMax;
 	}
 }

@@ -1,3 +1,18 @@
+# OpenClient — merged updated KRX + Null profiles, 2026-11-04
+
+User authorized merge of OpenKRX Beta changes into regular updated KRX tree,
+then push to eqsit/openclient with Linux+Windows builds and rename desktop
+launcher OpenClient. Base60a7dee includes Basic/Legit/Pilot/newAutoEdge/TAS.
+Manual conflicts preserve updated KRX pipeline/death/tele/menu benchmarks.
+Factory246Null ints match original analysis registrations;5colors+version string
+retained. Optional OpenKRX jump extension default0 and disabled by Null reset.
+No personal saved configuration imported or reset. No Null TAS port.
+Null remains partial: Serial/Warlist and Trace/Autopsy consumers unfinished;
+original menu/world/full controller parity not proven. Beta preview retained.
+Research/build/package/deployment results: research/openclient-merge-20261104/.
+
+Earlier historical handoff:
+
 # OpenKRX: текущая сборка после переноса OpenKRX-new — 2026-11-04
 
 Версия OpenKRX-new стала основным деревом: содержимое перенесено из

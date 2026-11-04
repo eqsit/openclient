@@ -2665,6 +2665,32 @@ if(CLIENT)
     avoid/simulation.h
     avoid/trace.cpp
     avoid/trace.h
+    nullclient/route.h
+    nullclient/route.cpp
+    nullclient/fly.h
+    nullclient/fly.cpp
+    nullclient/visuals.cpp
+    nullclient/profiles.cpp
+    nullclient/policy.cpp
+    nullclient/policy.h
+    nullclient/output.cpp
+    nullclient/output.h
+    nullclient/native_return.h
+    nullclient/input_restore.h
+    nullclient/controller.cpp
+    nullclient/controller.h
+    nullclient/aimbot.cpp
+    nullclient/aimbot.h
+    nullclient/automation.h
+    nullclient/component.cpp
+    nullclient/helpers.cpp
+    nullclient/helpers.h
+    nullclient/component.h
+    nullclient/settings.cpp
+    nullclient/settings.h
+    nullclient/simulation.cpp
+    nullclient/simulation.h
+    nullclient/weapon_restore.h
     component.cpp
     component.h
     components/background.cpp
@@ -2755,6 +2781,7 @@ if(CLIENT)
     components/menus_settings_general.cpp
     components/menus_settings_graphics.cpp
     components/menus_settings_krx.cpp
+    components/menus_settings_nullclient.cpp
     components/menus_settings_language.cpp
     components/menus_settings_player.cpp
     components/menus_settings_sound.cpp

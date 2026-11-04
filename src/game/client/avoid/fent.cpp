@@ -288,7 +288,7 @@ namespace OpenKrx
 
 	bool CFent::Busy() const
 	{
-		return Running() || m_Done.load() || (g_Config.m_AvoidFreeze && g_Config.m_AvoidAgentType == 3);
+		return Running() || m_Done.load() || (g_Config.m_OpenKrxAvoidProvider == 0 && g_Config.m_AvoidFreeze && g_Config.m_AvoidAgentType == 3);
 	}
 
 	void CFent::Stop()
@@ -459,6 +459,14 @@ namespace OpenKrx
 
 	void CFent::Update()
 	{
+		// Provider switches discard a search result without importing it into
+		// TAS or turning off the stored KRX enable setting.
+		if(g_Config.m_OpenKrxAvoidProvider != 0)
+		{
+			if(Running() || m_Done.load())
+				OnReset();
+			return;
+		}
 		if(m_Done.exchange(false))
 		{
 			if(m_Worker.joinable())
@@ -470,7 +478,7 @@ namespace OpenKrx
 			}
 			g_Config.m_AvoidFreeze = 0;
 		}
-		const bool Enabled = g_Config.m_AvoidFreeze && g_Config.m_AvoidAgentType == 3;
+		const bool Enabled = g_Config.m_OpenKrxAvoidProvider == 0 && g_Config.m_AvoidFreeze && g_Config.m_AvoidAgentType == 3;
 		if(!Enabled || Client()->State() != IClient::STATE_ONLINE)
 		{
 			if(Running())
@@ -574,7 +582,7 @@ namespace OpenKrx
 
 	void CFent::OnRender()
 	{
-		if(g_Config.m_AvoidAgentType != 3 || !g_Config.m_AvoidDrawPath)
+		if(g_Config.m_OpenKrxAvoidProvider != 0 || g_Config.m_AvoidAgentType != 3 || !g_Config.m_AvoidDrawPath)
 			return;
 		std::lock_guard Lock(m_Mutex);
 		if(m_vPath.empty())

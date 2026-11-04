@@ -11,6 +11,7 @@
 #include <engine/demo.h>
 #include <engine/graphics.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <generated/client_data.h>
 #include <generated/client_data7.h>
@@ -127,7 +128,7 @@ float CPlayers::GetPlayerTargetAngle(
 	int ClientId,
 	float Intra)
 {
-	if(g_Config.m_KrxLoadReplay && g_Config.m_KrxTasShowAim)
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxLoadReplay) && g_Config.m_KrxTasShowAim)
 	{
 		const int Slot = GameClient()->m_aLocalIds[0] == ClientId ? 0 : GameClient()->m_aLocalIds[1] == ClientId ? 1 :
 															   -1;
@@ -143,7 +144,13 @@ float CPlayers::GetPlayerTargetAngle(
 			const auto &Input = pCharacter->DiagnosticCurrentInput();
 			return angle(vec2(Input.m_TargetX, Input.m_TargetY));
 		}
-	if(g_Config.m_KrxFakeAim && g_Config.m_KrxFakeAimVisible && ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy] && !GameClient()->m_Snap.m_SpecInfo.m_Active)
+	if(ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy] && !GameClient()->m_Snap.m_SpecInfo.m_Active)
+	{
+		vec2 NullAim;
+		if(GameClient()->m_NullClient.VisibleAim(g_Config.m_ClDummy, NullAim))
+			return angle(NullAim);
+	}
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxFakeAim) && g_Config.m_KrxFakeAimVisible && ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy] && !GameClient()->m_Snap.m_SpecInfo.m_Active)
 	{
 		const auto &Input = GameClient()->m_Controls.m_aInputData[g_Config.m_ClDummy];
 		return angle(vec2(Input.m_TargetX, Input.m_TargetY));
@@ -587,7 +594,7 @@ void CPlayers::RenderHook(
 	// render head
 	int QuadOffset = NUM_WEAPONS * 2 + 2;
 	ColorRGBA HookColor(1.0f, 1.0f, 1.0f, Alpha);
-	if(g_Config.m_KrxCustomColorHook && ClientId >= 0 && ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy])
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxCustomColorHook) && ClientId >= 0 && ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy])
 		HookColor = KrxPlayerColor(g_Config.m_KrxCustomColorHookCol, g_Config.m_KrxCustomColorHookRainbow, Client()->LocalTime()).WithAlpha(Alpha);
 	Graphics()->SetColor(HookColor);
 	Graphics()->RenderQuadContainerAsSprite(m_WeaponEmoteQuadContainerIndex, QuadOffset, HookPos.x, HookPos.y);
@@ -644,14 +651,14 @@ void CPlayers::RenderPlayer(
 	if(ClientId == -2) // ghost
 		Alpha = g_Config.m_ClRaceGhostAlpha / 100.0f;
 	const bool KrxLocal = ClientId >= 0 && ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy];
-	if(g_Config.m_KrxCustomColorTee && KrxLocal)
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxCustomColorTee) && KrxLocal)
 		KrxTintTee(RenderInfo, KrxPlayerColor(g_Config.m_KrxCustomColorTeeCol, g_Config.m_KrxCustomColorTeeRainbow, Client()->LocalTime()));
-	if(g_Config.m_KrxCustomFreezeColorTee && !KrxLocal && in_range(ClientId, MAX_CLIENTS - 1))
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxCustomFreezeColorTee) && !KrxLocal && in_range(ClientId, MAX_CLIENTS - 1))
 	{
 		if(OpenKrx::IsKrxCharacterFrozen(GameClient(), ClientId))
 			KrxTintTee(RenderInfo, KrxPlayerColor(g_Config.m_KrxCustomFreezeColorTeeCol, false, Client()->LocalTime()));
 	}
-	if(g_Config.m_KrxAimbot && g_Config.m_KrxAimbotTargetGlow && in_range(ClientId, MAX_CLIENTS - 1))
+	if((OpenKrx::KrxProfileActive() && g_Config.m_KrxAimbot) && g_Config.m_KrxAimbotTargetGlow && in_range(ClientId, MAX_CLIENTS - 1))
 	{
 		unsigned Glow = 0;
 		if(g_Config.m_KrxAimbotWeaponHook && ClientId == GameClient()->m_Aimbot.HookTarget())
@@ -770,7 +777,7 @@ void CPlayers::RenderPlayer(
 		if(!(RenderInfo.m_TeeRenderFlags & TEE_NO_WEAPON))
 		{
 			ColorRGBA WeaponColor(1.0f, 1.0f, 1.0f, Alpha);
-			if(g_Config.m_KrxCustomColorWeapon && KrxLocal)
+			if((OpenKrx::KrxProfileActive() && g_Config.m_KrxCustomColorWeapon) && KrxLocal)
 				WeaponColor = KrxPlayerColor(g_Config.m_KrxCustomColorWeaponCol, g_Config.m_KrxCustomColorWeaponRainbow, Client()->LocalTime()).WithAlpha(Alpha);
 			Graphics()->SetColor(WeaponColor);
 

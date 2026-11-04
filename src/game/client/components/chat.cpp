@@ -13,6 +13,7 @@
 #include <engine/graphics.h>
 #include <engine/keys.h>
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/csv.h>
 #include <engine/textrender.h>
 
@@ -1367,7 +1368,7 @@ void CChat::SendChat(int Team, const char *pLine)
 		return;
 
 	m_LastChatSend = time();
-	const std::string Fancy = g_Config.m_KrxFancyChatFont ? CKrxMiscPreTas::FancyChat(pLine) : std::string(pLine);
+	const std::string Fancy = (OpenKrx::KrxProfileActive() && g_Config.m_KrxFancyChatFont) ? CKrxMiscPreTas::FancyChat(pLine) : std::string(pLine);
 	pLine = Fancy.c_str();
 
 	if(GameClient()->Client()->IsSixup())

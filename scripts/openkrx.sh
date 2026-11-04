@@ -16,4 +16,4 @@ if [[ -z "${SDL_VIDEODRIVER:-}" && -z "${SDL_VIDEO_DRIVER:-}" && -n "${WAYLAND_D
 fi
 # Diagnostics are opt-in through the existing OpenKRX setting. An explicit
 # logfile option can still be supplied when investigating a problem.
-exec "$root/dist/OpenKRX" "$@"
+exec "$root/dist/OpenClient" "$@"

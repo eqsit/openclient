@@ -4,6 +4,7 @@
 #include <base/time.h>
 
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <game/client/avoid/rocket_save.h>
 #include <game/client/gameclient.h>
@@ -26,6 +27,8 @@ void CKrxMovementPreTas::OnReset()
 
 bool CKrxMovementPreTas::UpdateFastInput()
 {
+		if(!OpenKrx::KrxProfileActive())
+			return false;
 	if(GameClient()->m_Tas.Active())
 		return false;
 	// analysis 23e070 copies all ten input words, derives direction from physical
