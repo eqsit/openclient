@@ -1,4 +1,4 @@
-// NullClient 3.6 registrations, analysis: research/nullclient-20261103/null-config.json.
+// NullClient 3.6 registrations, original registration table.
 // Deliberately no include guard: consumed with multiple MACRO_CONFIG_INT definitions.
 MACRO_CONFIG_INT(NullGodmode, null_godmode, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Take over your input at the last tick that still avoids death")
 MACRO_CONFIG_INT(NullGodmodeDummy, null_godmode_dummy, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Run the same survival on the tee you are not controlling")

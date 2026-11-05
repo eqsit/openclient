@@ -1,6 +1,7 @@
 #include "component.h"
 
 #include <base/mem.h>
+#include <base/time.h>
 
 #include <engine/client.h>
 #include <engine/graphics.h>
@@ -33,6 +34,8 @@ namespace OpenKrx::NullClient
 		m_Helpers.Reset();
 		m_Fly.Reset();
 		m_Aimbot.Reset();
+		m_Serial.Reset();
+		m_Reports.Reset();
 		for(auto &Controller : m_aControllers)
 			Controller.Reset();
 		m_aRaw = {};
@@ -53,7 +56,7 @@ namespace OpenKrx::NullClient
 		m_aRaw[Slot] = Input;
 		auto Settings = SettingsFromConfig();
 		// The UI uses OpenKRX's acknowledged grenade return in place of the
-		// original immediate switch-back. Keep that policy out of the analysis oracle.
+		// original immediate switch-back. Keep that policy out of the reference comparison.
 		if(g_Config.m_NullRocketRestoreWeapon)
 			Settings.m_RestoreWeapon = false;
 		const bool Enabled = Slot == g_Config.m_ClDummy ? Settings.m_Enabled : Settings.m_Dummy;
@@ -111,7 +114,7 @@ namespace OpenKrx::NullClient
 	{
 		if(!Selected() || Slot < 0 || Slot > 1 || !(Input.m_PlayerFlags & PLAYERFLAG_PLAYING))
 			return Input;
-		auto Output = m_Fly.HasPlan(Slot) ? m_Fly.Apply(Input, Slot) : ApplyAvoid(Input, Slot);
+		auto Output = m_Fly.HasPlan(Slot) ? m_Fly.Apply(Input, Slot) : ApplyAvoid(m_Serial.Apply(GameClient(), Input, Slot), Slot);
 		// Original main Controls 121a57..121ad0 derives these gates from
 		// emitted changes, not whether the planner happens to hold a plan.
 		const bool HookAim = Output.m_Hook != Input.m_Hook || Output.m_TargetX != Input.m_TargetX || Output.m_TargetY != Input.m_TargetY;
@@ -119,6 +122,15 @@ namespace OpenKrx::NullClient
 		const bool FireChanged = Output.m_Fire != Input.m_Fire;
 		Output = m_Aimbot.Apply(GameClient(), Output, Slot, Changed);
 		return m_Helpers.Apply(GameClient(), Output, Slot, Changed, FireChanged, HookAim);
+	}
+	void CNullClient::SynchronizeSlot()
+	{
+		if(!m_WasSelected || m_LastSlot != g_Config.m_ClDummy)
+		{
+			OnReset();
+			m_LastSlot = g_Config.m_ClDummy;
+			m_WasSelected = true;
+		}
 	}
 
 	void CNullClient::OnRender()
@@ -129,17 +141,13 @@ namespace OpenKrx::NullClient
 				OnReset();
 			return;
 		}
-		if(!m_WasSelected || m_LastSlot != g_Config.m_ClDummy)
-		{
-			OnReset();
-			m_LastSlot = g_Config.m_ClDummy;
-			m_WasSelected = true;
-		}
+		SynchronizeSlot();
 		if(GameClient()->m_Snap.m_SpecInfo.m_Active || GameClient()->m_Tas.Active())
 			return;
 		m_Fly.Update(GameClient());
-		m_Helpers.Update(GameClient());
 		m_Idle.Update(GameClient());
+		m_Serial.Update(GameClient(), m_Warlist, m_Idle.Idle());
+		m_Helpers.Update(GameClient());
 		const auto Settings = SettingsFromConfig();
 		for(int Slot = 0; Slot < 2; ++Slot)
 		{
@@ -183,6 +191,8 @@ namespace OpenKrx::NullClient
 			}
 			if(!(Raw.m_PlayerFlags & PLAYERFLAG_PLAYING))
 				continue;
+			Raw = m_Serial.Apply(GameClient(), Raw, Slot, false);
+			const int64_t Start = time_get_impl();
 			CSimulation World;
 			if(!World.Initialize(GameClient()->KrxPredictedWorld(), Id, Settings, m_Idle.Idle()))
 				continue;
@@ -197,8 +207,18 @@ namespace OpenKrx::NullClient
 			if(g_Config.m_NullPreserveJump && Slot == g_Config.m_ClDummy &&
 				GameClient()->m_Controls.m_PhysicalJump && !GameClient()->m_Controls.m_ManualJumpConsumed)
 				m_aControllers[Slot].PreserveManualJump(World, Settings, Raw, Frame);
+			m_Reports.Timing(Slot, (time_get_impl() - Start) * 1000000 / time_freq());
 		}
+		m_Reports.Update(GameClient(), m_aControllers, m_aRaw);
 		RenderVisuals();
+	}
+	void CNullClient::OnMessage(int MsgId, void *pRawMsg)
+	{
+		if(Selected() && MsgId == NETMSGTYPE_SV_KILLMSG)
+		{
+			const auto *p = static_cast<CNetMsg_Sv_KillMsg *>(pRawMsg);
+			m_Reports.Kill(GameClient(), p->m_Killer, p->m_Victim);
+		}
 	}
 }
 
@@ -207,6 +227,7 @@ namespace OpenKrx::NullClient
 bool CNullClient::OnCursorMove(float X, float Y, IInput::ECursorType CursorType)
 {
 	if(!Selected() || GameClient()->m_Menus.IsActive() || GameClient()->m_Chat.IsActive() || GameClient()->m_GameConsole.IsActive()) return false;
+	SynchronizeSlot();
 	return m_Fly.OnCursorMove(GameClient(), X, Y);
 }
 }

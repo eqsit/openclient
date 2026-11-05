@@ -134,6 +134,30 @@ void CNullClient::OpenProfileFolder()
 
 void CNullClient::OnConsoleInit()
 {
+	Console()->Register("null_serial_lock", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser); if(pSelf->Selected()) { pSelf->SynchronizeSlot(); pSelf->m_Serial.Lock(pSelf->GameClient(), pSelf->m_Warlist); }
+	}, this, "Lock serial killer onto whoever is nearest the crosshair, or let the current one go");
+	Console()->Register("null_warlist_add", "s[group] r[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser);
+		if(pSelf->m_Warlist.Edit(pResult->GetString(0), pResult->GetString(1), true))
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/warlist", pSelf->SaveWarlist() ? "member added" : "could not save warlist");
+	}, this, "Add an exact player name to a warlist group");
+	Console()->Register("null_warlist_remove", "s[group] r[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser);
+		if(pSelf->m_Warlist.Edit(pResult->GetString(0), pResult->GetString(1), false)) pSelf->SaveWarlist();
+	}, this, "Remove an exact player name from a warlist group");
+	Console()->Register("null_autopsy_now", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/autopsy", pSelf->m_Reports.Dump(pSelf->GameClient(),g_Config.m_ClDummy,true,"manual") ? "report saved" : "nothing recorded yet - switch null_autopsy on first");
+	}, this, "Save the recorded fight now");
+	Console()->Register("null_autopsy_clear", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->m_Reports.Clear(pSelf->Storage(), true);
+	}, this, "Delete the saved fight reports");
+	Console()->Register("null_trace_dump", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->m_Reports.Dump(pSelf->GameClient(),g_Config.m_ClDummy,false,"manual");
+	}, this, "Save the last 100 recorded Avoid ticks");
+	Console()->Register("null_trace_clear", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->m_Reports.Clear(pSelf->Storage(), false);
+	}, this, "Delete the saved Avoid traces and clear the recorded history");
 	Console()->Register("null_profile_save", "s[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", pSelf->SaveProfile(pResult->GetString(0)) ? "profile saved" : "could not save profile");
@@ -153,10 +177,35 @@ void CNullClient::OnConsoleInit()
 	}, this, "List the saved Null settings profiles");
 }
 
+bool CNullClient::HandleWarlistCommand(const char *pLine)
+{
+	if(!Selected()) return false;
+	pLine = str_skip_whitespaces_const(pLine);
+	struct CCommand { const char *m_pCommand; const char *m_pGroup; bool m_Add; };
+	for(const auto &Command : {CCommand{"!war","war",true}, CCommand{"!unwar","war",false}, CCommand{"!attack","attack",true}, CCommand{"!unattack","attack",false}})
+	{
+		const char *pName = str_startswith(pLine,Command.m_pCommand);
+		if(!pName || (*pName && *pName != ' ')) continue;
+		pName = str_skip_whitespaces_const(pName);
+		std::string Name(pName); while(!Name.empty() && Name.back() == ' ') Name.pop_back();
+		const bool Changed = m_Warlist.Edit(Command.m_pGroup,Name,Command.m_Add);
+		if(Changed && !SaveWarlist()) Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD,"null/warlist","could not save warlist");
+		else Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD,"null/warlist",Name.empty() ? "Warlist: type a player name after the command" : Changed ? "warlist updated" : "warlist unchanged");
+		return true;
+	}
+	return false;
+}
+
 bool CNullClient::OnInput(const IInput::CEvent &Event)
 {
+	// The input dispatcher forwards releases through active UI components.
+	// Let Fly clear its latches before applying the UI/selected-profile gate.
+	if(Event.m_Flags & IInput::FLAG_RELEASE)
+		return m_Fly.OnInput(GameClient(), Event);
 	if(!Selected() || GameClient()->m_GameConsole.IsActive() || GameClient()->m_Chat.IsActive() || GameClient()->m_Menus.IsActive() || GameClient()->m_KeyBinder.IsActive())
 		return false;
+	// Initialize before capturing the first held key, so OnRender cannot erase it.
+	SynchronizeSlot();
 	if(m_Fly.OnInput(GameClient(), Event)) return true;
 	if(!(Event.m_Flags & IInput::FLAG_PRESS)) return false;
 	struct CBind { int m_Key; int *m_pEnabled; };

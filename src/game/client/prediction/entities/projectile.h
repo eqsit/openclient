@@ -13,6 +13,13 @@ class CProjectile : public CEntity
 	friend class CItems;
 
 public:
+	struct CTraceSample
+	{
+		vec2 m_Position;
+		bool m_Impact = false;
+	};
+	void SetTraceObserver(CTraceSample *pObserver) { m_pTraceObserver = pObserver; }
+	const CTraceSample *TraceObserver() const { return m_pTraceObserver; }
 	CProjectile(
 		CGameWorld *pGameWorld,
 		int Type,
@@ -59,6 +66,8 @@ private:
 	// Live entities leave the observer null; the probe owns the sink lifetime.
 	int m_HitClientId = -1;
 	int *m_pHitClientIdObserver = nullptr;
+	// Owned only by isolated trajectory probes; never propagated by world copies.
+	CTraceSample *m_pTraceObserver = nullptr;
 	// 24dc80 retires an impacted/expired projectile on the following Tick.
 	bool m_KrxAlive = true;
 	bool KrxNearestAirPos(vec2 Pos, vec2 PrevPos, vec2 *pOutPos);

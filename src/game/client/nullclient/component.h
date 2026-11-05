@@ -7,6 +7,8 @@
 #include "fly.h"
 #include "native_return.h"
 #include "weapon_restore.h"
+#include "serial.h"
+#include "reports.h"
 
 #include <game/client/component.h>
 
@@ -23,6 +25,9 @@ namespace OpenKrx::NullClient
 		CHelpers m_Helpers;
 		CFly m_Fly;
 		CAimbot m_Aimbot;
+		CSerial m_Serial;
+		CWarlist m_Warlist;
+		CReports m_Reports;
 		CNetObj_PlayerInput ApplyAvoid(CNetObj_PlayerInput Input, int Slot);
 		std::array<CController, 2> m_aControllers;
 		std::array<CWeaponRestore, 2> m_aWeaponRestore;
@@ -34,12 +39,15 @@ namespace OpenKrx::NullClient
 		std::array<int, 2> m_aClientIds{-1, -1};
 		int m_LastSlot = -1;
 		bool m_WasSelected = false;
+		void SynchronizeSlot();
 
 	public:
 		int Sizeof() const override { return sizeof(*this); }
 		void OnReset() override;
+		void OnInit() override { m_Warlist.Load(Storage()); }
 		void OnRender() override;
 		void OnConsoleInit() override;
+		void OnMessage(int MsgId, void *pRawMsg) override;
 		bool OnInput(const IInput::CEvent &Event) override;
 		bool OnCursorMove(float X, float Y, IInput::ECursorType CursorType) override;
 		std::vector<std::string> Profiles();
@@ -51,6 +59,9 @@ namespace OpenKrx::NullClient
 		bool Selected() const;
 		bool ForceFakeAimSend(int Slot) const { return m_Helpers.ForceSend(Slot); }
 		const CAimbot &Aimbot() const { return m_Aimbot; }
+		CWarlist &Warlist() { return m_Warlist; }
+		bool SaveWarlist() { return m_Warlist.Save(Storage()); }
+		bool HandleWarlistCommand(const char *pLine);
 		bool VisibleAim(int Slot, vec2 &Aim) const { return m_Helpers.VisibleAim(Slot, Aim); }
 		const CController &Controller(int Slot) const { return m_aControllers[Slot]; }
 		void ConfigurePrediction(CGameWorld &World) const;

@@ -2669,7 +2669,17 @@ if(CLIENT)
     nullclient/route.cpp
     nullclient/fly.h
     nullclient/fly.cpp
+    nullclient/serial.h
+    nullclient/serial.cpp
+    nullclient/serial_threats.h
+    nullclient/serial_threats.cpp
+    nullclient/warlist.h
+    nullclient/warlist.cpp
+    nullclient/reports.h
+    nullclient/reports.cpp
     nullclient/visuals.cpp
+    nullclient/projectile_paths.h
+    nullclient/projectile_paths.cpp
     nullclient/profiles.cpp
     nullclient/policy.cpp
     nullclient/policy.h

@@ -702,6 +702,7 @@ void CGameWorld::CopyWorld(CGameWorld *pFrom)
 			{
 				pCopy = new CProjectile(*((CProjectile *)pEnt));
 				static_cast<CProjectile *>(pCopy)->SetHitClientIdObserver(nullptr);
+				static_cast<CProjectile *>(pCopy)->SetTraceObserver(nullptr);
 			}
 			else if(Type == ENTTYPE_LASER)
 			{
@@ -771,6 +772,7 @@ void CGameWorld::CopyWorldIsolated(const CGameWorld *pFrom)
 			{
 				pCopy = new CProjectile(*((CProjectile *)pEnt));
 				static_cast<CProjectile *>(pCopy)->SetHitClientIdObserver(nullptr);
+				static_cast<CProjectile *>(pCopy)->SetTraceObserver(nullptr);
 			}
 			else if(Type == ENTTYPE_LASER)
 			{

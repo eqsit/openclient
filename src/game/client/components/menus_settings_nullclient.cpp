@@ -264,6 +264,35 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 	MainView.VMargin(std::max(0.0f, (MainView.w - (s_Page == 0 ? 560.0f : 780.0f)) / 2), &MainView);
 	CUIRect Left, Right;
 	MainView.VSplitMid(&Left, &Right, 10);
+	if(s_Page == 7)
+	{
+		auto &Null = GameClient()->m_NullClient;
+		auto &Warlist = Null.Warlist();
+		static char s_aGroup[64] = "war", s_aMember[64] = "";
+		static CLineInput s_Group(s_aGroup,sizeof(s_aGroup)), s_Member(s_aMember,sizeof(s_aMember));
+		static CButtonContainer s_Add;
+		CUIRect Row, Label, Button;
+		MainView.HSplitTop(24,&Row,&MainView); Row.VSplitLeft(100,&Label,&Row);
+		Ui()->DoLabel(&Label,Localize("Group"),13,TEXTALIGN_ML); Ui()->DoEditBox(&s_Group,&Row,13);
+		MainView.HSplitTop(4,nullptr,&MainView); MainView.HSplitTop(24,&Row,&MainView); Row.VSplitLeft(100,&Label,&Row);
+		Ui()->DoLabel(&Label,Localize("Name"),13,TEXTALIGN_ML); Row.VSplitRight(90,&Row,&Button);
+		Ui()->DoEditBox(&s_Member,&Row,13);
+		if(DoButton_Menu(&s_Add,Localize("Add"),0,&Button) && Warlist.Edit(s_aGroup,s_aMember,true)) Null.SaveWarlist();
+		static std::map<std::string,CButtonContainer> s_Remove;
+		std::string RemoveGroup, RemoveName;
+		for(const auto &Group : Warlist.m_vGroups)
+		{
+			MainView.HSplitTop(12,nullptr,&MainView); MainView.HSplitTop(24,&Row,&MainView);
+			if(Scroll.AddRect(Row)) Ui()->DoLabel(&Row,Group.m_Name.c_str(),15,TEXTALIGN_ML);
+			for(const auto &Name : Group.m_vMembers)
+			{
+				MainView.HSplitTop(23,&Row,&MainView); if(!Scroll.AddRect(Row)) continue;
+				Row.VSplitRight(90,&Row,&Button); Ui()->DoLabel(&Row,Name.c_str(),13,TEXTALIGN_ML);
+				if(DoButton_Menu(&s_Remove[Group.m_Name + "\n" + Name],Localize("Remove"),0,&Button)) { RemoveGroup = Group.m_Name; RemoveName = Name; }
+			}
+		}
+		if(!RemoveName.empty() && Warlist.Edit(RemoveGroup,RemoveName,false)) Null.SaveWarlist();
+	}
 	if(s_Page == 5)
 	{
 		struct CBind { const char *m_pLabel; int *m_pKey; int m_Group; };

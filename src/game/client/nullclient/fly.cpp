@@ -15,9 +15,12 @@ bool CFly::OnInput(CGameClient *pClient, const IInput::CEvent &Event)
 	if(g_Config.m_NullBindFlyhold && Event.m_Key == g_Config.m_NullBindFlyhold)
 	{
 		m_Hold = (Event.m_Flags & IInput::FLAG_PRESS) != 0;
+		// 1401fc670 arms both held flight and mouse steering.
+		m_Drag = m_Hold;
 		return true;
 	}
-	if(!Active()) return false;
+	// Release events must clear latched directions even after flight was disabled.
+	if(!Active() && !(Event.m_Flags & IInput::FLAG_RELEASE)) return false;
 	const bool Press = (Event.m_Flags & IInput::FLAG_PRESS) != 0;
 	const int aKeys[] = {KEY_W, KEY_A, KEY_S, KEY_D};
 	for(int i = 0; i < 4; ++i)
@@ -27,7 +30,7 @@ bool CFly::OnInput(CGameClient *pClient, const IInput::CEvent &Event)
 }
 bool CFly::OnCursorMove(CGameClient *pClient, float X, float Y)
 {
-	if(!Active() || !m_Drag || !m_ValidMarker) return false;
+	if(!Active() || !(m_Drag || m_Hold) || !m_ValidMarker) return false;
 	m_Marker += vec2(X, Y) * pClient->m_Camera.m_Zoom;
 	return true;
 }

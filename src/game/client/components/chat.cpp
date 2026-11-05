@@ -1363,6 +1363,8 @@ void CChat::EnsureCoherentWidth() const
 
 void CChat::SendChat(int Team, const char *pLine)
 {
+	if(GameClient()->m_NullClient.HandleWarlistCommand(pLine))
+		return;
 	// don't send empty messages
 	if(*str_utf8_skip_whitespaces(pLine) == '\0')
 		return;

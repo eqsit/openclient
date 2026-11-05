@@ -106,8 +106,14 @@ void CProjectile::Tick()
 	{
 		IsWeaponCollide = true;
 	}
+	const bool Impact = ((pTargetChr && (pOwnerChar ? !pOwnerChar->GrenadeHitDisabled() : g_Config.m_SvHit || m_Owner == -1 || pTargetChr == pOwnerChar)) || Collide || GameLayerClipped(CurPos)) && !IsWeaponCollide;
+	if(m_pTraceObserver)
+	{
+		m_pTraceObserver->m_Position = Impact || m_LifeSpan == -1 ? ColPos : CurPos;
+		m_pTraceObserver->m_Impact = Impact || m_LifeSpan == -1;
+	}
 
-	if(((pTargetChr && (pOwnerChar ? !pOwnerChar->GrenadeHitDisabled() : g_Config.m_SvHit || m_Owner == -1 || pTargetChr == pOwnerChar)) || Collide || GameLayerClipped(CurPos)) && !IsWeaponCollide)
+	if(Impact)
 	{
 		if(pTargetChr)
 		{

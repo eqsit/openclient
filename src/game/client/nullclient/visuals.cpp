@@ -1,4 +1,5 @@
 #include "component.h"
+#include "projectile_paths.h"
 #include <engine/graphics.h>
 #include <engine/textrender.h>
 #include <engine/shared/client_profile.h>
@@ -124,6 +125,11 @@ void CNullClient::RenderVisuals()
 		const auto &State = Controller.Output();
 		const bool Enabled = Slot == MainSlot ? g_Config.m_NullGodmode : g_Config.m_NullGodmodeDummy;
 		const vec2 Position = GameClient()->m_aClients[Id].m_RenderPos;
+		const int SerialTarget = m_Serial.Target(Slot);
+		if(g_Config.m_NullSerialDraw && (Slot == MainSlot ? g_Config.m_NullSerialKiller : g_Config.m_NullSerialKillerDummy) &&
+			SerialTarget >= 0 && SerialTarget < MAX_CLIENTS && GameClient()->m_Snap.m_aCharacters[SerialTarget].m_Active)
+			Ring(Graphics(), GameClient()->m_aClients[SerialTarget].m_RenderPos, 38, m_Serial.Locked(Slot) ? 3.2f : 1.6f,
+				ColorRGBA(1, m_Serial.Locked(Slot) ? .35f : .55f, .35f, m_Serial.Locked(Slot) ? .45f + (std::sin(Client()->LocalTime() * 8) * .5f + .5f) * .2f : .16f + (std::sin(Client()->LocalTime() * 8) * .5f + .5f) * .08f), 28);
 		if(Enabled && g_Config.m_NullGodmodeIndicator && (Controller.Active() || State.m_HasPlan || State.m_HasVeto))
 		{
 			const ColorRGBA Color = State.m_CutTicks > 0 ? ColorRGBA(1, .4f, .8f, .45f + Pulse * .4f) : ColorRGBA(.45f, 1, .65f, .45f + Pulse * .4f);
@@ -316,41 +322,19 @@ void CNullClient::RenderWeaponLines()
 			}
 			else
 			{
-				const float Curvature = Weapon == WEAPON_GUN ? pTune->m_GunCurvature : Weapon == WEAPON_GRENADE ? pTune->m_GrenadeCurvature : pTune->m_ShotgunCurvature;
-				const float Speed = Weapon == WEAPON_GUN ? pTune->m_GunSpeed : Weapon == WEAPON_GRENADE ? pTune->m_GrenadeSpeed : pTune->m_ShotgunSpeed;
-				const vec2 Start = pCharacter->Core()->m_Pos + Direction * pCharacter->GetProximityRadius() * .75f;
-				vec2 Previous = Start;
-				for(int Tick = 1; Tick <= g_Config.m_NullAimLineTicks; ++Tick)
-				{
-					const vec2 Next = CalcPos(Start, Direction, Curvature, Speed, Tick / 50.0f);
-					Line(Graphics(), Previous, Next, ColorRGBA(.9f, .9f, .9f, g_Config.m_NullAimLineAlpha / 100.0f));
-					if(Source.Collision()->IntersectLine(Previous, Next, nullptr, nullptr)) break;
-					Previous = Next;
-				}
+				for(const auto &Path : AimProjectilePath(Source, Id, Weapon, Direction, g_Config.m_NullAimLineTicks))
+					for(size_t i = 1; i < Path.m_vPoints.size(); ++i)
+						Line(Graphics(), Path.m_vPoints[i - 1], Path.m_vPoints[i], ColorRGBA(.9f, .9f, .9f, g_Config.m_NullAimLineAlpha / 100.f));
 			}
 		}
 	if(g_Config.m_NullGodmodeShotPath)
-		for(auto *p = Source.FindFirst(CGameWorld::ENTTYPE_PROJECTILE); p; p = p->TypeNext())
+		for(const auto &Path : ProjectilePaths(Source, g_Config.m_NullGodmodeShotPathTicks))
 		{
-			auto *pProjectile = static_cast<CProjectile *>(p);
-			const auto Data = pProjectile->GetData();
-			if(!ProjectileEnabled(Data.m_Type, false) || (g_Config.m_NullBulletLineSelfOnly && pProjectile->GetOwner() != Own)) continue;
-			const auto *pTune = GameClient()->GetTuning(Data.m_TuneZone);
-			const float Curvature = Data.m_Type == WEAPON_GUN ? pTune->m_GunCurvature : Data.m_Type == WEAPON_GRENADE ? pTune->m_GrenadeCurvature : pTune->m_ShotgunCurvature;
-			const float Speed = Data.m_Type == WEAPON_GUN ? pTune->m_GunSpeed : Data.m_Type == WEAPON_GRENADE ? pTune->m_GrenadeSpeed : pTune->m_ShotgunSpeed;
-			const float Age = (Source.GameTick() - pProjectile->GetStartTick()) / 50.0f;
-			vec2 Previous = pProjectile->GetPos(Age);
-			for(int Tick = 1; Tick <= g_Config.m_NullGodmodeShotPathTicks; ++Tick)
-			{
-				const vec2 Next = CalcPos(Data.m_StartPos, Data.m_StartVel, Curvature, Speed, Age + Tick / 50.0f);
-				Line(Graphics(), Previous, Next, ColorRGBA(1, .55f, .4f, g_Config.m_NullBulletLineAlpha / 100.0f));
-				if(Source.Collision()->IntersectLine(Previous, Next, nullptr, nullptr))
-				{
-					if(Data.m_Type == WEAPON_GRENADE) Ring(Graphics(), Next, 70, 1, ColorRGBA(1, .4f, .3f, .3f), 32);
-					break;
-				}
-				Previous = Next;
-			}
+			if(!ProjectileEnabled(Path.m_Weapon, false) || (g_Config.m_NullBulletLineSelfOnly && Path.m_Owner != Own)) continue;
+			for(size_t i = 1; i < Path.m_vPoints.size(); ++i)
+				Line(Graphics(), Path.m_vPoints[i - 1], Path.m_vPoints[i], ColorRGBA(1, .55f, .4f, g_Config.m_NullBulletLineAlpha / 100.0f));
+			if(Path.m_Impact && Path.m_Weapon == WEAPON_GRENADE && !Path.m_vPoints.empty())
+				Ring(Graphics(), Path.m_vPoints.back(), 70, 1, ColorRGBA(1, .4f, .3f, .3f), 32);
 		}
 }
 }

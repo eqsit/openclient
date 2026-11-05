@@ -209,9 +209,9 @@ void CGameClient::OnConsoleInit()
 						  &m_Emoticon,
 						  &m_ImportantAlert,
 						  &m_Menus,
+						  &m_NullClient,
 						  &m_Controls,
 						  &m_TouchControls,
-						  &m_NullClient,
 						  &m_Binds});
 
 	// initialize client data
