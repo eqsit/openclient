@@ -10,6 +10,7 @@
 #include <base/str.h>
 
 #include <engine/shared/config.h>
+#include <engine/shared/client_profile.h>
 
 #include <limits>
 
@@ -199,7 +200,8 @@ void CCharacterCore::Reset()
 
 void CCharacterCore::Tick(bool UseInput, bool DoDeferredTick)
 {
-	m_MoveRestrictions = !m_pWorld || !m_pWorld->m_IsClientPrediction || g_Config.m_KrxPredictionMoveRestriction ?
+	m_MoveRestrictions = !m_pWorld || !m_pWorld->m_IsClientPrediction || m_pWorld->m_IsNullPrediction ||
+			     !OpenKrx::KrxProfileActive() || g_Config.m_KrxPredictionMoveRestriction ?
 				     m_pCollision->GetMoveRestrictions(UseInput ? IsSwitchActiveCb : nullptr, this, m_Pos) :
 				     0;
 	m_TriggeredEvents = 0;

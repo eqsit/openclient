@@ -106,9 +106,11 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullPingLead, "Ping compensation (ticks)", 0, 10},
 			{&g_Config.m_NullAimbotArc, "Lob grenades over walls", 0, 1},
 			{&g_Config.m_NullAimbotWallbounce, "Bounce lasers off walls", 0, 1},
+			{&g_Config.m_NullAimbotWallbounceRays, "Wall bounce search angles", 24, 360},
 			{&g_Config.m_NullAimbotIgnoreFriends, "Never target a friend", 0, 1}}, 2},
 		{"Automation", "Small actions performed for you, on top of your own input.", nullptr, false, true, {
-			{&g_Config.m_NullAutoFire, "Auto fire", 0, 1}, {&g_Config.m_NullAutoRehook, "Auto rehook", 0, 1}}, 4},
+			{&g_Config.m_NullAutoFire, "Auto fire", 0, 1}, {&g_Config.m_NullAutoRehook, "Auto rehook", 0, 1},
+			{&g_Config.m_NullAutoRehookTicks, "Keep aiming at the lost target for", 1, 60, " ticks"}}, 4},
 		{"Protections", "What this client reports about itself to a server.", nullptr, false, true, {
 			{&g_Config.m_NullRandomTimeoutSeed, "Randomize timeout code", 0, 1}}, 4, 1},
 		{"Version spoofing", "What version this build reports to a server.", &g_Config.m_NullVersionSpoof, false, false, {
@@ -170,14 +172,17 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullSerialGrenade, "Use the grenade in between", 0, 1},
 			{&g_Config.m_NullSerialWakeGuard, "Never hammer a frozen player", 0, 1},
 			{&g_Config.m_NullSerialShove, "Push them toward the freeze", 0, 1},
+			{&g_Config.m_NullSerialShoveRange, "Look for freeze around the target within", 0, 1000},
 			{&g_Config.m_NullSerialHaul, "Prefer dragging over hitting by", 0, 1000},
 			{&g_Config.m_NullSerialCarry, "Carry a frozen player up to", 0, 3000},
 			{&g_Config.m_NullSerialSafety, "Value its own footing by", 0, 1000},
+			{&g_Config.m_NullSerialSafeRange, "Look for hazards around its footing within", 0, 1000},
 			{&g_Config.m_NullSerialPress, "Value being right on top of them by", 0, 1000},
 			{&g_Config.m_NullSerialForesight, "Value their possible retaliation by", 0, 2000},
 			{&g_Config.m_NullSerialForesightRange, "Count targets within", 0, 2000},
 			{&g_Config.m_NullSerialIgnoreFriends, "Never target a friend", 0, 1},
-			{&g_Config.m_NullSerialDraw, "Highlight the target", 0, 1}}, 1},
+			{&g_Config.m_NullSerialDraw, "Highlight the target", 0, 1},
+			{&g_Config.m_NullSerialPathInterval, "Recalculate the route every", 1, 200, " ticks"}}, 1},
 		{"Serial killer on the dummy", "Hunts on the tee you are not controlling, with its own target choice.", &g_Config.m_NullSerialKillerDummy, false, false, {
 			{&g_Config.m_NullSerialPickDummy, "", 0, 3, "", 4, {"Nearest", "War list", "Attack list", "Same as main"}},
 			{&g_Config.m_NullSerialOwn, "Let the dummy hunt your own tee", 0, 1}}, 1},
@@ -193,6 +198,9 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullFlymodePathInterval, "Recalculate every", 1, 200, " ticks"}}, 4},
 		{"How much of the map it scans", "Larger is more thorough but slower.", nullptr, false, true, {
 			{&g_Config.m_NullFlymodeSimRadius, "Simulated surroundings", 0, 4000}}, 4},
+		{"OpenClient", "Optional additions to NullClient's original survival behavior.", nullptr, false, true, {
+			{&g_Config.m_NullPreserveJump, "Preserve a manual jump when a rescue supports it", 0, 1},
+			{&g_Config.m_NullRocketRestoreWeapon, "Weapon return", 0, 2, "", 3}}, 4},
 	};
 #undef B
 #undef S
@@ -213,6 +221,8 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
 #undef MACRO_CONFIG_INT
+		if(pValue == &g_Config.m_NullPreserveJump)
+			*pValue = 0;
 		if(pValue == &g_Config.m_NullRocketRestoreWeapon)
 		{
 			*pValue = 0;
@@ -342,7 +352,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			s_aOpen[i] = true;
 		const bool Open = s_aOpen[i];
 		int Rows = Open ? Card.m_Settings.size() : 0;
-		if(i == 22 && Open) Rows = 2 + std::clamp(static_cast<int>(GameClient()->m_NullClient.Profiles().size()), 1, 12);
+		if(i == 22 && Open) Rows = 3 + std::min(static_cast<int>(GameClient()->m_NullClient.Profiles().size()), 12);
 		if(i == 16 && Open && AimWeapon < 2) Rows -= 2;
 		if(i == 9 && Open && !g_Config.m_NullGodmodeAutoWeapon)
 			--Rows;
@@ -451,6 +461,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			static char s_aProfileName[64] = "";
 			static CLineInput s_Name(s_aProfileName, sizeof(s_aProfileName));
 			static CButtonContainer s_aActions[4];
+			static std::string s_Result;
 			CUIRect Row;
 			Body.HSplitTop(20, &Row, &Body);
 			s_Name.SetEmptyText(Localize("my settings"));
@@ -466,20 +477,26 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 				if(DoButton_Menu(&s_aActions[Action], Localize(apActions[Action]), 0, &Button))
 				{
 					auto &Null = GameClient()->m_NullClient;
-					if(Action == 0) Null.SaveProfile(s_aProfileName);
-					if(Action == 1) Null.LoadProfile(s_aProfileName);
-					if(Action == 2) Null.DeleteProfile(s_aProfileName);
+					if(Action == 0) s_Result = Localize(Null.SaveProfile(s_aProfileName) ? "Profile saved" : "Could not save profile");
+					if(Action == 1) s_Result = Localize(Null.LoadProfile(s_aProfileName) ? "Profile loaded" : "Could not load profile");
+					if(Action == 2) s_Result = Localize(Null.DeleteProfile(s_aProfileName) ? "Profile deleted" : "Could not delete profile");
 					if(Action == 3) Null.OpenProfileFolder();
 				}
 			}
 			const auto Names = GameClient()->m_NullClient.Profiles();
-			static std::map<std::string, CButtonContainer> s_ProfileButtons;
+			static CButtonContainer s_aProfileButtons[12];
 			for(size_t NameIndex = 0; NameIndex < std::min<size_t>(12, Names.size()); ++NameIndex)
 			{
 				const auto &Name = Names[NameIndex];
 				Body.HSplitTop(2, nullptr, &Body);
 				Body.HSplitTop(20, &Row, &Body);
-				if(DoButton_Menu(&s_ProfileButtons[Name], Name.c_str(), 0, &Row)) str_copy(s_aProfileName, Name.c_str());
+				if(DoButton_Menu(&s_aProfileButtons[NameIndex], Name.c_str(), 0, &Row)) str_copy(s_aProfileName, Name.c_str());
+			}
+			if(!s_Result.empty())
+			{
+				Body.HSplitTop(2, nullptr, &Body);
+				Body.HSplitTop(20, &Row, &Body);
+				if(Scroll.AddRect(Row)) Ui()->DoLabel(&Row, s_Result.c_str(), 12, TEXTALIGN_ML);
 			}
 		}
 		for(const auto &Setting : Card.m_Settings)

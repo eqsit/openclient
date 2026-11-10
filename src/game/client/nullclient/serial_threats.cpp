@@ -1,5 +1,6 @@
 #include "serial_threats.h"
 
+#include <game/client/gameclient.h>
 #include <game/client/prediction/entities/character.h>
 #include <game/client/prediction/gameworld.h>
 #include <game/collision.h>
@@ -24,7 +25,7 @@ namespace OpenKrx::NullClient
 			return F * F;
 		}
 	}
-	void CSerialThreats::Build(CGameWorld &World, int Own, int Target, float Range, int Horizon, float Throw, const std::array<bool, MAX_CLIENTS> &Idle)
+	void CSerialThreats::Build(CGameWorld &World, int Own, int Target, float Range, int Horizon, float Throw, const std::array<bool, MAX_CLIENTS> &Idle, const CGameClient *pClient)
 	{
 		m_vThreats.clear();
 		m_pCollision = World.Collision();
@@ -36,19 +37,30 @@ namespace OpenKrx::NullClient
 			return;
 		const auto *pTune = pSelf->GetTuning(pSelf->GetPureTuneZone());
 		m_HookLength = pTune->m_HookLength;
+		const vec2 SelfPosition = pClient ? pClient->m_aClients[Own].m_RenderPos : pSelf->Core()->m_Pos;
 		for(int Id = 0; Id < MAX_CLIENTS; ++Id)
 		{
 			auto *p = World.GetCharacterById(Id);
-			if(!p || Id == Own || (Id != Target && Idle[Id]) || p->m_FreezeTime > 0 || p->Core()->m_DeepFrozen || distance(p->Core()->m_Pos, pSelf->Core()->m_Pos) > Range)
+			if(Id == Own || (Id != Target && Idle[Id]) ||
+				(pClient ? !pClient->m_Snap.m_aCharacters[Id].m_Active : !p) ||
+				(p && (p->m_FreezeTime > 0 || p->Core()->m_DeepFrozen)))
 				continue;
-			const auto *pCore = p->Core();
-			const bool HookingUs = pCore->HookedPlayer() == Own;
-			const float Radius = p->GetProximityRadius() * 1.25f + pSelf->GetProximityRadius();
-			CThreat T{pCore->m_Pos, Radius,
-				!p->HammerHitDisabled() && (p->GetActiveWeapon() == WEAPON_HAMMER || HookingUs || distance(pCore->m_Pos, pSelf->Core()->m_Pos) <= Radius * 2),
-				p->GetActiveWeapon() == WEAPON_GRENADE && p->GetWeaponAmmo(WEAPON_GRENADE) != 0,
-				HookingUs, Id == Target, pCore->m_HookState != HOOK_IDLE && !HookingUs, {}};
-			vec2 Position = T.m_Position, Velocity = pCore->m_Vel;
+			// 2487b0 uses rendered positions, predicted combat state/velocity, and
+			// snapshot velocity/weapon when a visible tee has no predicted entity.
+			const vec2 OtherPosition = pClient ? pClient->m_aClients[Id].m_RenderPos : p->Core()->m_Pos;
+			const float Distance = distance(OtherPosition, SelfPosition);
+			if(Distance > Range)
+				continue;
+			const auto *pCore = p ? p->Core() : nullptr;
+			const bool HookingUs = pCore && pCore->HookedPlayer() == Own;
+			const float Radius = (p ? p->GetProximityRadius() * 1.25f : 35.f) + pSelf->GetProximityRadius();
+			const int Weapon = p ? p->GetActiveWeapon() : pClient->m_Snap.m_aCharacters[Id].m_Cur.m_Weapon;
+			CThreat T{OtherPosition, Radius,
+				p ? !p->HammerHitDisabled() && (Weapon == WEAPON_HAMMER || HookingUs || Distance <= Radius * 2) : Weapon == WEAPON_HAMMER,
+				Weapon == WEAPON_GRENADE && (!p || p->GetWeaponAmmo(WEAPON_GRENADE) != 0),
+				HookingUs, Id == Target, pCore && pCore->m_HookState != HOOK_IDLE && !HookingUs, {}};
+			vec2 Position = T.m_Position;
+			vec2 Velocity = pCore ? pCore->m_Vel : vec2(pClient->m_Snap.m_aCharacters[Id].m_Cur.m_VelX, pClient->m_Snap.m_aCharacters[Id].m_Cur.m_VelY) / 256.f;
 			for(int Tick = 0; Tick < m_Horizon; ++Tick)
 			{
 				Velocity.y += pTune->m_Gravity;

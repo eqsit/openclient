@@ -2,6 +2,7 @@
 
 #include <engine/client.h>
 #include <engine/shared/config.h>
+#include <engine/shared/jobs.h>
 
 #include <game/client/gameclient.h>
 #include <game/client/prediction/entities/character.h>
@@ -11,7 +12,10 @@
 #include <game/mapitems.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <future>
+#include <thread>
 
 namespace OpenKrx::NullClient
 {
@@ -22,6 +26,46 @@ namespace OpenKrx::NullClient
 		{
 			return pCharacter->m_FreezeTime > 0 || pCharacter->Core()->m_DeepFrozen;
 		}
+
+		// Null 243cd0/243f90: persistent private pool, up to 16 participants
+		// including the caller, dynamic candidate claims, synchronous completion.
+		struct CNullPool
+		{
+			const int m_Participants;
+			CJobPool m_Jobs;
+			CNullPool() : m_Participants(std::clamp(static_cast<int>(std::thread::hardware_concurrency() ? std::thread::hardware_concurrency() : 4), 1, 16))
+			{
+				m_Jobs.Init(m_Participants - 1);
+			}
+		};
+		struct CCandidateWork
+		{
+			std::atomic<int> m_Next{0};
+			int m_Count;
+			std::function<void(IWorld &, int)> m_Evaluate;
+			void Run(IWorld &World)
+			{
+				for(int Index; (Index = m_Next.fetch_add(1, std::memory_order_relaxed)) < m_Count;)
+					m_Evaluate(World, Index);
+			}
+		};
+		class CCandidateJob final : public IJob
+		{
+			std::unique_ptr<CSimulation> m_pWorld;
+			std::shared_ptr<CCandidateWork> m_pWork;
+			std::promise<uint64_t> m_Completed;
+			void Run() override
+			{
+				m_pWork->Run(*m_pWorld);
+				const auto Steps = m_pWorld->TotalSteps();
+				m_pWorld.reset();
+				m_Completed.set_value(Steps);
+			}
+
+		public:
+			CCandidateJob(std::unique_ptr<CSimulation> pWorld, std::shared_ptr<CCandidateWork> pWork) : m_pWorld(std::move(pWorld)), m_pWork(std::move(pWork)) {}
+			std::future<uint64_t> Result() { return m_Completed.get_future(); }
+		};
 	}
 
 	void CIdleTracker::Update(CGameClient *pClient)
@@ -83,6 +127,7 @@ namespace OpenKrx::NullClient
 
 	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle)
 	{
+		m_pTotalSteps = std::make_shared<uint64_t>(0);
 		m_ClientId = ClientId;
 		m_aIdle = aIdle;
 		m_Root.CopyWorldIsolated(&Source);
@@ -210,6 +255,9 @@ namespace OpenKrx::NullClient
 	std::unique_ptr<IWorld> CSimulation::Clone() const
 	{
 		auto pCopy = std::make_unique<CSimulation>();
+		pCopy->m_pCollisionOwner = m_pCollisionOwner;
+		pCopy->m_pTuningOwner = m_pTuningOwner;
+		pCopy->m_pTotalSteps = m_pTotalSteps;
 		pCopy->m_Root.CopyWorldIsolated(&m_World);
 		pCopy->m_ClientId = m_ClientId;
 		pCopy->m_Adversarial = m_Adversarial;
@@ -219,6 +267,55 @@ namespace OpenKrx::NullClient
 		pCopy->m_RocketNear = m_RocketNear;
 		pCopy->Reset();
 		return pCopy;
+	}
+	std::unique_ptr<CSimulation> CSimulation::CloneForWorker() const
+	{
+		auto pCopy = std::unique_ptr<CSimulation>(static_cast<CSimulation *>(Clone().release()));
+		pCopy->m_pTotalSteps = std::make_shared<uint64_t>(0);
+		pCopy->m_pCollisionOwner = m_World.Collision()->CreateIsolatedCopy();
+		pCopy->m_pTuningOwner = std::make_shared<std::array<CTuningParams, 256>>();
+		std::copy_n(m_World.TuningList(), 256, pCopy->m_pTuningOwner->begin());
+		pCopy->m_Root.RebindCollision(pCopy->m_pCollisionOwner.get());
+		pCopy->m_Root.RebindTuning(pCopy->m_pTuningOwner->data());
+		pCopy->Reset();
+		return pCopy;
+	}
+	void CSimulation::ForEachCandidate(int Count, const std::function<void(IWorld &, int)> &Evaluate)
+	{
+		// 23b810 only dispatches with at least 12 eligible moves, requesting
+		// min(pool participants, count/4). Selection/ties remain on the caller.
+		if(Count < 12)
+		{
+			IWorld::ForEachCandidate(Count, Evaluate);
+			return;
+		}
+		static CNullPool Pool;
+		const int Participants = std::min(Pool.m_Participants, Count / 4);
+		if(Participants < 2)
+		{
+			IWorld::ForEachCandidate(Count, Evaluate);
+			return;
+		}
+		auto pWork = std::make_shared<CCandidateWork>();
+		pWork->m_Count = Count;
+		pWork->m_Evaluate = Evaluate;
+		std::vector<std::shared_ptr<CCandidateJob>> vJobs;
+		std::vector<std::future<uint64_t>> vResults;
+		// Finish every snapshot before the caller starts mutating its world.
+		Reset();
+		for(int Worker = 1; Worker < Participants; ++Worker)
+		{
+			auto pJob = std::make_shared<CCandidateJob>(CloneForWorker(), pWork);
+			vResults.push_back(pJob->Result());
+			vJobs.push_back(std::move(pJob));
+		}
+		for(auto &pJob : vJobs)
+			Pool.m_Jobs.Add(pJob);
+		pWork->Run(*this);
+		// Drain every job before captured candidate arrays, weights, and input
+		// go out of scope. The client is compiled without C++ exceptions.
+		for(auto &Result : vResults)
+			*m_pTotalSteps += Result.get();
 	}
 	void CSimulation::Reset()
 	{
@@ -317,6 +414,7 @@ namespace OpenKrx::NullClient
 		pLocal->OnPredictedInput(&Input);
 		m_World.Tick();
 		++m_Steps;
+		++*m_pTotalSteps;
 		return Valid();
 	}
 

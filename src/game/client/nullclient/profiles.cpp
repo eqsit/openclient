@@ -66,9 +66,10 @@ bool CNullClient::SaveProfile(const char *pName)
 	if(Name.empty()) return false;
 	Storage()->CreateFolder("null_profiles", IStorage::TYPE_SAVE);
 	const std::string Path = "null_profiles/" + Name + ".cfg";
-	IOHANDLE File = Storage()->OpenFile(Path.c_str(), IOFLAG_WRITE, IStorage::TYPE_SAVE);
+	const std::string Temporary = Path + ".tmp";
+	IOHANDLE File = Storage()->OpenFile(Temporary.c_str(), IOFLAG_WRITE, IStorage::TYPE_SAVE);
 	if(!File) return false;
-	const char *pHeader = "# Null settings profile.\n# Loading applies only null_ options; every other line is ignored.\n";
+	const char *pHeader = "# Null settings profile, including OpenClient's Null extensions.\n# Loading applies only known Null options; every other line is ignored.\n";
 	bool Ok = io_write(File, pHeader, str_length(pHeader)) == static_cast<unsigned>(str_length(pHeader));
 	const auto Write = [&](const char *pKey, const char *pValue) {
 		char aLine[1024];
@@ -83,7 +84,16 @@ bool CNullClient::SaveProfile(const char *pName)
 #undef MACRO_CONFIG_INT
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
+	char aValue[32];
+	str_format(aValue, sizeof(aValue), "%d", g_Config.m_NullPreserveJump);
+	Write("openkrx_null_preserve_jump", aValue);
+	str_format(aValue, sizeof(aValue), "%d", g_Config.m_NullRocketRestoreWeapon);
+	Write("openkrx_null_rocket_restore_weapon", aValue);
 	Ok &= io_close(File) == 0;
+	if(Ok)
+		Ok = Storage()->RenameFile(Temporary.c_str(), Path.c_str(), IStorage::TYPE_SAVE);
+	if(!Ok)
+		Storage()->RemoveFile(Temporary.c_str(), IStorage::TYPE_SAVE);
 	return Ok;
 }
 
@@ -101,7 +111,7 @@ bool CNullClient::LoadProfile(const char *pName)
 		pLine = str_skip_whitespaces_const(pLine);
 		const char *pEnd = str_skip_to_whitespace_const(pLine);
 		const std::string Key(pLine, pEnd);
-		bool Known = false;
+		bool Known = Key == "openkrx_null_preserve_jump" || Key == "openkrx_null_rocket_restore_weapon";
 #define MACRO_CONFIG_INT(Name, Script, Def, Min, Max, Flags, Desc) Known |= Key == #Script;
 #define MACRO_CONFIG_COL(Name, Script, Def, Flags, Desc) Known |= Key == #Script;
 #define MACRO_CONFIG_STR(Name, Script, Size, Def, Flags, Desc) Known |= Key == #Script;

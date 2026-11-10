@@ -137,9 +137,8 @@ void CNullClient::RenderVisuals()
 		}
 		if(Enabled && g_Config.m_NullGodmodeHammerDodge && g_Config.m_NullGodmodeHammerRing)
 		{
-			CSimulation Threats;
-			if(Threats.Initialize(GameClient()->KrxPredictedWorld(), Id, SettingsFromConfig(), m_Idle.Idle()))
-				for(const auto &[Other, Radius] : Threats.HammerThreats())
+			for(const auto &[Other, Radius] : Controller.HammerThreats())
+				if(Other >= 0 && Other < MAX_CLIENTS && GameClient()->m_Snap.m_aCharacters[Other].m_Active)
 					Ring(Graphics(), GameClient()->m_aClients[Other].m_RenderPos, Radius, 1, ColorRGBA(1, .45f, .35f, Pulse * .1f + .16f), 36);
 		}
 		if(g_Config.m_NullGodmodeDebug && Enabled)
@@ -211,26 +210,42 @@ void CNullClient::RenderVisuals()
 	if(g_Config.m_NullHud)
 	{
 		const float Height = 300, Width = Height * Graphics()->ScreenAspect();
-		const float Size = 6 * g_Config.m_NullHudSize / 100.0f;
+		// 23eee0: size follows the longest localized label, with a separate
+		// status dot. A fixed 108-unit panel clips long translations.
+		const float Scale = std::clamp(g_Config.m_NullHudSize, 30, 250) / 100.f;
+		const float Size = 6.5f * Scale, Padding = 4.5f * Scale;
+		const float DotSize = 3.4f * Scale, Gap = 3.5f * Scale;
 		struct CFeature { const char *m_pName; bool m_On; };
 		const CFeature aFeatures[] = {{"Avoid Freeze", g_Config.m_NullGodmode != 0}, {"Avoid Freeze (dummy)", g_Config.m_NullGodmodeDummy != 0}, {"Serial killer", g_Config.m_NullSerialKiller != 0}, {"Serial killer (dummy)", g_Config.m_NullSerialKillerDummy != 0}, {"Aimbot", g_Config.m_NullAimbot != 0}, {"Fly mode", g_Config.m_NullFlymode != 0}, {"Fake aim", g_Config.m_NullFakeAim != 0}};
-		int Rows = 0;
-		for(const auto &Feature : aFeatures) Rows += Feature.m_On || g_Config.m_NullHudShowOff;
-		if(Rows == 0)
-			return;
 		Graphics()->MapScreen(CScreenRect(0, 0, Width, Height));
-		const float H = Rows * (Size + 3) + 8, W = 108 * g_Config.m_NullHudSize / 100.0f;
-		const int Place = g_Config.m_NullHudPos;
-		const float X = (Place & 1) ? Width - W - 6 : 6;
-		float Y = Place >= 4 ? (Height - H) * .5f : Place >= 2 ? Height - H - 6 : 6;
-		Graphics()->DrawRect(X, Y, W, H, ColorRGBA(0, 0, 0, .55f), IGraphics::CORNER_ALL, 3);
-		Y += 4;
+		int Rows = 0;
+		float TextWidth = 0;
 		for(const auto &Feature : aFeatures)
 			if(Feature.m_On || g_Config.m_NullHudShowOff)
 			{
-				TextRender()->TextColor(Feature.m_On ? ColorRGBA(.65f, 1, .72f, 1) : ColorRGBA(1, 1, 1, .35f));
-				TextRender()->Text(X + 5, Y, Size, Localize(Feature.m_pName));
-				Y += Size + 3;
+				++Rows;
+				TextWidth = std::max(TextWidth, TextRender()->TextWidth(Size, Localize(Feature.m_pName)));
+			}
+		if(Rows == 0)
+		{
+			Graphics()->MapScreen(Screen);
+			return;
+		}
+		const float H = Rows * (Size + Gap) + Padding * 2 - 1.5f * Scale;
+		const float W = Padding * 2 + DotSize + Gap + TextWidth, Margin = 6.f * Scale;
+		const int Place = std::clamp(g_Config.m_NullHudPos, 0, 5);
+		const float X = (Place & 1) ? Width - W - Margin : Margin;
+		float Y = Place >= 4 ? (Height - H) * .5f : Place >= 2 ? Height - H - Margin : Margin;
+		Graphics()->DrawRect(X, Y, W, H, ColorRGBA(0, 0, 0, .38f), IGraphics::CORNER_ALL, 3.f * Scale);
+		Y += Padding;
+		for(const auto &Feature : aFeatures)
+			if(Feature.m_On || g_Config.m_NullHudShowOff)
+			{
+				Graphics()->DrawRect(X + Padding, Y + (Size - DotSize) * .5f, DotSize, DotSize,
+					Feature.m_On ? ColorRGBA(.3f, .95f, .55f, .95f) : ColorRGBA(.65f, .65f, .65f, .45f), IGraphics::CORNER_ALL, DotSize * .5f);
+				TextRender()->TextColor(1, 1, 1, Feature.m_On ? .92f : .38f);
+				TextRender()->Text(X + Padding + DotSize + Gap, Y, Size, Localize(Feature.m_pName));
+				Y += Size + Gap;
 			}
 		TextRender()->TextColor(1, 1, 1, 1);
 		Graphics()->MapScreen(Screen);

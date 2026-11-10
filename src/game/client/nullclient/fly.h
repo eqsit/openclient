@@ -15,7 +15,8 @@ class CFly
 	bool m_HasPlan = false;
 	int m_LastTick = -1, m_LastRouteTick = -1, m_Slot = -1;
 	CNetObj_PlayerInput m_Planned{};
-	int m_ProfileCount = 0, m_ProfileSteps = 0, m_ProfileFailed = 0;
+	int m_ProfileCount = 0, m_ProfileFailed = 0;
+	uint64_t m_ProfileSteps = 0;
 	int64_t m_ProfileTime = 0, m_ProfileWorst = 0;
 public:
 	void Reset() { *this = {}; }

@@ -8,6 +8,7 @@
 #include <generated/protocol.h>
 
 #include <array>
+#include <optional>
 class CGameClient;
 namespace OpenKrx::NullClient
 {
@@ -31,6 +32,7 @@ namespace OpenKrx::NullClient
 		void Reset() { m_aStates = {}; }
 		void Update(CGameClient *pClient, const CWarlist &Warlist, const std::array<bool, MAX_CLIENTS> &Idle);
 		void Lock(CGameClient *pClient, const CWarlist &Warlist);
+		static std::optional<vec2> FindHookAnchor(CCollision *pCollision, vec2 Position, vec2 Delta, float HookLength);
 		int Target(int Slot) const { return m_aStates[Slot].m_Target; }
 		bool Locked(int Slot) const { return m_aStates[Slot].m_Locked; }
 		CNetObj_PlayerInput Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot, bool Consume = true);

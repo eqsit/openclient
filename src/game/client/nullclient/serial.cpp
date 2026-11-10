@@ -64,6 +64,43 @@ namespace OpenKrx::NullClient
 			return Best;
 		}
 	}
+	std::optional<vec2> CSerial::FindHookAnchor(CCollision *pCollision, vec2 Position, vec2 Delta, float HookLength)
+	{
+		// 23f660: sixteen anchors, hazard-safe visibility, upward preference,
+		// and a small reach reward. The old 48-ray dot-only scan was a substitute.
+		const float GoalLength = length(Delta);
+		if(!pCollision || HookLength <= 0 || GoalLength < 24)
+			return std::nullopt;
+		const vec2 GoalDirection = Delta / GoalLength;
+		std::optional<vec2> Best;
+		float BestScore = 0;
+		for(int Ray = 0; Ray < 16; ++Ray)
+		{
+			const float Angle = Ray * 6.2831855f * .0625f;
+			const vec2 Direction(std::cos(Angle), std::sin(Angle));
+			if(Direction.y > .4f && GoalDirection.y < .4f)
+				continue;
+			vec2 Hit;
+			if(!pCollision->IntersectLineTeleHook(Position, Position + Direction * HookLength, &Hit, nullptr) ||
+				!CRoute::SegmentSafe(pCollision, Position, Hit, true))
+				continue;
+			const vec2 Anchor = Hit - Position;
+			const float Distance = length(Anchor);
+			if(Distance < 48)
+				continue;
+			const vec2 UnitAnchor = Anchor / Distance;
+			float Score = dot(GoalDirection, UnitAnchor);
+			if(GoalDirection.y < -.2f)
+				Score -= UnitAnchor.y * .8f;
+			Score += std::clamp(Distance / HookLength, 0.f, 1.f) * .2f;
+			if(!Best || Score > BestScore)
+			{
+				Best = Anchor;
+				BestScore = Score;
+			}
+		}
+		return BestScore > .2f ? Best : std::nullopt;
+	}
 	int CSerial::Pick(CGameClient *pClient, const CWarlist &Warlist, int Slot, int Mode) const
 	{
 		const int Id = pClient->m_aLocalIds[Slot];
@@ -133,7 +170,7 @@ namespace OpenKrx::NullClient
 		const bool Main = Slot == g_Config.m_ClDummy;
 		const int Id = pClient->m_aLocalIds[Slot];
 		if(!NullProfileActive() || !(Main ? g_Config.m_NullSerialKiller : g_Config.m_NullSerialKillerDummy) ||
-			Id < 0 || Id >= MAX_CLIENTS || pClient->m_Snap.m_SpecInfo.m_Active)
+			Id < 0 || Id >= MAX_CLIENTS || !pClient->m_Snap.m_aCharacters[Id].m_Active || pClient->m_Snap.m_SpecInfo.m_Active)
 		{
 			S = {};
 			return;
@@ -154,12 +191,13 @@ namespace OpenKrx::NullClient
 			return;
 		const int Mode = Main ? g_Config.m_NullSerialPick : g_Config.m_NullSerialPickDummy + 1;
 		const int PreviousTarget = S.m_Target;
-		if(!S.m_Locked || S.m_Target < 0 || !pClient->m_Snap.m_aCharacters[S.m_Target].m_Active)
+		if(!S.m_Locked || S.m_Target < 0 || S.m_Target >= MAX_CLIENTS || !pClient->m_Snap.m_aCharacters[S.m_Target].m_Active)
 		{
 			S.m_Locked = false;
 			S.m_Target = Pick(pClient, Warlist, Slot, Mode);
 		}
-		if(S.m_Target < 0)
+		const int TargetId = S.m_Target;
+		if(TargetId < 0 || TargetId >= MAX_CLIENTS)
 			return;
 		if(PreviousTarget != S.m_Target)
 		{
@@ -169,14 +207,17 @@ namespace OpenKrx::NullClient
 			S.m_Route.Reset();
 			S.m_HaveVelocity = false;
 		}
-		auto *pTarget = World.GetCharacterById(S.m_Target);
-		const vec2 Position = pSelf->Core()->m_Pos;
-		const vec2 Target = pTarget ? pTarget->Core()->m_Pos : pClient->m_aClients[S.m_Target].m_RenderPos;
+		auto *pTarget = World.GetCharacterById(TargetId);
+		// 2417e0 uses rendered positions for chase geometry and predicted cores
+		// for weapon/hook/velocity observations. Mixing these changes near-range
+		// thresholds and can release a target at a different point in its throw.
+		const vec2 Position = pClient->m_aClients[Id].m_RenderPos;
+		const vec2 Target = pClient->m_aClients[TargetId].m_RenderPos;
 		const float D = distance(Position, Target);
 		if(D < .001f)
 			return;
 		const bool TargetFrozen = Frozen(pTarget);
-		const vec2 ObservedVelocity = pTarget ? pTarget->Core()->m_Vel : vec2(pClient->m_Snap.m_aCharacters[S.m_Target].m_Cur.m_VelX, pClient->m_Snap.m_aCharacters[S.m_Target].m_Cur.m_VelY) / 256.f;
+		const vec2 ObservedVelocity = pTarget ? pTarget->Core()->m_Vel : vec2(pClient->m_Snap.m_aCharacters[TargetId].m_Cur.m_VelX, pClient->m_Snap.m_aCharacters[TargetId].m_Cur.m_VelY) / 256.f;
 		S.m_Velocity = S.m_HaveVelocity ? S.m_Velocity * .7f + ObservedVelocity * .3f : ObservedVelocity;
 		S.m_HaveVelocity = true;
 		auto *pCollision = pClient->Collision();
@@ -212,12 +253,13 @@ namespace OpenKrx::NullClient
 		}
 		else
 			S.m_HasHazard = false;
-		const vec2 Push = S.m_HasHazard ? Unit(S.m_Hazard - Target) : vec2(0, 0);
+		const vec2 Push = S.m_HasHazard && distance(S.m_Hazard, Target) > .001f ? normalize(S.m_Hazard - Target) : vec2(0, 0);
+		const bool HasPush = Push != vec2(0, 0);
 		vec2 Stand = Target;
 		bool HaveStand = false;
 		float BestScore = 0, BestRisk = 0;
 		CSerialThreats Foresight;
-		Foresight.Build(World, Id, S.m_Target, g_Config.m_NullSerialForesightRange, g_Config.m_NullGodmodeReact, g_Config.m_NullGodmodeRocketThrow, Idle);
+		Foresight.Build(World, Id, S.m_Target, g_Config.m_NullSerialForesightRange, g_Config.m_NullGodmodeReact, g_Config.m_NullGodmodeRocketThrow, Idle, pClient);
 		const float Radius = Hooked ? 96.f : 42.f;
 		for(int Ring = 0; Ring < 3; ++Ring)
 			for(int Ray = 0; Ray < 12; ++Ray)
@@ -271,10 +313,11 @@ namespace OpenKrx::NullClient
 		if(HaveStand)
 			S.m_Stand = Stand;
 		const vec2 Goal = (HaveStand ? Stand : Target) + S.m_Velocity * (g_Config.m_NullSerialLead * std::clamp((D - 120.f) / 240.f, 0.f, 1.f));
-		if(Tick - S.m_LastRouteTick >= g_Config.m_NullSerialPathInterval || distance(Goal, S.m_RouteGoal) > 150)
+		const vec2 RouteGoal = HaveStand ? Stand : Target;
+		if(Tick - S.m_LastRouteTick >= g_Config.m_NullSerialPathInterval || distance(RouteGoal, S.m_RouteGoal) > 150)
 		{
 			S.m_LastRouteTick = Tick;
-			S.m_RouteGoal = Goal;
+			S.m_RouteGoal = RouteGoal;
 			if(!S.m_Route.Build(pCollision, Position, HaveStand ? Stand : Target, g_Config.m_NullFlymodePathNodes, true))
 				S.m_Route.Build(pCollision, Position, Target, g_Config.m_NullFlymodePathNodes, true);
 		}
@@ -290,7 +333,7 @@ namespace OpenKrx::NullClient
 		const bool Grounded = pSelf->IsGrounded();
 		const bool Blocked = !S.m_Route.Valid() && pCollision->IntersectLine(Position, Goal, nullptr, nullptr);
 		const bool StepUp = Plan.m_Direction && Grounded && pCollision->CheckPoint(Position + vec2(Plan.m_Direction * 34, 0)) && !pCollision->CheckPoint(Position + vec2(Plan.m_Direction * 34, -34));
-		Plan.m_Jump = (!Blocked && (Delta.y < -20 || StepUp) && (Grounded || !(pSelf->Core()->m_Jumped & 2)));
+		Plan.m_Jump = ((!Blocked && Delta.y < -20) || StepUp) && (Grounded || !(pSelf->Core()->m_Jumped & 2));
 		vec2 Aim = Target - Position;
 		if(S.m_Release > 0)
 			--S.m_Release;
@@ -301,7 +344,17 @@ namespace OpenKrx::NullClient
 			if(pCore->m_HookState == HOOK_GRABBED)
 			{
 				if(Hooked)
+				{
 					Plan.m_Hook = S.m_Release == 0;
+					const float Speed = length(S.m_Velocity);
+					// 24245b..2424f0 releases a completed throw independently of
+					// firing: only fast motion toward the selected nearby hazard.
+					if(HasPush && Speed > 5 && dot(S.m_Velocity / Speed, Push) > .55f && distance(Target, S.m_Hazard) < Speed * 10)
+					{
+						S.m_Release = 8;
+						Plan.m_Hook = 0;
+					}
+				}
 				else
 				{
 					const vec2 Anchor = pCore->m_HookPos - Position;
@@ -320,20 +373,10 @@ namespace OpenKrx::NullClient
 			}
 			else if(D > 60 && pCore->m_HookState == HOOK_IDLE)
 			{
-				float Best = -1;
-				for(int Ray = 0; Ray < 48; ++Ray)
+				if(const auto Anchor = FindHookAnchor(pCollision, Position, Delta, HookLength))
 				{
-					float A = Ray * 6.2831855f / 48;
-					vec2 Direction(std::cos(A), std::sin(A)), Hit;
-					if(pCollision->IntersectLineTeleHook(Position, Position + Direction * HookLength, &Hit, nullptr) != TILE_SOLID)
-						continue;
-					const float Score = dot(Direction, Unit(Delta));
-					if(Score > .2f && Score > Best)
-					{
-						Best = Score;
-						Aim = Direction * HookLength;
-						Plan.m_Hook = 1;
-					}
+					Aim = *Anchor;
+					Plan.m_Hook = 1;
 				}
 			}
 		}
@@ -358,7 +401,7 @@ namespace OpenKrx::NullClient
 			if(S.m_HasHazard && Weapon == WEAPON_HAMMER)
 				AttackAim = Unit(AttackAim + vec2(0, -1.1f));
 			const float Threshold = Weapon == WEAPON_HAMMER && !Hooked ? -.1f : .25f;
-			const bool Aligned = !S.m_HasHazard || dot(AttackAim, Push) > Threshold;
+			const bool Aligned = !HasPush || dot(AttackAim, Push) > Threshold;
 			if(pSelf->GetActiveWeapon() == Weapon && pSelf->DiagnosticReloadTimer() == 0 && Aligned)
 			{
 				Plan.m_Fire = 1;

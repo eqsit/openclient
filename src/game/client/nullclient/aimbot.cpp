@@ -110,6 +110,8 @@ float PingLead(CGameClient *pClient)
 }
 vec2 PredictTarget(CGameClient *pClient, CGameWorld &World, int Target, vec2 Position, float Ticks, const CTuningParams &Tune)
 {
+	if(Target < 0 || Target >= MAX_CLIENTS)
+		return Position;
 	const auto *pCharacter = World.GetCharacterById(Target);
 	vec2 Velocity = pCharacter ? pCharacter->Core()->m_Vel : vec2(pClient->m_Snap.m_aCharacters[Target].m_Cur.m_VelX, pClient->m_Snap.m_aCharacters[Target].m_Cur.m_VelY) / 256.0f;
 	for(int Tick = 0; Tick < std::min(100, static_cast<int>(Ticks)); ++Tick)

@@ -10,6 +10,7 @@
 #include <vector>
 class CCollision;
 class CGameWorld;
+class CGameClient;
 namespace OpenKrx::NullClient
 {
 	// Original 2487b0/247c30: geometric retaliation field, shared by all 36 stand probes.
@@ -29,7 +30,7 @@ namespace OpenKrx::NullClient
 		float HazardDistance(vec2 Position, vec2 Direction, float Range) const;
 
 	public:
-		void Build(CGameWorld &World, int Own, int Target, float Range, int Horizon, float Throw, const std::array<bool, MAX_CLIENTS> &Idle);
+		void Build(CGameWorld &World, int Own, int Target, float Range, int Horizon, float Throw, const std::array<bool, MAX_CLIENTS> &Idle, const CGameClient *pClient = nullptr);
 		float Risk(vec2 Position) const;
 	};
 }

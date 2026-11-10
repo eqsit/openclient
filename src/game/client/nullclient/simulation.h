@@ -33,6 +33,11 @@ namespace OpenKrx::NullClient
 
 	class CSimulation final : public IWorld
 	{
+		// These owners precede the worlds so their map/tuning remain alive
+		// through every entity destructor and nested chain checkpoint.
+		std::shared_ptr<CCollision> m_pCollisionOwner;
+		std::shared_ptr<std::array<CTuningParams, 256>> m_pTuningOwner;
+		std::shared_ptr<uint64_t> m_pTotalSteps = std::make_shared<uint64_t>(0);
 		CGameWorld m_Root;
 		CGameWorld m_World;
 		int m_ClientId = -1;
@@ -44,10 +49,12 @@ namespace OpenKrx::NullClient
 		float m_RocketNear = 0;
 		void Prune(const CSettings &Settings);
 		void PrepareThreats(const CSettings &Settings);
+		std::unique_ptr<CSimulation> CloneForWorker() const;
 
 	public:
 		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle);
 		std::unique_ptr<IWorld> Clone() const override;
+		void ForEachCandidate(int Count, const std::function<void(IWorld &, int)> &Evaluate) override;
 		void Reset() override;
 		bool Tick(const CNetObj_PlayerInput &Input) override;
 		bool Valid() const override;
@@ -68,6 +75,7 @@ namespace OpenKrx::NullClient
 		CGameWorld &World() { return m_World; }
 		void CommitRoot();
 		int Steps() const { return m_Steps; }
+		uint64_t TotalSteps() const { return *m_pTotalSteps; }
 		const std::vector<std::pair<int, float>> &HammerThreats() const { return m_vHammerThreats; }
 		int HammerThreatCount() const { return static_cast<int>(m_vHammerThreats.size()); }
 		int RocketThreatCount() const { return static_cast<int>(m_vRocketThreats.size()); }

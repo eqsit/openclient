@@ -52,8 +52,11 @@ void CMenus::RenderSettingsKrx(CUIRect MainView)
 	for(int Index = 0; Index < 6; ++Index)
 	{
 		Tabs.VSplitLeft(TabWidth, &Button, &Tabs);
+		// 2482d0 uses the constructor's masks {5, 0, 0, 0, 0, 10}:
+		// only the outside ends of the strip are rounded, at radius 4.
+		const int Corners = Index == 0 ? IGraphics::CORNER_L : Index == 5 ? IGraphics::CORNER_R : IGraphics::CORNER_NONE;
 		if(DoButton_MenuTab(&s_aTabs[Index], Localize(apTabs[Index]), g_Config.m_KrxMenuTab == Index, &Button,
-			   IGraphics::CORNER_ALL, nullptr, nullptr, nullptr, nullptr, 4.0f))
+			   Corners, nullptr, nullptr, nullptr, nullptr, 4.0f))
 			g_Config.m_KrxMenuTab = Index;
 	}
 	if(g_Config.m_KrxMenuTab == 3)

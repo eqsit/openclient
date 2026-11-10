@@ -5,6 +5,7 @@
 
 #include <generated/protocol.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -90,6 +91,13 @@ namespace OpenKrx::NullClient
 	public:
 		virtual ~IWorld() = default;
 		virtual std::unique_ptr<IWorld> Clone() const = 0;
+		// The native world supplies the original parallel evaluator. Scripted
+		// instruction fixtures keep the same deterministic sequential oracle.
+		virtual void ForEachCandidate(int Count, const std::function<void(IWorld &, int)> &Evaluate)
+		{
+			for(int Index = 0; Index < Count; ++Index)
+				Evaluate(*this, Index);
+		}
 		virtual void Reset() = 0;
 		virtual bool Tick(const CNetObj_PlayerInput &Input) = 0;
 		virtual bool Valid() const = 0;

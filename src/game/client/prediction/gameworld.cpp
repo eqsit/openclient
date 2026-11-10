@@ -200,6 +200,7 @@ void CGameWorld::RemoveEntities()
 
 void CGameWorld::Tick()
 {
+	m_Core.m_IsNullPrediction = m_WorldConfig.m_NullPrediction;
 	// update all objects
 	for(int i = 0; i < NUM_ENTTYPES; i++)
 	{
@@ -680,6 +681,7 @@ void CGameWorld::CopyWorld(CGameWorld *pFrom)
 	m_GameTick = pFrom->m_GameTick;
 	m_pCollision = pFrom->m_pCollision;
 	m_WorldConfig = pFrom->m_WorldConfig;
+	m_Core.m_IsNullPrediction = m_WorldConfig.m_NullPrediction;
 	m_pTuningList = pFrom->m_pTuningList;
 	m_pMapBugs = pFrom->m_pMapBugs;
 	m_Teams = pFrom->m_Teams;
@@ -748,6 +750,7 @@ void CGameWorld::CopyWorldIsolated(const CGameWorld *pFrom)
 	m_GameTick = pSource->m_GameTick;
 	m_pCollision = pSource->m_pCollision;
 	m_WorldConfig = pSource->m_WorldConfig;
+	m_Core.m_IsNullPrediction = m_WorldConfig.m_NullPrediction;
 	m_pTuningList = pSource->m_pTuningList;
 	m_pMapBugs = pSource->m_pMapBugs;
 	m_Teams = pSource->m_Teams;

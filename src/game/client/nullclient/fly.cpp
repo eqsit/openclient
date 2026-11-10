@@ -90,6 +90,7 @@ void CFly::Update(CGameClient *pClient)
 	Weights.m_pReservedFlyPath = m_Route.Valid() ? &m_Route : nullptr;
 	auto Raw = pClient->m_Controls.m_aInputData[Slot];
 	const int64_t Start = time_get_impl();
+	const uint64_t StepsBefore = World.TotalSteps();
 	const auto Selection = m_Planner.Select(World, Raw, Weights, g_Config.m_NullFlymodeHorizon);
 	const int64_t Duration = time_get_impl() - Start;
 	m_Planned = Selection.m_Input;
@@ -97,16 +98,16 @@ void CFly::Update(CGameClient *pClient)
 	if(g_Config.m_NullFlymodeProfile)
 	{
 		++m_ProfileCount; m_ProfileFailed += !Selection.m_Found;
-		m_ProfileSteps += World.Steps(); m_ProfileTime += Duration; m_ProfileWorst = std::max(m_ProfileWorst, Duration);
+		m_ProfileSteps += World.TotalSteps() - StepsBefore; m_ProfileTime += Duration; m_ProfileWorst = std::max(m_ProfileWorst, Duration);
 		if(m_ProfileCount >= 50)
 		{
 			log_info("null/fly", "plan %.2f ms avg, %.2f ms worst, %d ticks avg, %.2f us/tick, %d moves, %d/%d found nothing alive",
-				1000.0 * m_ProfileTime / time_freq() / m_ProfileCount, 1000.0 * m_ProfileWorst / time_freq(), m_ProfileSteps / m_ProfileCount,
+				1000.0 * m_ProfileTime / time_freq() / m_ProfileCount, 1000.0 * m_ProfileWorst / time_freq(), static_cast<int>(m_ProfileSteps / m_ProfileCount),
 				m_ProfileSteps ? 1000000.0 * m_ProfileTime / time_freq() / m_ProfileSteps : 0, static_cast<int>(m_Planner.Candidates().size()), m_ProfileFailed, m_ProfileCount);
 			m_ProfileCount = m_ProfileSteps = m_ProfileFailed = 0; m_ProfileTime = m_ProfileWorst = 0;
 		}
 	}
-	else m_ProfileCount = 0;
+	else { m_ProfileCount = m_ProfileSteps = m_ProfileFailed = 0; m_ProfileTime = m_ProfileWorst = 0; }
 }
 CNetObj_PlayerInput CFly::Apply(CNetObj_PlayerInput Input, int Slot) const
 {

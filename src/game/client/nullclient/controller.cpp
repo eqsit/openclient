@@ -330,6 +330,9 @@ namespace OpenKrx::NullClient
 		if(m_LastTick == Frame.m_Tick)
 			return;
 		m_LastTick = Frame.m_Tick;
+		// 20b540 publishes prepared threat IDs/radii before the frozen gate;
+		// 201d70 renders these arrays without creating another prediction world.
+		m_vHammerThreats = World.HammerThreats();
 		const bool WasActive = m_Active;
 		m_Output.m_HasPlan = false;
 		m_Output.m_HasVeto = false;
@@ -508,6 +511,9 @@ namespace OpenKrx::NullClient
 			Weights.m_Anchor = vec2(HookerPosition.x, HookerPosition.y + (m_CounterBelow ? Settings.m_HookCounterGap : -Settings.m_HookCounterGap));
 			Weights.m_HoldSlack = Weights.m_Settle = Weights.m_Travel = Weights.m_Deviation = Weights.m_HammerCost = Weights.m_HookCost = 0;
 			Weights.m_Hold = std::max(Weights.m_Hold, Weights.m_CounterPull);
+			// Original 20c949 sets weights+0x6d: a counter-hook candidate
+			// that freezes is a failure, even when the regular freeze cost is 0.
+			Weights.m_FreezeFatal = true;
 		}
 		int Threshold = m_Reaction;
 		if(WasActive)

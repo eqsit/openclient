@@ -43,6 +43,7 @@ namespace OpenKrx::NullClient
 		bool m_BaselineDied = false;
 		CWeights m_LastWeights;
 		const char *m_pStage = "idle";
+		std::vector<std::pair<int, float>> m_vHammerThreats;
 
 		void Generate(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, bool Weapons, int ActiveWeapon, bool Immediate, bool RocketTarget = false);
 		bool DeferredEscape(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, const CWeights &Weights, bool FreezeFatal, const CNetObj_PlayerInput *pFirst = nullptr);
@@ -65,6 +66,7 @@ namespace OpenKrx::NullClient
 		bool Active() const { return m_Active; }
 		int LastTick() const { return m_LastTick; }
 		const CPlanner &Planner() const { return m_Planner; }
+		const std::vector<std::pair<int, float>> &HammerThreats() const { return m_vHammerThreats; }
 	};
 }
 

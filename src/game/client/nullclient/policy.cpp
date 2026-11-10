@@ -458,11 +458,11 @@ namespace OpenKrx::NullClient
 		std::stable_sort(vOrder.begin(), vOrder.end(), [&](int Left, int Right) { return vKeys[Left] < vKeys[Right]; });
 		// Null initializes all entries before applying the held-input filter.
 		m_vEvaluations.assign(m_vMoves.size(), CEvaluation{});
-		for(int Index : vOrder)
-		{
-			World.Reset();
-			m_vEvaluations[Index] = Evaluate(World, m_vMoves[Index], Base, Weights, Ticks);
-		}
+		World.ForEachCandidate(static_cast<int>(vOrder.size()), [&](IWorld &Private, int OrderIndex) {
+			const int Index = vOrder[OrderIndex];
+			Private.Reset();
+			m_vEvaluations[Index] = Evaluate(Private, m_vMoves[Index], Base, Weights, Ticks);
+		});
 		int Best = -1;
 		for(int Index : vOrder)
 		{
