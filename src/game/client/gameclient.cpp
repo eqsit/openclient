@@ -1415,6 +1415,7 @@ void CGameClient::OnShutdown()
 {
 	for(auto &pComponent : m_vpAll)
 		pComponent->OnShutdown();
+	m_KrxWorkerPool.ShutdownJobs();
 
 	m_LocalServer.KillServer();
 }
@@ -3515,7 +3516,7 @@ IGameClient *CreateGameClient()
 	return new CGameClient();
 }
 
-int CGameClient::IntersectCharacter(vec2 HookPos, vec2 NewPos, vec2 &NewPos2, int OwnId, vec2 *pPlayerPosition)
+int CGameClient::IntersectCharacter(vec2 HookPos, vec2 NewPos, vec2 &NewPos2, int OwnId, vec2 *pPlayerPosition, bool RequireActiveSnapshot)
 {
 	float Distance = 0.0f;
 	int ClosestId = -1;
@@ -3529,7 +3530,7 @@ int CGameClient::IntersectCharacter(vec2 HookPos, vec2 NewPos, vec2 &NewPos2, in
 
 		const CClientData &Data = m_aClients[i];
 
-		if(!Data.m_Active || !m_Snap.m_aCharacters[i].m_Active)
+		if(!Data.m_Active || (RequireActiveSnapshot && !m_Snap.m_aCharacters[i].m_Active))
 			continue;
 
 		CNetObj_Character Prev = m_Snap.m_aCharacters[i].m_Prev;
