@@ -1,4 +1,5 @@
 #include "projectile_paths.h"
+#include "simulation.h"
 
 #include <game/client/prediction/entities/character.h>
 #include <game/client/prediction/entities/projectile.h>
@@ -12,7 +13,8 @@ namespace OpenKrx::NullClient
 {
 	namespace
 	{
-		std::vector<CProjectilePath> Trace(CGameWorld &World, int Ticks, const CProjectile *pOnly = nullptr)
+		template<typename F>
+		std::vector<CProjectilePath> Trace(CGameWorld &World, int Ticks, F Advance, const CProjectile *pOnly = nullptr)
 		{
 			std::vector<CProjectilePath> Paths;
 			// Both allocations outlive World, including entity destruction during Tick.
@@ -41,8 +43,8 @@ namespace OpenKrx::NullClient
 			{
 				if(std::none_of(Tracks.begin(), Tracks.end(), [](const auto &p) { return p->m_Alive; }))
 					break;
-				++World.m_GameTick;
-				World.Tick();
+				if(!Advance())
+					break;
 				for(size_t i = 0; i < Tracks.size(); ++i)
 				{
 					auto &Track = *Tracks[i];
@@ -71,8 +73,16 @@ namespace OpenKrx::NullClient
 		World.CopyWorldIsolated(&Source);
 		World.m_WorldConfig.m_NullPrediction = true;
 		World.m_WorldConfig.m_KrxPrediction = false;
-		return Trace(World, Ticks);
+		return Trace(World, Ticks, [&] { ++World.m_GameTick; World.Tick(); return true; });
 	}
+	std::vector<CProjectilePath> ProjectilePaths(CSimulation &Sim, const CNetObj_PlayerInput &Input, int Ticks)
+	{
+		Sim.Reset();
+		auto Paths = Trace(Sim.World(), Ticks, [&] { return Sim.Tick(Input); });
+		Sim.Reset();
+		return Paths;
+	}
+
 	std::vector<CProjectilePath> AimProjectilePath(const CGameWorld &Source, int Owner, int Weapon, vec2 Direction, int Ticks)
 	{
 		if(Weapon != WEAPON_GUN && Weapon != WEAPON_GRENADE && Weapon != WEAPON_SHOTGUN)
@@ -90,6 +100,6 @@ namespace OpenKrx::NullClient
 														pTune->m_ShotgunLifetime;
 		auto *pShot = new CProjectile(&World, Weapon, Owner, pSelf->Core()->m_Pos + Direction * pSelf->GetProximityRadius() * .75f,
 			Direction, Lifetime * World.GameTickSpeed(), false, Weapon == WEAPON_GRENADE, -1);
-		return Trace(World, Ticks, pShot);
+		return Trace(World, Ticks, [&] { ++World.m_GameTick; World.Tick(); return true; }, pShot);
 	}
 }

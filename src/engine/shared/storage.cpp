@@ -10,6 +10,7 @@
 #include <base/str.h>
 
 #include <engine/client/updater.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/linereader.h>
 #include <engine/storage.h>
 
@@ -36,7 +37,7 @@ public:
 		dbg_assert(NumArgs > 0, "Expected at least one argument");
 		const char *pExecutablePath = ppArguments[0];
 
-		FindUserDirectory();
+		FindUserDirectory(InitializationType == EInitializationType::CLIENT && OpenKrx::g_NullStandalone);
 		FindDataDirectory(pExecutablePath);
 		FindCurrentDirectory();
 		FindBinaryDirectory(pExecutablePath);
@@ -253,19 +254,21 @@ public:
 		}
 	}
 
-	void FindUserDirectory()
+	void FindUserDirectory(bool NullStandalone)
 	{
 #if defined(CONF_PLATFORM_ANDROID)
 		// See InitAndroid in android_main.cpp for details about Android storage handling.
 		// The current working directory is set to the app specific external storage location
 		// on Android. The user data is stored within a folder "user" in the external storage.
-		str_copy(m_aUserdir, "user");
+		str_copy(m_aUserdir, NullStandalone ? "user-null" : "user");
 #else
-		char aFallbackUserdir[IO_MAX_PATH_LENGTH];
-		if(fs_storage_path("DDNet", m_aUserdir, sizeof(m_aUserdir)))
+		if(fs_storage_path(NullStandalone ? "OpenClient-Null" : "DDNet", m_aUserdir, sizeof(m_aUserdir)))
 		{
 			log_error("storage", "could not determine user directory");
 		}
+		if(NullStandalone)
+			return;
+		char aFallbackUserdir[IO_MAX_PATH_LENGTH];
 		if(fs_storage_path("Teeworlds", aFallbackUserdir, sizeof(aFallbackUserdir)))
 		{
 			log_error("storage", "could not determine fallback user directory");

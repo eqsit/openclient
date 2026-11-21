@@ -248,7 +248,7 @@ namespace OpenKrx
 		// 2e1860 first masks the connected open area, then carves both runs.
 		std::queue<int> Queue;
 		std::vector<bool> vVisited((size_t)Width * Height);
-		CGameWorld &Source = Active() ? *m_pWorld : GameClient()->m_GameWorld;
+		CGameWorld &Source = KrxEditorActive() ? *m_pWorld : GameClient()->m_GameWorld;
 		const auto *pCharacter = Source.GetCharacterById(GameClient()->m_aLocalIds[g_Config.m_ClDummy]);
 		const vec2 Position = pCharacter ? pCharacter->Core()->m_Pos : vec2(-32, -32);
 		const int X = (int)(Position.x / 32.0f), Y = (int)(Position.y / 32.0f);

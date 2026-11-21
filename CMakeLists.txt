@@ -207,7 +207,7 @@ if(NOT "${CMAKE_CURRENT_BINARY_DIR}" STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 set(SERVER_EXECUTABLE DDNet-Server CACHE STRING "Name of the built server executable")
-set(CLIENT_EXECUTABLE DDNet CACHE STRING "Name of the build client executable")
+set(CLIENT_EXECUTABLE NullClient CACHE STRING "Name of the build client executable")
 set(IOS_BUNDLE_IDENTIFIER "org.ddnet.client" CACHE STRING "iOS bundle identifier")
 
 ########################################################################
@@ -2758,6 +2758,7 @@ if(CLIENT)
     components/krx_name_data.h
     components/krx_tas.cpp
     components/krx_tas.h
+    components/krx_tas_null.cpp
     components/krx_tas_path.cpp
     components/krx_tas_vault.cpp
     components/krx_tas_visuals.cpp

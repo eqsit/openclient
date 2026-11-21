@@ -11,6 +11,7 @@
 #include <game/client/gameclient.h>
 #include <game/client/components/key_binder.h>
 #include <game/client/ui_scrollregion.h>
+#include <game/client/nullclient/settings.h>
 #include <game/client/ui_listbox.h>
 #include <game/localization.h>
 
@@ -28,9 +29,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		CThemeScope() { g_Config.m_KrxCustomTheme = 0; }
 		~CThemeScope() { g_Config.m_KrxCustomTheme = m_Saved; }
 	} ThemeScope;
-	// Null 3.6: 1402267d0 (page), 1402208b0 (cards), 140225290 (rows).
-	// Registration variables are not a menu inventory: Survival has three
-	// top-level cards; six dependent cards appear when Avoid is open and on.
+	OpenKrx::NullClient::SyncAvoidModeSettings();
 	struct CSetting
 	{
 		int *m_pValue;
@@ -54,6 +53,9 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		std::initializer_list<CSetting> m_Settings;
 		int m_Page = 0;
 		int m_Column = 0;
+		bool m_Profiles = false;
+		bool m_Tas = false;
+		bool m_Available = true;
 	};
 #define S(Name, Label, Min, Max, Suffix) {&g_Config.m_NullGodmode##Name, Label, Min, Max, Suffix}
 #define B(Name, Label) S(Name, Label, 0, 1, "")
@@ -65,29 +67,77 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 	int *apAimAlpha[] = {&g_Config.m_NullAimbotAlphaHook, &g_Config.m_NullAimbotAlphaHammer, &g_Config.m_NullAimbotAlphaGun, &g_Config.m_NullAimbotAlphaShotgun, &g_Config.m_NullAimbotAlphaGrenade, &g_Config.m_NullAimbotAlphaLaser};
 	int *apAimKnock[] = {nullptr, nullptr, &g_Config.m_NullAimbotKnockGun, &g_Config.m_NullAimbotKnockShotgun, &g_Config.m_NullAimbotKnockGrenade, &g_Config.m_NullAimbotKnockLaser};
 	const CCard aCards[] = {
-		{"Avoid Freeze", "Automatically saves you at the last possible moment.", &g_Config.m_NullGodmode, false, false, {S(React, "Activate when danger is within", 1, 200, " ticks"), S(Hysteresis, "Return control once safer by", 0, 200, " ticks"), S(Horizon, "Watch your input for", 5, 200, " ticks"), B(LastMoment, "Wait for the last tick that can save you"), S(Grace, "Minimum safety margin", 1, 40, " ticks"), S(FreezeCost, "Penalty per frozen tick", 0, 100000, "")}},
-		{"Hook release", "Releases a hook that is dragging you into danger.", &g_Config.m_NullGodmodeLetGo, true, false, {S(CutHold, "Hold the release for", 0, 40, " ticks"), S(CutWindow, "Evaluate a release over", 0, 200, " ticks")}},
+		{"Avoid Freeze", "Choose how Avoid protects your tee.", &g_Config.m_NullGodmode, false, false, {
+			{&g_Config.m_NullAvoidMode, "Avoid mode", 0, 3, "", 4, {"Legit", "Boost", "Overdrive", "God"}},
+			{&g_Config.m_NullAvoidAdvanced, "Advanced settings", 0, 1},
+			{&g_Config.m_NullAvoidLegitHook, "Release an unsafe hook", 0, 1},
+			S(React, "Activate when danger is within", 1, 200, " ticks"), S(Hysteresis, "Return control once safer by", 0, 200, " ticks"), S(Horizon, "Watch your input for", 5, 200, " ticks"), B(LastMoment, "Wait for the last tick that can save you"), S(Grace, "Minimum safety margin", 1, 40, " ticks"), S(FreezeCost, "Penalty per frozen tick", 0, 100000, "")}},
+		{"Hook release", "Releases a hook that is dragging you into danger.", &g_Config.m_NullGodmodeLetGo, true, false, {S(CutTicks, "Forecast hook release for", 0, 200, " ticks"), S(CutHold, "Hold the release for", 0, 40, " ticks"), S(CutWindow, "Evaluate a release over", 0, 200, " ticks")}},
 		{"Position hold", "The spot it defends, and how far you can carry it with you.", nullptr, true, false, {S(Hold, "Hold position", 0, 200, "%"), S(HoldSlack, "Allowed drift radius", 0, 400, ""), S(AnchorSpeed, "Your keys move it at", 0, 4000, ""), S(AnchorLeash, "Maximum lead distance", 16, 1000, "")}},
-		{"Reflexes", "How much earlier it reacts when something affects you.", nullptr, true, false, {S(ReactSpeed, "React earlier at high speed", 0, 400, "%"), S(ReactSpeedFast, "React even earlier at very high speed", 0, 800, ""), S(ReactShock, "React earlier when hit", 0, 400, "%"), S(ReactHooked, "React earlier while hooked", 0, 100, " ticks"), S(Antiknockback, "Resist being dragged", 100, 2000, "%"), S(VetoTicks, "Refuse a step off the edge within", 0, 20, " ticks"), S(VetoHook, "Refuse a bad hook within", 0, 60, " ticks"), S(VetoFire, "Check your own grenade before firing, within", 0, 60, " ticks")}},
+		{"Reflexes", "How much earlier it reacts when something affects you.", nullptr, true, false, {S(ReactSpeed, "React earlier at high speed", 0, 400, "%"), S(ReactSpeedFast, "React even earlier at very high speed", 0, 800, ""), S(ReactShock, "React earlier when hit", 0, 400, "%"), S(ReactHooked, "React earlier while hooked", 0, 100, " ticks"), S(Antiknockback, "Resist being dragged", 100, 2000, "%"), S(VetoTicks, "Refuse a step off the edge within", 0, 20, " ticks"), S(VetoHook, "Refuse a bad hook within", 0, 60, " ticks"), S(VetoFire, "Check your own grenade before firing, within", 0, 60, " ticks"), B(VetoDoom, "Block moves with no safe escape")}},
 		{"Decision making", "How far ahead a rescue is judged, and how much your input counts.", nullptr, true, false, {S(PlanHorizon, "Plan a rescue over", 2, 60, " ticks"), S(Follow, "Follow a rescue before re-planning for", 0, 40, " ticks"), S(Deviation, "Respect for your input", 0, 5000, ""), S(Continuity, "Penalty for changing its decision", 0, 2000, ""), S(Settle, "Penalty for ending a rescue at speed", 0, 2000, ""), S(Travel, "Penalty for being saved elsewhere", 0, 5000, ""), S(Coast, "Coast on after a rescue for", 0, 60, " ticks"), S(HazardSpeed, "Full-speed penalty near danger at", 0, 2000, ""), B(HandBack, "Reward returning control to you")}},
 		{"Fight harder in crowds", "Searches deeper and further for an escape when surrounded.", &g_Config.m_NullGodmodeDeep, true, false, {S(DeepHorizon, "Simulate a rescue over", 10, 60, " ticks"), S(DeepChain, "Search one move deeper from the best option", 0, 12, "")}},
 		{"Action costs", "Relative cost of each move; a costly one can still be chosen.", nullptr, true, false, {S(Commitment, "Prefer the smallest action", 0, 20000, ""), S(HookCost, "Prefer moving over hooking", 0, 20000, ""), S(TeeHookCost, "Avoid hooking players", 0, 20000, ""), S(HookAge, "Penalty for releasing a held hook", 0, 2000, ""), S(AirJump, "Penalty for using your air jump", 0, 20000, ""), S(WallCost, "Avoid ending up against a wall", 0, 2000, ""), S(Chain, "Search deeper when stuck, from", 0, 12, "")}},
-		{"Dodging shots", "Airborne shots are simulated, so dodging is precise.", &g_Config.m_NullGodmodeWeapons, false, false, {S(WeaponRadius, "Watch for shots within", 0, 6000, "")}},
+		{"Dodging shots", "Airborne shots are simulated, so dodging is precise.", &g_Config.m_NullGodmodeWeapons, false, false, {S(WeaponRadius, "Watch for shots within", 0, 6000, "")}, 0, 1},
 		{"Dummy Avoid Freeze", "Runs survival on the tee you are not controlling, using your settings.", &g_Config.m_NullGodmodeDummy, false, false, {}},
-		{"Weapon defense", "Uses your own weapons to get you out of trouble.", nullptr, false, true, {B(Grenade, "Fire your grenade to save yourself"), B(Hammer, "Hammer back at point-blank range"), B(AutoWeapon, "Switch to a better weapon to survive"), B(RestoreWeapon, "Switch back to your weapon afterwards")}},
-		{"Avoid hammers", "Stays out of people's hammer range.", &g_Config.m_NullGodmodeHammerDodge, false, false, {{&g_Config.m_NullGodmodeHammerDodgeMode, "", 0, 1, "", 1}, S(HammerLookahead, "Detect it from", 0, 60, " ticks"), S(HammerCost, "How strongly it avoids that range", 0, 20000, ""), B(HammerRing, "Show the range")}},
-		{"Position hold", "Stops someone from moving you against your will.", &g_Config.m_NullGodmodeKnockback, false, false, {{&g_Config.m_NullGodmodeKnockbackMode, "", 0, 1, "", 2}, S(KnockbackGrip, "How strongly it pulls you back", 0, 2000, "%"), S(KnockbackHold, "Keep trying to return for", 1, 300, " ticks"), S(KnockbackClearance, "Keep the return path clear of freeze by", 0, 300, "")}},
-		{"Hook counter", "When hooked, moves you above or below the puller so they can't fling you.", &g_Config.m_NullGodmodeHookCounter, false, false, {S(HookCounterGap, "Aim past them by", 16, 400, ""), S(HookCounterPull, "How strongly it aims for that spot", 0, 300, "%")}},
+		{"Dummy laser auto unfreeze", "Use the dummy's laser to thaw your controlled tee.", &g_Config.m_NullDummyLaserUnfreeze, false, false, {}, 0, 1},
+		{"Avoid hammers", "Stays out of people's hammer range.", &g_Config.m_NullGodmodeHammerDodge, false, false, {{&g_Config.m_NullGodmodeHammerDodgeMode, "", 0, 1, "", 1}, S(HammerLookahead, "Detect it from", 0, 60, " ticks"), S(HammerCost, "How strongly it avoids that range", 0, 20000, ""), B(HammerRing, "Show the range")}, 0, 1},
+		{"Avoid rockets", "Keep away from opponents holding a grenade launcher.", &g_Config.m_NullGodmodeAvoidRocket, false, false, {
+			{&g_Config.m_NullGodmodeAvoidRocketMode, "", 0, 1, "", 4, {"Only the current hooker", "All grenade holders"}},
+			S(AvoidRocketLookahead, "Lookahead", 0, 60, " ticks"), S(AvoidRocketCost, "Proximity cost", 0, 20000, ""), B(AvoidRocketRing, "Show the range")}, 0, 1},
+		{"Weapon defense", "Uses your own weapons to get you out of trouble.", nullptr, false, true, {B(Grenade, "Fire your grenade to save yourself"), B(Hammer, "Hammer back at point-blank range"), B(AutoWeapon, "Switch to a better weapon to survive"), B(RestoreWeapon, "Switch back to your weapon afterwards")}, 1, 0},
 		{"Auto hammer", "With a hammer in hand, swing at whoever comes into its reach.", &g_Config.m_NullAutoHammer, false, false, {
 			{&g_Config.m_NullAutoHammerRange, "", 0, 2, "", 4, {"Touch", "Near", "Max"}},
-			{&g_Config.m_NullBindAutoHammer, "Hold key", 0, 2048, "", 0, {}, true}}},
+			{&g_Config.m_NullBindAutoHammer, "Hold key", 0, 2048, "", 0, {}, true}}, 1, 0},
 		{"Auto grenade", "With a grenade in hand, blast back whoever hammers you.", &g_Config.m_NullAutoGrenade, false, false, {
 			{&g_Config.m_NullAutoGrenadeRange, "Answer a hammerer within", 1, 40, " tiles"},
 			{&g_Config.m_NullAutoGrenadeDelay, "Throw this long after the hit", 0, 50, " ticks"},
 			{&g_Config.m_NullAutoGrenadeShock, "Count a hit at a knock of", 1, 40},
-			{&g_Config.m_NullBindAutoGrenade, "Hold key", 0, 2048, "", 0, {}, true}}},
+			{&g_Config.m_NullAutoGrenadeSafe, "Block unsafe shots", 0, 1},
+			{&g_Config.m_NullBindAutoGrenade, "Hold key", 0, 2048, "", 0, {}, true}}, 1, 0},
+		{"Counter hammer", "Answer a nearby hammer attack with your hammer.", &g_Config.m_NullCounterHammer, false, false, {}, 1, 1},
+		{"Hook flicker", "Briefly release a hook that can reconnect.", &g_Config.m_NullHookFlicker, false, false, {
+			{&g_Config.m_NullHookFlickerDelay, "", 0, 2, "", 4, {"Slow", "Medium", "Fast"}}}, 1, 1, false, false, false},
+		{"Juke", "Vary air movement around an incoming hook.", &g_Config.m_NullJuke, false, false, {
+			{&g_Config.m_NullJukeMode, "", 0, 2, "", 4, {"After release", "While hooked", "Both"}},
+			{&g_Config.m_NullJukeTicks, "Time after release", 2, 100, " ticks"}}, 1, 1, false, false, false},
 		{"Quick stop", "Let go of the movement keys and stop dead instead of sliding.", &g_Config.m_NullQuickStop, false, false, {
-			{&g_Config.m_NullQuickStopGround, "Only on the ground, never in the air", 0, 1}}},
+			{&g_Config.m_NullQuickStopGround, "Only on the ground, never in the air", 0, 1}}, 1, 1},
+		{"Hook cling", "Stay on a selected side of a hooked player.", &g_Config.m_NullHookCling, false, false, {
+			{&g_Config.m_NullHookClingUp, "Above", 0, 1}, {&g_Config.m_NullHookClingDown, "Below", 0, 1},
+			{&g_Config.m_NullHookClingLeft, "Left", 0, 1}, {&g_Config.m_NullHookClingRight, "Right", 0, 1}}, 1, 0, false, false, false},
+		{"Position hold", "Stops someone from moving you against your will.", &g_Config.m_NullGodmodeKnockback, false, false, {{&g_Config.m_NullGodmodeKnockbackMode, "", 0, 1, "", 2}, S(KnockbackGrip, "How strongly it pulls you back", 0, 2000, "%"), S(KnockbackHold, "Keep trying to return for", 1, 300, " ticks"), S(KnockbackClearance, "Keep the return path clear of freeze by", 0, 300, "")}, 1, 1},
+		{"Hook counter", "When hooked, moves you above or below the puller so they can't fling you.", &g_Config.m_NullGodmodeHookCounter, false, false, {S(HookCounterGap, "Aim past them by", 16, 400, ""), S(HookCounterPull, "How strongly it aims for that spot", 0, 300, "%")}, 1, 1},
+		{"Anchor hook", "Brace against a wall while another player pulls your tee.", &g_Config.m_NullAnchorHook, false, false, {
+			{&g_Config.m_NullAnchorHookTicks, "Hold the anchor for", 2, 50, " ticks"},
+			{&g_Config.m_NullAnchorHookRehook, "Repeat while being pulled", 0, 1}}, 1, 1, false, false, false},
+		{"Serial killer", "Takes control to hunt. Never die keeps you alive while it works.", &g_Config.m_NullSerialKiller, false, false, {
+			{&g_Config.m_NullSerialPick, "", 0, 3, "", 4, {"At crosshair", "Nearest", "War list", "Attack list"}},
+			{&g_Config.m_NullSerialAdvance, "Move on to the next target", 0, 1},
+			{&g_Config.m_NullSerialRange, "Chase targets within", 100, 4000},
+			{&g_Config.m_NullSerialLead, "Lead the target by", 0, 40, " ticks"},
+			{&g_Config.m_NullSerialGiveup, "Give up after being stuck for", 0, 500, " ticks"},
+			{&g_Config.m_NullSerialHook, "Hold them with the hook", 0, 1},
+			{&g_Config.m_NullSerialHammer, "Hammer at point-blank range", 0, 1},
+			{&g_Config.m_NullSerialGrenade, "Use the grenade in between", 0, 1},
+			{&g_Config.m_NullSerialWakeGuard, "Never hammer a frozen player", 0, 1},
+			{&g_Config.m_NullSerialShove, "Push them toward the freeze", 0, 1},
+			{&g_Config.m_NullSerialShoveRange, "Look for freeze around the target within", 0, 1000},
+			{&g_Config.m_NullSerialHaul, "Prefer dragging over hitting by", 0, 1000},
+			{&g_Config.m_NullSerialCarry, "Carry a frozen player up to", 0, 3000},
+			{&g_Config.m_NullSerialSafety, "Value its own footing by", 0, 1000},
+			{&g_Config.m_NullSerialSafeRange, "Look for hazards around its footing within", 0, 1000},
+			{&g_Config.m_NullSerialPress, "Value being right on top of them by", 0, 1000},
+			{&g_Config.m_NullSerialAbove, "Prefer standing above the target", 0, 1000},
+			{&g_Config.m_NullSerialNavigation, "Simulate movement around obstacles", 0, 1},
+			{&g_Config.m_NullSerialForesight, "Value their possible retaliation by", 0, 2000},
+			{&g_Config.m_NullSerialForesightRange, "Count targets within", 0, 2000},
+			{&g_Config.m_NullSerialIgnoreFriends, "Never target a friend", 0, 1},
+			{&g_Config.m_NullSerialDraw, "Highlight the target", 0, 1},
+			{&g_Config.m_NullSerialPathInterval, "Recalculate the route every", 1, 200, " ticks"}}, 1},
+		{"Serial killer on the dummy", "Hunts on the tee you are not controlling, with its own target choice.", &g_Config.m_NullSerialKillerDummy, false, false, {
+			{&g_Config.m_NullSerialPickDummy, "", 0, 3, "", 4, {"Nearest", "War list", "Attack list", "Same as main"}},
+			{&g_Config.m_NullSerialOwn, "Let the dummy hunt your own tee", 0, 1}}, 1},
 		{"Aimbot", "Aims at a target for you, without moving your crosshair.", &g_Config.m_NullAimbot, false, true, {
 			{&g_Config.m_NullAimbotWeaponSel, "", 0, 5, "", 5, {"Hook", "Hammer", "Pistol", "Shotgun", "Grenade", "Laser"}},
 			{apAimEnabled[AimWeapon], "Aim this weapon", 0, 1},
@@ -108,24 +158,6 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullAimbotWallbounce, "Bounce lasers off walls", 0, 1},
 			{&g_Config.m_NullAimbotWallbounceRays, "Wall bounce search angles", 24, 360},
 			{&g_Config.m_NullAimbotIgnoreFriends, "Never target a friend", 0, 1}}, 2},
-		{"Automation", "Small actions performed for you, on top of your own input.", nullptr, false, true, {
-			{&g_Config.m_NullAutoFire, "Auto fire", 0, 1}, {&g_Config.m_NullAutoRehook, "Auto rehook", 0, 1},
-			{&g_Config.m_NullAutoRehookTicks, "Keep aiming at the lost target for", 1, 60, " ticks"}}, 4},
-		{"Protections", "What this client reports about itself to a server.", nullptr, false, true, {
-			{&g_Config.m_NullRandomTimeoutSeed, "Randomize timeout code", 0, 1}}, 4, 1},
-		{"Version spoofing", "What version this build reports to a server.", &g_Config.m_NullVersionSpoof, false, false, {
-			{nullptr, "Report as", 0, 1, "", 0, {}, false, nullptr, g_Config.m_NullVersionStr, sizeof(g_Config.m_NullVersionStr)},
-			{&g_Config.m_NullVersionNum, "Version number", 0, 100000}}, 4, 1},
-		{"Fake aim", "Reports a different aim direction than the one you use.", &g_Config.m_NullFakeAim, false, false, {
-			{&g_Config.m_NullFakeAimMode, "", 0, 5, "", 4, {"Mouse", "Robot", "Spin", "Random", "Reverse", "Nearest"}},
-			{&g_Config.m_NullFakeAimSpin, "Turn speed", 10, 3600, "°/s"},
-			{&g_Config.m_NullFakeAimSendAlways, "Send on every tick it moves", 0, 1},
-			{&g_Config.m_NullFakeAimVisible, "Preview what others see", 0, 1}}, 4},
-		{"Other", "Miscellaneous options that change what this client sends.", nullptr, false, true, {
-			{&g_Config.m_NullKillOnFreeze, "Kill on freeze", 0, 1}, {&g_Config.m_NullKillOnDeepFreeze, "Kill on deep freeze", 0, 1},
-			{&g_Config.m_NullHideChatBubble, "Hide chat bubble", 0, 1}, {&g_Config.m_NullPlayInMenu, "Keep playing while the menu is open", 0, 1},
-			{&g_Config.m_NullMenuBackdrop, "Null backdrop behind the menus", 0, 1}}, 4, 1},
-		{"Profiles", "Save all settings under a name; the file is yours to share.", nullptr, false, true, {}, 4, 1},
 		{"Status HUD", "A corner panel showing which Null features are active.", &g_Config.m_NullHud, false, false, {
 			{&g_Config.m_NullHudSize, "Size", 30, 250, "%"},
 			{&g_Config.m_NullHudPos, "", 0, 5, "", 4, {"Top left", "Top right", "Bottom left", "Bottom right", "Middle left", "Middle right"}},
@@ -133,11 +165,11 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		{"Aim lines", "Shows where a shot would go before it is fired.", &g_Config.m_NullAimLines, false, false, {
 			{&g_Config.m_NullAimLineSelfOnly, "Only my own tee", 0, 1}, {&g_Config.m_NullAimLineGun, "Pistol", 0, 1},
 			{&g_Config.m_NullAimLineShotgun, "Shotgun", 0, 1}, {&g_Config.m_NullAimLineGrenade, "Grenade", 0, 1}, {&g_Config.m_NullAimLineLaser, "Laser", 0, 1},
-			{&g_Config.m_NullAimLineAlpha, "Opacity", 5, 100, "%"}, {&g_Config.m_NullAimLineTicks, "Trace a fired shot for", 5, 200, " ticks"}}, 3},
+			{&g_Config.m_NullAimLineAlpha, "Opacity", 5, 100, "%"}, {&g_Config.m_NullAimLineTicks, "Trace a fired shot for", 5, 200, " ticks"}}, 3, 1},
 		{"Projectile lines", "Traces projectiles already in the air.", &g_Config.m_NullGodmodeShotPath, false, false, {
 			{&g_Config.m_NullBulletLineSelfOnly, "Only my own projectiles", 0, 1}, {&g_Config.m_NullBulletLineGun, "Projectile", 0, 1},
 			{&g_Config.m_NullBulletLineShotgun, "Shotgun", 0, 1}, {&g_Config.m_NullBulletLineGrenade, "Grenade", 0, 1},
-			{&g_Config.m_NullBulletLineAlpha, "Opacity", 5, 100, "%"}, {&g_Config.m_NullGodmodeShotPathTicks, "Trace a projectile for", 5, 150, " ticks"}}, 3},
+			{&g_Config.m_NullBulletLineAlpha, "Opacity", 5, 100, "%"}, {&g_Config.m_NullGodmodeShotPathTicks, "Trace a projectile for", 5, 200, " ticks"}}, 3, 1},
 		{"Predicted path", "Shows where you are really heading, using the real physics.", &g_Config.m_NullPathliner, false, false, {
 			{&g_Config.m_NullPathlinerTicks, "Prediction length", 5, 250, " ticks"}, {&g_Config.m_NullPathlinerWidth, "Line width", 1, 20},
 			{&g_Config.m_NullPathlinerOpacity, "Opacity", 5, 100, "%"}, {&g_Config.m_NullPathlinerTaper, "Fade out toward the far end", 0, 1},
@@ -152,40 +184,9 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{nullptr, "Path color far ahead", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorFar},
 			{nullptr, "Path color while frozen", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorFreeze},
 			{nullptr, "Kill marker color", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorDeath}}, 3, 1},
-		{"Calculation depth", "The base variables behind every calculation. Raising these can cause serious FPS drops.", nullptr, false, false, {
-			S(SimRadius, "Simulated surroundings", 0, 4000, ""), S(PlayerRadius, "But watch players within", 0, 8000, ""),
-			S(Adversarial, "Assume other players are attacking", 0, 2, ""), S(HookAngles, "Surface scan resolution", 8, 128, "")}, 6},
-		{"Debug overlay", "Shows what Avoid Freeze and the aimbot are calculating and thinking, live. For developers.", &g_Config.m_NullGodmodeDebug, false, false, {
-			B(Trace, "Write the last 100 ticks to a file on death")}, 6},
-		{"Ring around the tee", "A ring around your tee while god mode is acting. Turn it off for a cleaner view.", nullptr, false, true, {
-			B(Indicator, "Show the ring while it acts")}, 6, 1},
-		{"Fight replay", "Records both tees, the projectiles and a snapshot of the tiles.", nullptr, false, true, {
-			{&g_Config.m_NullAutopsy, "", 0, 2, "", 4, {"Off", "When you finish", "And when you finish someone off"}}}, 6, 1},
-		{"Serial killer", "Takes control to hunt. Never die keeps you alive while it works.", &g_Config.m_NullSerialKiller, false, false, {
-			{&g_Config.m_NullSerialPick, "", 0, 3, "", 4, {"At crosshair", "Nearest", "War list", "Attack list"}},
-			{&g_Config.m_NullSerialAdvance, "Move on to the next target", 0, 1},
-			{&g_Config.m_NullSerialRange, "Chase targets within", 100, 4000},
-			{&g_Config.m_NullSerialLead, "Lead the target by", 0, 40, " ticks"},
-			{&g_Config.m_NullSerialGiveup, "Give up after being stuck for", 0, 500, " ticks"},
-			{&g_Config.m_NullSerialHook, "Hold them with the hook", 0, 1},
-			{&g_Config.m_NullSerialHammer, "Hammer at point-blank range", 0, 1},
-			{&g_Config.m_NullSerialGrenade, "Use the grenade in between", 0, 1},
-			{&g_Config.m_NullSerialWakeGuard, "Never hammer a frozen player", 0, 1},
-			{&g_Config.m_NullSerialShove, "Push them toward the freeze", 0, 1},
-			{&g_Config.m_NullSerialShoveRange, "Look for freeze around the target within", 0, 1000},
-			{&g_Config.m_NullSerialHaul, "Prefer dragging over hitting by", 0, 1000},
-			{&g_Config.m_NullSerialCarry, "Carry a frozen player up to", 0, 3000},
-			{&g_Config.m_NullSerialSafety, "Value its own footing by", 0, 1000},
-			{&g_Config.m_NullSerialSafeRange, "Look for hazards around its footing within", 0, 1000},
-			{&g_Config.m_NullSerialPress, "Value being right on top of them by", 0, 1000},
-			{&g_Config.m_NullSerialForesight, "Value their possible retaliation by", 0, 2000},
-			{&g_Config.m_NullSerialForesightRange, "Count targets within", 0, 2000},
-			{&g_Config.m_NullSerialIgnoreFriends, "Never target a friend", 0, 1},
-			{&g_Config.m_NullSerialDraw, "Highlight the target", 0, 1},
-			{&g_Config.m_NullSerialPathInterval, "Recalculate the route every", 1, 200, " ticks"}}, 1},
-		{"Serial killer on the dummy", "Hunts on the tee you are not controlling, with its own target choice.", &g_Config.m_NullSerialKillerDummy, false, false, {
-			{&g_Config.m_NullSerialPickDummy, "", 0, 3, "", 4, {"Nearest", "War list", "Attack list", "Same as main"}},
-			{&g_Config.m_NullSerialOwn, "Let the dummy hunt your own tee", 0, 1}}, 1},
+		{"Automation", "Small actions performed for you, on top of your own input.", nullptr, false, true, {
+			{&g_Config.m_NullAutoFire, "Auto fire", 0, 1}, {&g_Config.m_NullAutoRehook, "Auto rehook", 0, 1},
+			{&g_Config.m_NullAutoRehookTicks, "Keep aiming at the lost target for", 1, 60, " ticks"}}, 4},
 		{"Fly mode", "You steer a marker and the tee is held on it.", &g_Config.m_NullFlymode, false, false, {
 			{&g_Config.m_NullFlymodeSpeed, "Marker speed", 50, 4000},
 			{&g_Config.m_NullFlymodeHorizon, "Lookahead", 4, 80, " ticks"},
@@ -197,10 +198,54 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullFlymodePathAvoidFreeze, "Keep the route out of freeze", 0, 1},
 			{&g_Config.m_NullFlymodePathInterval, "Recalculate every", 1, 200, " ticks"}}, 4},
 		{"How much of the map it scans", "Larger is more thorough but slower.", nullptr, false, true, {
+			{&g_Config.m_NullFlymodeHookAngles, "Surface scan resolution", 8, 128},
 			{&g_Config.m_NullFlymodeSimRadius, "Simulated surroundings", 0, 4000}}, 4},
+		{"Version spoofing", "What version this build reports to a server.", &g_Config.m_NullVersionSpoof, false, false, {
+			{nullptr, "Report as", 0, 1, "", 0, {}, false, nullptr, g_Config.m_NullVersionStr, sizeof(g_Config.m_NullVersionStr)},
+			{&g_Config.m_NullVersionNum, "Version number", 0, 100000}}, 4, 1},
+		{"Protections", "What this client reports about itself to a server.", nullptr, false, true, {
+			{&g_Config.m_NullRandomTimeoutSeed, "Randomize timeout code", 0, 1}}, 4, 1},
+		{"Fake aim", "Reports a different aim direction than the one you use.", &g_Config.m_NullFakeAim, false, false, {
+			{&g_Config.m_NullFakeAimMode, "", 0, 5, "", 4, {"Mouse", "Robot", "Spin", "Random", "Reverse", "Nearest"}},
+			{&g_Config.m_NullFakeAimSpin, "Turn speed", 10, 3600, "°/s"},
+			{&g_Config.m_NullFakeAimSendAlways, "Send on every tick it moves", 0, 1},
+			{&g_Config.m_NullFakeAimVisible, "Preview what others see", 0, 1}}, 4},
+		{"Other", "Miscellaneous options that change what this client sends.", nullptr, false, true, {
+			{&g_Config.m_NullKillOnFreeze, "Kill on freeze", 0, 1}, {&g_Config.m_NullKillOnDeepFreeze, "Kill on deep freeze", 0, 1},
+			{&g_Config.m_NullHideChatBubble, "Hide chat bubble", 0, 1}, {&g_Config.m_NullPlayInMenu, "Keep playing while the menu is open", 0, 1},
+			{&g_Config.m_NullMenuBackdrop, "Null backdrop behind the menus", 0, 1}}, 4, 1},
+		{"Profiles", "Save all settings under a name; the file is yours to share.", nullptr, false, true, {}, 4, 1, true},
+		{"TAS", "Edit and play back practice runs.", &g_Config.m_NullTasEnabled, false, false, {
+			{&g_Config.m_NullTasTps, "Editor speed", 1, 50, " ticks/s"},
+			{&g_Config.m_NullTasCoast, "Coast when steering stops", 0, 200, " ticks"},
+			{&g_Config.m_NullTasFreezeRewind, "Rewind on freeze in the editor", 0, 1},
+			{&g_Config.m_NullTasFreezeRewindTicks, "Freeze rewind distance", 1, 200, " ticks"},
+			{&g_Config.m_NullTasAllWeapons, "Give all weapons in the editor", 0, 1},
+			{&g_Config.m_NullTasDrawPath, "Show recorded path", 0, 1},
+			{&g_Config.m_NullTasEndRing, "Mark the finish", 0, 1},
+			{&g_Config.m_NullTasFirePreview, "Show movement and projectile preview", 0, 1},
+			{&g_Config.m_NullTasPredictFire, "Simulate continued firing for previews", 0, 1},
+			{&g_Config.m_NullTasHookPreview, "Show hook preview", 0, 1},
+			{&g_Config.m_NullTasWeaponLaser, "Always show the weapon aim line", 0, 1},
+			{&g_Config.m_NullTasPreviewLen, "Preview length", 10, 150, " ticks"},
+			{&g_Config.m_NullTasAutoReplay, "Loop playback", 0, 1}}, 4, 1, false, true},
 		{"OpenClient", "Optional additions to NullClient's original survival behavior.", nullptr, false, true, {
 			{&g_Config.m_NullPreserveJump, "Preserve a manual jump when a rescue supports it", 0, 1},
 			{&g_Config.m_NullRocketRestoreWeapon, "Weapon return", 0, 2, "", 3}}, 4},
+		{"Calculation depth", "The base variables behind every calculation. Raising these can cause serious FPS drops.", nullptr, false, false, {
+			S(SimRadius, "Simulated surroundings", 0, 4000, ""), S(PlayerRadius, "But watch players within", 0, 8000, ""),
+			S(Adversarial, "Assume other players are attacking", 0, 2, ""), S(HookAngles, "Surface scan resolution", 8, 128, "")}, 6},
+		{"Debug overlay", "Shows what Avoid Freeze and the aimbot are calculating and thinking, live. For developers.", &g_Config.m_NullGodmodeDebug, false, false, {
+			B(Trace, "Write the last 100 ticks to a file on death")}, 6},
+		{"Rescue visualizations", "Inspect sampled rescue paths.", &g_Config.m_NullGodmodeVisuals, false, false, {
+			B(VisualsSelected, "Show only the selected path"), S(VisualCount, "Visible paths", 1, 256, ""),
+			S(VisualHistory, "Recent calculations", 1, 8, ""), S(VisualAnimation, "Animation 0 instant, 1 reveal, 2 loop", 0, 2, ""),
+			S(VisualSpeed, "Playback speed", 25, 400, "%"), S(VisualDuration, "Visible duration", 250, 5000, " ms"),
+			B(VisualEnds, "Mark freeze and death endpoints")}, 6},
+		{"Ring around the tee", "A ring around your tee while god mode is acting. Turn it off for a cleaner view.", nullptr, false, true, {
+			B(Indicator, "Show the ring while it acts")}, 6, 1},
+		{"Fight replay", "Records both tees, the projectiles and a snapshot of the tiles.", nullptr, false, true, {
+			{&g_Config.m_NullAutopsy, "", 0, 2, "", 4, {"Off", "When you finish", "And when you finish someone off"}}}, 6, 1},
 	};
 #undef B
 #undef S
@@ -244,7 +289,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 	CUIRect Branding, ResetAll, Status;
 	MainView.HSplitTop(34, &Branding, &MainView);
 	Branding.VSplitRight(90, &Branding, &ResetAll);
-	Ui()->DoLabel(&Branding, "NullClient 3.6", 24, TEXTALIGN_ML);
+	Ui()->DoLabel(&Branding, "NullClient", 24, TEXTALIGN_ML);
 	static CButtonContainer s_ResetAll;
 	if(DoButton_Menu(&s_ResetAll, Localize("Reset all"), 0, &ResetAll))
 		PopupConfirm(Localize("Reset Null settings"), Localize("Reset every Null setting to its default value?"), Localize("Reset"), Localize("Cancel"), &CMenus::ResetSettingsNullClient);
@@ -271,7 +316,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 	CScrollRegionParams Params;
 	Params.m_ScrollUnit = 120;
 	Scroll.Begin(&MainView, &Params);
-	MainView.VMargin(std::max(0.0f, (MainView.w - (s_Page == 0 ? 560.0f : 780.0f)) / 2), &MainView);
+	MainView.VMargin(std::max(0.0f, (MainView.w - ((s_Page == 2 || s_Page >= 6) ? 560.0f : 780.0f)) / 2), &MainView);
 	CUIRect Left, Right;
 	MainView.VSplitMid(&Left, &Right, 10);
 	if(s_Page == 7)
@@ -314,8 +359,24 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{"Aimbot", &g_Config.m_NullBindAimbot, 2}, {"Aimbot hook", &g_Config.m_NullBindAimbotHook, 2},
 			{"Balance bot (hold)", &g_Config.m_NullBindBalanceBot, 1}, {"Fly Mode", &g_Config.m_NullBindFlymode, 3},
 			{"Fly Mode (hold)", &g_Config.m_NullBindFlyhold, 3}, {"Fake Aim", &g_Config.m_NullBindFakeAim, 4},
-			{"Version Spoof", &g_Config.m_NullBindVersionSpoof, 4}};
-		static CButtonContainer s_aBindKeys[15], s_aBindClear[15];
+			{"Version Spoof", &g_Config.m_NullBindVersionSpoof, 4},
+			{"Avoid rockets", &g_Config.m_NullBindAvoidRocket, 0},
+			{"Dummy laser auto unfreeze", &g_Config.m_NullBindDummyLaserUnfreeze, 0},
+			{"Auto hammer (toggle)", &g_Config.m_NullBindAutoHammerToggle, 1},
+			{"Auto grenade (toggle)", &g_Config.m_NullBindAutoGrenadeToggle, 1},
+			{"Counter hammer", &g_Config.m_NullBindCounterHammer, 1},
+			{"Quick stop", &g_Config.m_NullBindQuickStop, 1},
+			{"Hook counter", &g_Config.m_NullBindHookCounter, 1},
+			{"TAS playback", &g_Config.m_NullBindTas, 4},
+			{"TAS editor menu", &g_Config.m_NullTasKeyMenu, 4},
+			{"TAS editor flow", &g_Config.m_NullTasKeyFlow, 4},
+			{"TAS editor seek backward", &g_Config.m_NullTasKeySeekBack, 4},
+			{"TAS editor seek forward", &g_Config.m_NullTasKeySeekFwd, 4},
+			{"TAS editor speed up", &g_Config.m_NullTasKeySpeedUp, 4},
+			{"TAS editor speed down", &g_Config.m_NullTasKeySpeedDown, 4},
+			{"TAS editor boost", &g_Config.m_NullTasKeyBoost, 4},
+			{"TAS editor aim line", &g_Config.m_NullTasKeyLaser, 4}};
+		static CButtonContainer s_aBindKeys[std::size(aBinds)], s_aBindClear[std::size(aBinds)];
 		const char *apGroups[] = {"Survival", "Combat", "Aimbot", "Vision", "Misc"};
 		for(int Group = 0; Group < 5; ++Group)
 		{
@@ -336,28 +397,42 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			Column.HSplitTop(12, nullptr, &Column);
 		}
 	}
-	std::vector<size_t> aOrder = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 15, 10, 11, 12};
-	for(size_t i = 16; i < std::size(aCards); ++i) aOrder.push_back(i);
-	for(const size_t i : aOrder)
+	const auto VisibleSetting = [&](const CCard &Card, const CSetting &Setting) {
+		if(Card.m_pEnabled == &g_Config.m_NullAimbot && AimWeapon < 2 &&
+			((Setting.m_pValue == nullptr && Setting.m_Choice == 0) || Setting.m_pValue == &g_Config.m_NullAimbotKnockRange))
+			return false;
+		if(Setting.m_pValue == &g_Config.m_NullGodmodeRestoreWeapon)
+			return g_Config.m_NullGodmodeAutoWeapon != 0;
+		if(Setting.m_pValue == &g_Config.m_NullAvoidLegitHook)
+			return g_Config.m_NullAvoidMode == 0;
+		if(Card.m_pEnabled == &g_Config.m_NullGodmode &&
+			Setting.m_pValue != &g_Config.m_NullAvoidMode && Setting.m_pValue != &g_Config.m_NullAvoidAdvanced)
+			return g_Config.m_NullAvoidAdvanced && g_Config.m_NullAvoidMode != 0;
+		if(Setting.m_pValue == &g_Config.m_NullAvoidAdvanced)
+			return g_Config.m_NullAvoidMode != 0;
+		if(Setting.m_pValue == &g_Config.m_NullJukeMode)
+			return g_Config.m_NullGodmodeHookCounter == 0;
+		return true;
+	};
+	for(size_t i = 0; i < std::size(aCards); ++i)
 	{
 		const auto &Card = aCards[i];
-		const int Page = i < 9 ? 0 : i < 16 ? 1 : Card.m_Page;
-		if(s_Page != Page) continue;
-		if(Card.m_Child && (!g_Config.m_NullGodmode || !s_aOpen[0]))
-		{
-			s_aOpen[i] = false;
+		if(s_Page != Card.m_Page)
 			continue;
-		}
+		if(Card.m_Child && (!g_Config.m_NullGodmode || !s_aOpen[0] || !g_Config.m_NullAvoidAdvanced || g_Config.m_NullAvoidMode == 0))
+			continue;
 		if(Card.m_AlwaysOpen)
 			s_aOpen[i] = true;
 		const bool Open = s_aOpen[i];
-		int Rows = Open ? Card.m_Settings.size() : 0;
-		if(i == 22 && Open) Rows = 3 + std::min(static_cast<int>(GameClient()->m_NullClient.Profiles().size()), 12);
-		if(i == 16 && Open && AimWeapon < 2) Rows -= 2;
-		if(i == 9 && Open && !g_Config.m_NullGodmodeAutoWeapon)
-			--Rows;
+		int Rows = Open ? std::count_if(Card.m_Settings.begin(), Card.m_Settings.end(), [&](const auto &Setting) {
+			return VisibleSetting(Card, Setting);
+		}) : 0;
+		if(Card.m_Profiles && Open)
+			Rows = 3 + std::clamp(static_cast<int>(GameClient()->m_NullClient.Profiles().size()), 1, 12);
+		if(Card.m_Tas && Open)
+			Rows += 4;
 		CUIRect Panel, Body, Header, Title, Description, Toggle;
-		auto &Column = (s_Page == 0 || s_Page == 2) ? MainView : (i < 16 ? (i >= 10 && i <= 12) : Card.m_Column == 1) ? Right : Left;
+		auto &Column = (s_Page == 2 || s_Page >= 6) ? MainView : Card.m_Column ? Right : Left;
 		Column.HSplitTop(63 + (Rows > 0 ? 10 + 22 * Rows : 0), &Panel, &Column);
 		Column.HSplitTop(10, nullptr, &Column);
 		if(Card.m_Child)
@@ -374,17 +449,6 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		TextRender()->SetFontPreset(EFontPreset::ICON_FONT);
 		Ui()->DoLabel(&Caret, Open ? FontIcon::CHEVRON_UP : FontIcon::CHEVRON_DOWN, 9, TEXTALIGN_ML);
 		TextRender()->SetFontPreset(EFontPreset::DEFAULT_FONT);
-		if(i == 5 || i == 8 || i == 33 || i == 34)
-		{
-			CUIRect Badge;
-			Title.VSplitRight(i == 5 ? 83 : 33, &Title, &Badge);
-			Badge.HMargin(4, &Badge);
-			Badge.Draw(ColorRGBA(1, .8f, .2f, .85f), IGraphics::CORNER_ALL, 2);
-			const auto BeforeBadge = TextRender()->GetTextColor();
-			TextRender()->TextColor(.08f, .05f, 0, 1);
-			Ui()->DoLabel(&Badge, i == 5 ? "VERY HIGH CPU" : "BETA", 9, TEXTALIGN_MC);
-			TextRender()->TextColor(BeforeBadge);
-		}
 		Ui()->DoLabel(&Title, Localize(Card.m_pTitle), 15, TEXTALIGN_ML);
 		const auto TextColor = TextRender()->GetTextColor();
 		TextRender()->TextColor(1, 1, 1, .45f);
@@ -394,21 +458,21 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		DescriptionCursor.m_FontSize = 11;
 		DescriptionCursor.m_LineWidth = Description.w;
 		DescriptionCursor.m_MaxLines = 2;
-		TextRender()->TextEx(&DescriptionCursor, Localize(Card.m_pDescription), -1);
+		TextRender()->TextEx(&DescriptionCursor, Localize(Card.m_Available ? Card.m_pDescription : "Unavailable in NullClient 4.1 Free."), -1);
 		TextRender()->TextColor(TextColor);
 		if(Card.m_pEnabled)
 		{
 			CUIRect Switch;
 			Toggle.VSplitLeft(34, &Switch, &Toggle);
 			Switch.HMargin(15, &Switch);
-			const float On = *Card.m_pEnabled ? 1.0f : 0.0f;
+			const float On = Card.m_Available && *Card.m_pEnabled ? 1.0f : 0.0f;
 			const ColorRGBA Near = color_cast<ColorRGBA>(ColorHSLA(0x7fff96));
 			const ColorRGBA Far = color_cast<ColorRGBA>(ColorHSLA(0xcdffa0));
 			const ColorRGBA Accent(mix(Near.r, Far.r, .45f), mix(Near.g, Far.g, .45f), mix(Near.b, Far.b, .45f));
 			Switch.Draw(ColorRGBA(mix(1.0f, Accent.r, On), mix(1.0f, Accent.g, On), mix(1.0f, Accent.b, On), .13f + .72f * On), IGraphics::CORNER_ALL, Switch.h / 2);
 			CUIRect Knob{Switch.x + 2 + (Switch.w - Switch.h) * On, Switch.y + 2, Switch.h - 4, Switch.h - 4};
 			Knob.Draw(ColorRGBA(1, 1, 1, .45f + .55f * On), IGraphics::CORNER_ALL, Knob.h / 2);
-			if(Ui()->DoButtonLogic(Card.m_pEnabled, *Card.m_pEnabled, &Switch, BUTTONFLAG_LEFT))
+			if(Card.m_Available && Ui()->DoButtonLogic(Card.m_pEnabled, *Card.m_pEnabled, &Switch, BUTTONFLAG_LEFT))
 				*Card.m_pEnabled ^= 1;
 		}
 		CUIRect Reset;
@@ -428,7 +492,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
 			}
-			if(i == 16)
+			if(Card.m_pEnabled == &g_Config.m_NullAimbot)
 			{
 #define MACRO_CONFIG_INT(Name, Script, Def, Min, Max, Flags, Desc) if(str_startswith(#Script, "null_aimbot_") || str_comp(#Script, "null_ping_lead") == 0) g_Config.m_##Name = Def;
 #define MACRO_CONFIG_COL(Name, Script, Def, Flags, Desc)
@@ -455,8 +519,8 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			continue;
 		Body.HSplitTop(10, nullptr, &Body);
 		const bool WasEnabled = Ui()->Enabled();
-		Ui()->SetEnabled(WasEnabled && (!Card.m_pEnabled || *Card.m_pEnabled));
-		if(i == 22)
+		Ui()->SetEnabled(WasEnabled && Card.m_Available && (!Card.m_pEnabled || *Card.m_pEnabled));
+		if(Card.m_Profiles)
 		{
 			static char s_aProfileName[64] = "";
 			static CLineInput s_Name(s_aProfileName, sizeof(s_aProfileName));
@@ -464,6 +528,9 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			static std::string s_Result;
 			CUIRect Row;
 			Body.HSplitTop(20, &Row, &Body);
+			CUIRect Label;
+			Row.VSplitMid(&Label, &Row);
+			Ui()->DoLabel(&Label, Localize("Profile name"), 12, TEXTALIGN_ML);
 			s_Name.SetEmptyText(Localize("my settings"));
 			Ui()->DoClearableEditBox(&s_Name, &Row, 13);
 			Body.HSplitTop(2, nullptr, &Body);
@@ -483,14 +550,28 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 					if(Action == 3) Null.OpenProfileFolder();
 				}
 			}
-			const auto Names = GameClient()->m_NullClient.Profiles();
-			static CButtonContainer s_aProfileButtons[12];
+			auto &Null = GameClient()->m_NullClient;
+			const auto &Names = Null.Profiles();
+			static CButtonContainer s_aProfileButtons[12], s_aLoad[12], s_aDelete[12];
+			if(Names.empty())
+			{
+				Body.HSplitTop(22, &Row, &Body);
+				Ui()->DoLabel(&Row, Localize("No profiles saved yet"), 12, TEXTALIGN_ML);
+			}
 			for(size_t NameIndex = 0; NameIndex < std::min<size_t>(12, Names.size()); ++NameIndex)
 			{
 				const auto &Name = Names[NameIndex];
 				Body.HSplitTop(2, nullptr, &Body);
 				Body.HSplitTop(20, &Row, &Body);
-				if(DoButton_Menu(&s_aProfileButtons[NameIndex], Name.c_str(), 0, &Row)) str_copy(s_aProfileName, Name.c_str());
+				CUIRect Load, Delete;
+				Row.VSplitRight(52, &Row, &Delete);
+				Row.VSplitRight(52, &Row, &Load);
+				if(DoButton_Menu(&s_aProfileButtons[NameIndex], Name.c_str(), 0, &Row))
+					s_Name.Set(Name.c_str());
+				if(DoButton_Menu(&s_aLoad[NameIndex], Localize("Load"), 0, &Load))
+					s_Result = Localize(Null.LoadProfile(Name.c_str()) ? "Profile loaded" : "Could not load profile");
+				if(DoButton_Menu(&s_aDelete[NameIndex], Localize("Delete"), 0, &Delete))
+					s_Result = Localize(Null.DeleteProfile(Name.c_str()) ? "Profile deleted" : "Could not delete profile");
 			}
 			if(!s_Result.empty())
 			{
@@ -499,10 +580,66 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 				if(Scroll.AddRect(Row)) Ui()->DoLabel(&Row, s_Result.c_str(), 12, TEXTALIGN_ML);
 			}
 		}
+		if(Card.m_Tas)
+		{
+			auto &Tas = GameClient()->m_Tas;
+			static char s_aRunName[128] = "";
+			static CLineInput s_RunName(s_aRunName, sizeof(s_aRunName));
+			static CButtonContainer s_Editor, s_New, s_Play, s_Save, s_Reload, s_Load;
+			static CUi::SDropDownState s_Files;
+			static CScrollRegion s_FileScroll;
+			static int s_Selected = 0;
+			CUIRect Row, Button;
+			Body.HSplitTop(20, &Row, &Body);
+			const float Third = Row.w / 3.0f;
+			Row.VSplitLeft(Third, &Button, &Row);
+			if(DoButton_Menu(&s_Editor, Localize(Tas.NullEditorActive() ? "Close editor" : "Open editor"), 0, &Button))
+			{
+				if(Tas.NullEditorActive())
+					Tas.StopNullEditor();
+				else
+					Tas.StartNullEditor(false);
+			}
+			Row.VSplitLeft(Third, &Button, &Row);
+			if(DoButton_Menu(&s_New, Localize("New run"), 0, &Button))
+				Tas.StartNullEditor(true);
+			if(DoButton_Menu(&s_Play, Localize(Tas.NullPlaybackActive() ? "Stop playback" : "Play loaded run"), 0, &Row))
+				Tas.ToggleNullPlayback();
+			Body.HSplitTop(2, nullptr, &Body);
+			Body.HSplitTop(20, &Row, &Body);
+			Row.VSplitRight(60, &Row, &Button);
+			s_RunName.SetEmptyText(Localize("Run name"));
+			Ui()->DoClearableEditBox(&s_RunName, &Row, 13);
+			if(DoButton_Menu(&s_Save, Localize("Save"), 0, &Button))
+				Tas.SaveNullTas(s_aRunName);
+			Body.HSplitTop(2, nullptr, &Body);
+			Body.HSplitTop(20, &Row, &Body);
+			Row.VSplitRight(52, &Row, &Button);
+			if(DoButton_Menu(&s_Reload, Localize("Refresh"), 0, &Button))
+				Tas.RefreshNullTasFiles();
+			const auto &vFiles = Tas.NullTasFiles();
+			if(!vFiles.empty())
+			{
+				std::vector<const char *> vNames;
+				vNames.reserve(vFiles.size());
+				for(const auto &File : vFiles)
+					vNames.push_back(File.c_str());
+				Row.VSplitRight(52, &Row, &Button);
+				s_Files.m_SelectionPopupContext.m_pScrollRegion = &s_FileScroll;
+				s_Selected = Ui()->DoDropDown(&Row, std::clamp(s_Selected, 0, static_cast<int>(vFiles.size()) - 1), vNames.data(), vNames.size(), s_Files);
+				if(DoButton_Menu(&s_Load, Localize("Load"), 0, &Button))
+					Tas.LoadNullTas(vFiles[s_Selected].c_str());
+			}
+			else
+				Ui()->DoLabel(&Row, Localize("No saved runs"), 12, TEXTALIGN_ML);
+			Body.HSplitTop(2, nullptr, &Body);
+			Body.HSplitTop(20, &Row, &Body);
+			Ui()->DoLabel(&Row, Tas.NullTasStatus().c_str(), 12, TEXTALIGN_ML);
+			Body.HSplitTop(2, nullptr, &Body);
+		}
 		for(const auto &Setting : Card.m_Settings)
 		{
-			if(i == 16 && AimWeapon < 2 && ((Setting.m_pValue == nullptr && Setting.m_Choice == 0) || Setting.m_pValue == &g_Config.m_NullAimbotKnockRange)) continue;
-			if(i == 9 && Setting.m_pValue == &g_Config.m_NullGodmodeRestoreWeapon && !g_Config.m_NullGodmodeAutoWeapon)
+			if(!VisibleSetting(Card, Setting))
 				continue;
 			CUIRect Row;
 			Body.HSplitTop(20, &Row, &Body);
@@ -561,7 +698,10 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 				std::vector<const char *> vNames;
 				for(const char *pName : Setting.m_Options)
 					vNames.push_back(Localize(pName));
-				*Setting.m_pValue = Ui()->DoDropDown(&Row, *Setting.m_pValue, vNames.data(), vNames.size(), Choice.m_Choice);
+				const int Previous = *Setting.m_pValue;
+				*Setting.m_pValue = Ui()->DoDropDown(&Row, Previous, vNames.data(), vNames.size(), Choice.m_Choice);
+				if(Setting.m_pValue == &g_Config.m_NullAvoidMode && Previous != *Setting.m_pValue)
+					OpenKrx::NullClient::SyncAvoidModeSettings();
 			}
 			else if(Setting.m_Choice == 3)
 			{
@@ -591,7 +731,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			}
 			else if(Setting.m_Min == 0 && Setting.m_Max == 1)
 			{
-				if(i == 9 && Setting.m_pValue == &g_Config.m_NullGodmodeRestoreWeapon)
+				if(Setting.m_pValue == &g_Config.m_NullGodmodeRestoreWeapon)
 					Row.VSplitLeft(20, nullptr, &Row);
 				if(DoButton_CheckBox(Setting.m_pValue, Localize(Setting.m_pLabel), *Setting.m_pValue, &Row))
 					*Setting.m_pValue ^= 1;
@@ -617,5 +757,6 @@ void CMenus::ResetSettingsNullClient()
 #undef MACRO_CONFIG_INT
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
+	OpenKrx::NullClient::SyncAvoidModeSettings(true);
 	GameClient()->m_NullClient.OnReset();
 }

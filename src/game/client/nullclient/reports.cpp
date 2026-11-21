@@ -75,6 +75,7 @@ namespace OpenKrx::NullClient
 				Point(J, "vel", p->Core()->m_Vel);
 				Int(J, "freeze", p->m_FreezeTime);
 				Int(J, "deep", p->Core()->m_DeepFrozen);
+				Int(J, "live", p->Core()->m_LiveFrozen);
 				Int(J, "weapon", p->GetActiveWeapon());
 				Int(J, "hooked", p->Core()->HookedPlayer());
 				Point(J, "hook_pos", p->Core()->m_HookPos);
@@ -102,7 +103,10 @@ namespace OpenKrx::NullClient
 	}
 	bool CReports::Dump(CGameClient *pClient, int Slot, bool Autopsy, const char *pReason)
 	{
-		if(Slot < 0 || Slot > 1 || m_aSlots[Slot].m_vFrames.empty())
+		if(Slot < 0 || Slot > 1)
+			return false;
+		const auto &Frames = Autopsy ? m_aSlots[Slot].m_vAutopsyFrames : m_aSlots[Slot].m_vTraceFrames;
+		if(Frames.empty())
 			return false;
 		const bool Dummy = Slot != g_Config.m_ClDummy;
 		const char *pPath = Autopsy ? (Dummy ? "null_autopsy_dummy.txt" : "null_autopsy.txt") : (Dummy ? "null_trace_dummy.txt" : "null_trace.txt");
@@ -163,7 +167,7 @@ namespace OpenKrx::NullClient
 		Header.EndObject();
 		std::string Text = "{\n\"header\":" + Header.GetOutputString() + ",\n\"frames\":[\n";
 		bool First = true;
-		for(const auto &Frame : m_aSlots[Slot].m_vFrames)
+		for(const auto &Frame : Frames)
 		{
 			if(!First)
 				Text += ",\n";
@@ -193,7 +197,8 @@ namespace OpenKrx::NullClient
 				continue;
 			}
 			const bool Trace = g_Config.m_NullGodmodeTrace && (Slot == g_Config.m_ClDummy ? g_Config.m_NullGodmode : g_Config.m_NullGodmodeDummy);
-			if(!Trace && !g_Config.m_NullAutopsy)
+			const bool Autopsy = g_Config.m_NullAutopsy != 0;
+			if(!Trace && !Autopsy)
 			{
 				S = {};
 				continue;
@@ -209,10 +214,20 @@ namespace OpenKrx::NullClient
 			S.m_LastTick = Tick;
 			const auto *p = pClient->KrxPredictedWorld().GetCharacterById(Id);
 			const bool Alive = pClient->m_Snap.m_aCharacters[Id].m_Active && p;
-			const bool Frozen = p && (p->m_FreezeTime > 0 || p->Core()->m_DeepFrozen);
-			S.m_vFrames.push_back(Frame(pClient, Slot, Controllers[Slot], Raw[Slot]));
-			while(S.m_vFrames.size() > 100)
-				S.m_vFrames.pop_front();
+			const bool Frozen = p && (p->m_FreezeTime > 0 || p->Core()->m_DeepFrozen || p->Core()->m_LiveFrozen);
+			auto Contents = Frame(pClient, Slot, Controllers[Slot], Raw[Slot]);
+			if(Trace)
+			{
+				S.m_vTraceFrames.push_back(Autopsy ? Contents : std::move(Contents));
+				if(S.m_vTraceFrames.size() > 100)
+					S.m_vTraceFrames.pop_front();
+			}
+			if(Autopsy)
+			{
+				S.m_vAutopsyFrames.push_back(std::move(Contents));
+				if(S.m_vAutopsyFrames.size() > 100)
+					S.m_vAutopsyFrames.pop_front();
+			}
 			const bool Death = S.m_Alive && !Alive, Freeze = Alive && Frozen && !S.m_Frozen;
 			if(Trace && (Death || Freeze) && Tick - S.m_LastTrace > 10)
 			{
@@ -225,7 +240,7 @@ namespace OpenKrx::NullClient
 				S.m_LastTrace = Tick;
 				Dump(pClient, Slot, false, "slow tick");
 			}
-			if(g_Config.m_NullAutopsy && (Death || Freeze) && Tick - S.m_LastReport > 40 && S.m_vFrames.size() >= 8)
+			if(Autopsy && (Death || Freeze) && Tick - S.m_LastReport > 40 && S.m_vAutopsyFrames.size() >= 8)
 			{
 				S.m_LastReport = Tick;
 				Dump(pClient, Slot, true, Death ? "death" : "freeze");
@@ -234,8 +249,8 @@ namespace OpenKrx::NullClient
 				for(int Other = 0; Other < MAX_CLIENTS; ++Other)
 				{
 					const auto *pOther = pClient->KrxPredictedWorld().GetCharacterById(Other);
-					const bool OtherFrozen = pOther && (pOther->m_FreezeTime > 0 || pOther->Core()->m_DeepFrozen);
-					if(Other != Id && OtherFrozen && !S.m_aFrozen[Other] && p && p->GetLastHammerHitClientId() == Other && Tick - S.m_LastReport > 40 && S.m_vFrames.size() >= 8)
+					const bool OtherFrozen = pOther && (pOther->m_FreezeTime > 0 || pOther->Core()->m_DeepFrozen || pOther->Core()->m_LiveFrozen);
+					if(Other != Id && OtherFrozen && !S.m_aFrozen[Other] && p && p->GetLastHammerHitClientId() == Other && Tick - S.m_LastReport > 40 && S.m_vAutopsyFrames.size() >= 8)
 					{
 						S.m_LastReport = Tick;
 						Dump(pClient, Slot, true, "target frozen");
@@ -268,10 +283,26 @@ namespace OpenKrx::NullClient
 			}
 		}
 	}
-	void CReports::Clear(IStorage *pStorage, bool Autopsy)
+	bool CReports::Clear(IStorage *pStorage, bool Autopsy)
 	{
-		Reset();
+		for(auto &Slot : m_aSlots)
+		{
+			if(Autopsy)
+			{
+				Slot.m_vAutopsyFrames.clear();
+				Slot.m_LastReport = -1000;
+				Slot.m_aFrozen = {};
+			}
+			else
+			{
+				Slot.m_vTraceFrames.clear();
+				Slot.m_LastTrace = -1000;
+				Slot.m_LastSlow = -1000;
+			}
+		}
+		bool Removed = false;
 		for(const char *p : Autopsy ? std::initializer_list<const char *>{"null_autopsy.txt", "null_autopsy_dummy.txt"} : std::initializer_list<const char *>{"null_trace.txt", "null_trace_dummy.txt"})
-			pStorage->RemoveFile(p, IStorage::TYPE_SAVE);
+			Removed |= pStorage->RemoveFile(p, IStorage::TYPE_SAVE);
+		return Removed;
 	}
 }

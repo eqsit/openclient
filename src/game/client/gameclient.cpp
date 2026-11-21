@@ -121,7 +121,7 @@ void CGameClient::OnConsoleInit()
 	// isolation. New settings serialize the unambiguous openkrx_profile name.
 	m_pConsole->Register("openkrx_avoid_provider", "?i[profile]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CGameClient *>(pUser);
-		if(pResult->NumArguments())
+		if(pResult->NumArguments() && !OpenKrx::g_NullStandalone)
 		{
 			g_Config.m_OpenKrxAvoidProvider = std::clamp(pResult->GetInteger(0), 0, 1);
 			pSelf->SyncFeatureProfile();
@@ -203,6 +203,7 @@ void CGameClient::OnConsoleInit()
 						  &m_Binds.m_SpecialBinds,
 						  &m_GameConsole,
 						  &m_Chat, // chat has higher prio, due to that you can quit it by pressing esc
+						  &m_Tas,
 						  &m_Scoreboard,
 						  &m_Motd, // for pressing esc to remove it
 						  &m_Spectator,
@@ -485,7 +486,7 @@ bool CGameClient::FeatureComponentActive(const CComponent *pComponent) const
 		return OpenKrx::NullProfileActive();
 	if(pComponent == &m_MediumVisuals || pComponent == &m_KrxMovementPreTas ||
 		pComponent == &m_KrxMiscPreTas || pComponent == &m_PreTasVisuals ||
-		pComponent == &m_Tas || pComponent == &m_Fent || pComponent == &m_KrxAutoEdgeNew)
+		pComponent == &m_Fent || pComponent == &m_KrxAutoEdgeNew)
 		return OpenKrx::KrxProfileActive();
 	return true;
 }
@@ -512,6 +513,7 @@ void CGameClient::SyncFeatureProfile()
 		m_KrxMovementPreTas.OnReset();
 		m_KrxMiscPreTas.OnReset();
 		m_NullClient.OnReset();
+		m_Tas.LeaveNullTasProfile();
 		m_pDiscord->Initialize(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
 		for(auto &Input : m_Controls.m_aKrxInput)
 			Input = {};
@@ -621,8 +623,10 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 			m_DummyFire = 0;
 		}
 
+		const auto BeforeNull = m_DummyInput;
 		m_DummyInput = m_NullClient.Apply(m_DummyInput, !g_Config.m_ClDummy);
 		if(!Force && (!m_DummyInput.m_Direction && !m_DummyInput.m_Jump && !m_DummyInput.m_Hook) &&
+			mem_comp(&BeforeNull, &m_DummyInput, sizeof(m_DummyInput)) == 0 &&
 			!(g_Config.m_OpenKrxAvoidProvider == 1 && g_Config.m_NullGodmodeDummy))
 		{
 			return 0;

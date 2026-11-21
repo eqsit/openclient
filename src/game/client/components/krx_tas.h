@@ -26,17 +26,22 @@ namespace OpenKrx
 	public:
 		int Sizeof() const override { return sizeof(*this); }
 		~CKrxTas() override;
-		void OnInit() override { RefreshFiles(); }
+		void OnInit() override
+		{
+			RefreshFiles();
+			RefreshNullTasFiles();
+		}
 		void OnReset() override;
 		void OnMapLoad() override;
 		void OnRender() override;
 		void OnConsoleInit() override;
+		bool OnInput(const IInput::CEvent &Event) override;
 		void OnShutdown() override;
 		// Called once at the end of the original SnapInput pipeline, before send.
 		bool ProcessInput();
 		CNetObj_PlayerInput NetworkInput() const;
 		bool Active() const;
-		CGameWorld *World() { return m_pWorld.get(); }
+		CGameWorld *World();
 		CGameWorld *RenderWorld();
 		CGameWorld *PreviousRenderWorld();
 		float IntraTick() const;
@@ -66,8 +71,61 @@ namespace OpenKrx
 		void SetGoal(vec2 Goal);
 		void AnalyzeReplay();
 		const std::vector<unsigned char> &EditorTiles() const { return m_vTunnels; }
+		bool NullEditorActive() const;
+		bool StartNullEditor(bool NewRun);
+		void StopNullEditor();
+		bool SaveNullTas(const char *pName);
+		bool LoadNullTas(const char *pName);
+		void ToggleNullPlayback();
+		bool NullPlaybackActive() const;
+		const std::string &NullTasStatus() const { return m_NullTas.m_Status; }
+		const std::vector<std::string> &NullTasFiles() const { return m_NullTas.m_vFiles; }
+		void RefreshNullTasFiles();
+		void LeaveNullTasProfile();
+		bool ProcessNullTasInput(const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Last, CNetObj_PlayerInput &Packet);
 
 	private:
+		bool KrxEditorActive() const;
+		struct CNullTasState
+		{
+			std::unique_ptr<CCollision> m_pCollision;
+			std::array<CTuningParams, 256> m_aTuning;
+			std::unique_ptr<CGameWorld> m_pWorld, m_pPreviousWorld, m_pInitialWorld;
+			std::vector<std::unique_ptr<CGameWorld>> m_vCheckpoints;
+			std::vector<CReplayFrame> m_vFrames;
+			std::vector<std::string> m_vFiles;
+			std::string m_Map, m_Name, m_Status;
+			vec2 m_Start = vec2(0, 0);
+			std::array<bool, 5> m_aInitialWeaponGot{};
+			std::array<int, 5> m_aInitialWeaponAmmo{};
+			CNetObj_PlayerInput m_EditorInput{}, m_PlaybackInput{};
+			size_t m_Tick = 0, m_PlaybackTick = 0;
+			int m_ClientId = -1, m_Slot = -1, m_LastPlaybackTick = -1;
+			int m_Coast = 0, m_Seek = 0, m_Weapon = -1, m_FireState = 0;
+			int64_t m_LastStep = 0, m_LastAutosave = 0, m_LastBoost = 0, m_LastPreview = 0;
+			int64_t m_StepTime = 0;
+			bool m_Editor = false, m_Playback = false, m_PlaybackAligned = false;
+			bool m_Dirty = false, m_Autosaved = false, m_Boost = false;
+			bool m_AllWeapons = false, m_Flowing = false, m_BoostUseful = false;
+			vec2 m_BoostReference = vec2(0, 0), m_BoostAim = vec2(0, 0);
+			int m_BoostMove = 0;
+			std::array<std::vector<vec2>, 4> m_avPreview;
+		} m_NullTas;
+		bool NullTasAvailable() const;
+		void NullTasMessage(const char *pMessage);
+		void InitNullTasCommands();
+		void ResetNullTas();
+		void ResetNullTasWorlds();
+		bool WriteNullTas(const char *pName, bool Autosave);
+		void SetNullTasWeapon(int Weapon);
+		void UpdateNullEditor(CNetObj_PlayerInput Raw);
+		void UpdateNullTasBoost(vec2 Aim);
+		void UpdateNullTasPreview();
+		void UpdateNullPlayback(const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Last, CNetObj_PlayerInput &Packet);
+		void SeekNullTas(size_t Tick);
+		static void StepNullTasWorld(CGameWorld &World, int ClientId, const CNetObj_PlayerInput &Input);
+		void RenderNullTas();
+
 		CReplay m_Replay;
 		std::unique_ptr<CGameWorld> m_pWorld, m_pPreviousWorld, m_pInitialWorld;
 		std::vector<std::shared_ptr<CGameWorld>> m_vWorlds;

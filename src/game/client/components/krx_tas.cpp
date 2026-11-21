@@ -64,7 +64,8 @@ namespace OpenKrx
 		}
 	}
 
-	bool CKrxTas::Active() const { return OpenKrx::KrxProfileActive() && g_Config.m_KrxRecordReplay && m_pWorld != nullptr; }
+	bool CKrxTas::KrxEditorActive() const { return OpenKrx::KrxProfileActive() && g_Config.m_KrxRecordReplay && m_pWorld != nullptr; }
+	bool CKrxTas::Active() const { return KrxEditorActive() || NullEditorActive(); }
 	CKrxTas::~CKrxTas()
 	{
 		CancelPathFinding();
@@ -72,11 +73,24 @@ namespace OpenKrx
 		StopConversionWorker();
 		StopAnalysisWorker();
 	}
-	CGameWorld *CKrxTas::RenderWorld() { return Active() ? m_pWorld.get() : &GameClient()->m_PredictedWorld; }
-	CGameWorld *CKrxTas::PreviousRenderWorld() { return Active() ? m_pPreviousWorld.get() : &GameClient()->m_PrevPredictedWorld; }
+	CGameWorld *CKrxTas::World() { return NullEditorActive() ? m_NullTas.m_pWorld.get() : m_pWorld.get(); }
+	CGameWorld *CKrxTas::RenderWorld() { return Active() ? World() : &GameClient()->m_PredictedWorld; }
+	CGameWorld *CKrxTas::PreviousRenderWorld()
+	{
+		if(NullEditorActive())
+			return m_NullTas.m_pPreviousWorld.get();
+		return KrxEditorActive() ? m_pPreviousWorld.get() : &GameClient()->m_PrevPredictedWorld;
+	}
 
 	float CKrxTas::IntraTick() const
 	{
+		if(NullEditorActive())
+		{
+			if(!m_NullTas.m_Flowing)
+				return 1.0f;
+			const int64_t Elapsed = time_get_nanoseconds().count() - m_NullTas.m_LastStep;
+			return std::clamp((m_NullTas.m_StepTime + Elapsed) * (g_Config.m_NullTasTps / 1e9f), 0.0f, 1.0f);
+		}
 		const int Tps = g_Config.m_KrxTasRewind || g_Config.m_KrxTasForward ? 50 : g_Config.m_KrxTasTps;
 		const float Interval = (float)(int)(1000.0f / Tps);
 		const float Milliseconds = (float)((time_get_nanoseconds().count() - m_LastStep) / 1000000);
@@ -104,6 +118,7 @@ namespace OpenKrx
 
 	void CKrxTas::OnConsoleInit()
 	{
+		InitNullTasCommands();
 		Console()->Register("openkrx_tas_status", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
 		auto *pSelf = static_cast<CKrxTas *>(pUser);
 		auto *pGameClient = pSelf->GameClient();
@@ -130,6 +145,7 @@ namespace OpenKrx
 
 	void CKrxTas::OnReset()
 	{
+		ResetNullTas();
 		StopAnalysisWorker();
 		CancelPathFinding();
 		ClearReplay();
@@ -148,6 +164,8 @@ namespace OpenKrx
 
 	void CKrxTas::OnMapLoad()
 	{
+		ResetNullTas();
+		RefreshNullTasFiles();
 		StopAnalysisWorker();
 		CancelPathFinding();
 		m_FlowField.Resize(Collision()->GetWidth(), Collision()->GetHeight());
@@ -407,7 +425,7 @@ namespace OpenKrx
 	void CKrxTas::Rewind(int Ticks)
 	{
 		const int Count = (int)m_vWorlds.size();
-		if(!Active() || Ticks < 0 || Ticks >= Count)
+		if(!KrxEditorActive() || Ticks < 0 || Ticks >= Count)
 			return;
 		Ticks = std::min(Ticks, Count - 1);
 		std::array<int, 2> aFire{};
@@ -449,7 +467,7 @@ namespace OpenKrx
 
 	void CKrxTas::Forward(int Ticks)
 	{
-		if(!Active())
+		if(!KrxEditorActive())
 			return;
 		for(int I = 0; I < Ticks; ++I)
 		{
@@ -463,7 +481,7 @@ namespace OpenKrx
 
 	void CKrxTas::AutoRewind()
 	{
-		if(!Active() || !g_Config.m_KrxTasAutoRewind || g_Config.m_KrxTasRewind || m_vWorlds.size() <= 10)
+		if(!KrxEditorActive() || !g_Config.m_KrxTasAutoRewind || g_Config.m_KrxTasRewind || m_vWorlds.size() <= 10)
 			return;
 		const int Id = GameClient()->m_aLocalIds[g_Config.m_ClDummy];
 		if(!Frozen(m_pWorld->GetCharacterById(Id)) || Frozen(m_pPreviousWorld->GetCharacterById(Id)))
@@ -656,7 +674,7 @@ namespace OpenKrx
 		CGameWorld Source;
 		const bool Online = Client()->State() == IClient::STATE_ONLINE;
 		if(Online)
-			Source.CopyWorldIsolated(Active() ? m_pWorld.get() : &GameClient()->m_GameWorld);
+			Source.CopyWorldIsolated(KrxEditorActive() ? m_pWorld.get() : &GameClient()->m_GameWorld);
 		ClearReplay();
 		m_Replay = std::move(Loaded);
 		m_pWorld.reset();
@@ -755,7 +773,7 @@ namespace OpenKrx
 		if(m_Replay.m_aFrames[0].empty())
 			return false;
 		CGameWorld Probe;
-		Probe.CopyWorldIsolated(Active() ? m_pWorld.get() : &GameClient()->m_GameWorld);
+		Probe.CopyWorldIsolated(KrxEditorActive() ? m_pWorld.get() : &GameClient()->m_GameWorld);
 		Probe.m_WorldConfig.m_KrxPrediction = true;
 		for(size_t I = 0; I < m_Replay.m_aFrames[0].size(); ++I)
 		{
@@ -906,7 +924,7 @@ namespace OpenKrx
 			// analyzer must not replace the recording or advance the live world.
 			const std::array<int, 2> aIds = {GameClient()->m_aLocalIds[0], GameClient()->m_aLocalIds[1]};
 			if(Client()->State() != IClient::STATE_ONLINE ||
-				!PrepareReplayAnalysisWorld(m_Replay, Active() ? *m_pWorld : GameClient()->m_GameWorld, aIds, *pInitial))
+				!PrepareReplayAnalysisWorld(m_Replay, KrxEditorActive() ? *m_pWorld : GameClient()->m_GameWorld, aIds, *pInitial))
 			{
 				Message("Replay analysis needs an online world containing each recorded tee.");
 				return;

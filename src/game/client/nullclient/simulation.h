@@ -45,14 +45,16 @@ namespace OpenKrx::NullClient
 		int m_Steps = 0;
 		std::array<bool, MAX_CLIENTS> m_aIdle{};
 		std::vector<std::pair<int, float>> m_vHammerThreats;
+		std::vector<std::pair<int, float>> m_vRocketContactThreats;
 		std::vector<std::pair<int, bool>> m_vRocketThreats;
+		std::vector<std::unique_ptr<CSimulation>> m_vWorkerContexts;
 		float m_RocketNear = 0;
-		void Prune(const CSettings &Settings);
+		void Prune(const CSettings &Settings, bool Legit);
 		void PrepareThreats(const CSettings &Settings);
 		std::unique_ptr<CSimulation> CloneForWorker() const;
 
 	public:
-		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle);
+		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, bool Legit = false);
 		std::unique_ptr<IWorld> Clone() const override;
 		void ForEachCandidate(int Count, const std::function<void(IWorld &, int)> &Evaluate) override;
 		void Reset() override;
@@ -66,6 +68,7 @@ namespace OpenKrx::NullClient
 		vec2 Velocity() const override;
 		bool HammerDanger() const override;
 		bool RocketDanger(float Throw, float Spread) const override;
+		bool RocketContactDanger() const override;
 		bool NearFreeze(float Clearance) const override;
 		bool WallStopped() const override;
 		bool HookedPlayer() const override;
@@ -77,6 +80,7 @@ namespace OpenKrx::NullClient
 		int Steps() const { return m_Steps; }
 		uint64_t TotalSteps() const { return *m_pTotalSteps; }
 		const std::vector<std::pair<int, float>> &HammerThreats() const { return m_vHammerThreats; }
+		const std::vector<std::pair<int, float>> &RocketContactThreats() const { return m_vRocketContactThreats; }
 		int HammerThreatCount() const { return static_cast<int>(m_vHammerThreats.size()); }
 		int RocketThreatCount() const { return static_cast<int>(m_vRocketThreats.size()); }
 		int IncomingHooker(vec2 *pPosition = nullptr) const;

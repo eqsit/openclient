@@ -1,5 +1,9 @@
-# OpenClient
+# OpenNull
 
-NullClient и обновлённый KRX в одном клиенте с отдельными профилями KRX и NullClient.
+Клиент NullClient 4.1 для Windows и Linux.
 
-Сборки для Windows и Linux — в [Releases](https://github.com/eqsit/openclient/releases).
+Сборка: нужен `ddnet-libs`, затем
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` и
+`cmake --build build --target NullClient`.
+
+Сборки и исходники — в Releases.

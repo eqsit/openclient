@@ -15,7 +15,8 @@ namespace OpenKrx::NullClient
 		{
 			int m_Id = -1, m_LastTick = -1, m_LastReport = -1000, m_LastTrace = -1000, m_LastSlow = -1000;
 			bool m_Alive = false, m_Frozen = false;
-			std::deque<std::string> m_vFrames;
+			std::deque<std::string> m_vTraceFrames;
+			std::deque<std::string> m_vAutopsyFrames;
 			int m_ControllerUs = 0;
 			std::array<bool, MAX_CLIENTS> m_aFrozen{};
 		};
@@ -28,7 +29,7 @@ namespace OpenKrx::NullClient
 		void Update(CGameClient *pClient, const std::array<CController, 2> &Controllers, const std::array<CNetObj_PlayerInput, 2> &Raw);
 		bool Dump(CGameClient *pClient, int Slot, bool Autopsy, const char *pReason);
 		void Kill(CGameClient *pClient, int Killer, int Victim);
-		void Clear(IStorage *pStorage, bool Autopsy);
+		bool Clear(IStorage *pStorage, bool Autopsy);
 	};
 }
 #endif

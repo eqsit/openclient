@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export LD_LIBRARY_PATH="/home/arch/.local/share/ddnet-runtime/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # Launch the locally built OpenKRX client with its own data directory.
 set -euo pipefail
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"

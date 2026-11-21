@@ -206,6 +206,7 @@ namespace OpenKrx::NullClient
 			S.m_HaveStand = false;
 			S.m_Route.Reset();
 			S.m_HaveVelocity = false;
+			S.m_NavigationTick = -1000;
 		}
 		auto *pTarget = World.GetCharacterById(TargetId);
 		// 2417e0 uses rendered positions for chase geometry and predicted cores
@@ -279,6 +280,8 @@ namespace OpenKrx::NullClient
 					if(Push.y > .4f)
 						Score += Out.y < -.5f ? 90.f : -60.f;
 				}
+				if(Out.y < -.4f)
+					Score += g_Config.m_NullSerialAbove;
 				const float SafeRange = g_Config.m_NullSerialSafeRange;
 				if(SafeRange > 0)
 				{
@@ -418,7 +421,109 @@ namespace OpenKrx::NullClient
 		Aim = Unit(Aim) * std::max(100.f, length(Aim));
 		Plan.m_TargetX = Aim.x;
 		Plan.m_TargetY = Aim.y;
+		const bool ClearGoal = CRoute::SegmentSafe(pCollision, Position, Goal, true);
+		const bool OpenAhead = Plan.m_Direction && !pCollision->CheckPoint(Position + vec2(Plan.m_Direction * 48, 18));
+		if(g_Config.m_NullSerialNavigation && (!ClearGoal || StepUp || (D > 60 && (Delta.y < -20 || OpenAhead))))
+			Navigate(pClient, S, Waypoint, Target, Foresight, OpenAhead, Idle);
+		else
+			S.m_NavigationTick = -1000;
 		S.m_HasPlan = true;
+	}
+
+	void CSerial::Navigate(CGameClient *pClient, CState &State, vec2 Goal, vec2 Target, const CSerialThreats &Threats, bool OpenAhead, const std::array<bool, MAX_CLIENTS> &Idle)
+	{
+		auto &Source = pClient->KrxPredictedWorld();
+		auto *pSelf = Source.GetCharacterById(State.m_Id);
+		const int HookState = pSelf->Core()->m_HookState;
+		auto &Plan = State.m_Plan;
+		auto &BestInput = State.m_NavigationInput;
+		const bool Reuse = State.m_LastTick >= State.m_NavigationTick && State.m_LastTick - State.m_NavigationTick < 3 &&
+			HookState == State.m_NavigationHook && distance(Goal, State.m_NavigationGoal) <= 32.0f;
+		if(!Reuse)
+		{
+			State.m_NavigationTick = State.m_LastTick;
+			State.m_NavigationHook = HookState;
+			State.m_NavigationGoal = Goal;
+			BestInput = Plan;
+			BestInput.m_Direction = BestInput.m_Jump = BestInput.m_Hook = 0;
+
+			CSettings Settings;
+			Settings.m_Horizon = 32;
+			Settings.m_Adversarial = 0;
+			CSimulation Simulation;
+			if(Simulation.Initialize(Source, State.m_Id, Settings, Idle))
+			{
+				const vec2 Origin = Simulation.Position();
+				const float HookLength = pSelf->GetTuning(pSelf->GetPureTuneZone())->m_HookLength;
+				const auto Anchor = g_Config.m_NullSerialHook && HookState == HOOK_IDLE ?
+					FindHookAnchor(pClient->Collision(), Origin, Goal - Origin, HookLength) : std::nullopt;
+				const int JumpMax = !OpenAhead && (pSelf->IsGrounded() || !(pSelf->Core()->m_Jumped & 2));
+				int BestLife = -1;
+				float BestScore = 0.f;
+				for(int HookChoice = 0; HookChoice < (Anchor ? 3 : 2); ++HookChoice)
+				{
+					if(HookChoice == 1 && !Plan.m_Hook)
+						continue;
+					for(int Direction = -1; Direction <= 1; ++Direction)
+						for(int Jump = 0; Jump <= JumpMax; ++Jump)
+						{
+							auto Input = Plan;
+							Input.m_Direction = Direction;
+							Input.m_Jump = Jump;
+							Input.m_Hook = HookChoice == 0 ? Plan.m_Hook : HookChoice == 1 ? 0 : 1;
+							if(HookChoice == 2)
+							{
+								Input.m_TargetX = round_to_int(Anchor->x);
+								Input.m_TargetY = round_to_int(Anchor->y);
+							}
+							const auto First = Input;
+							Simulation.Reset();
+							vec2 End = Origin;
+							vec2 DriveEnd = Origin;
+							int Life = 0;
+							float Risk = 0.f;
+							for(; Life < 32; ++Life)
+							{
+								if(Life > 0)
+									Input.m_Jump = 0;
+								if(Life >= 24)
+									Input.m_Direction = 0;
+								if(!Simulation.Tick(Input) || Simulation.Dead() || Simulation.Frozen())
+									break;
+								End = Simulation.Position();
+								if(Simulation.NearFreeze(24.f))
+									Risk += 8.f;
+								if(Life == 23)
+									DriveEnd = End;
+							}
+							if(Life == 32)
+								End = DriveEnd;
+							float Score = -2.f * distance(End, Goal) - Risk - 6.f * Jump -
+								Threats.Risk(End) * g_Config.m_NullSerialForesight;
+							if(!pClient->Collision()->IntersectLine(End, Target, nullptr, nullptr))
+								Score += 12.f;
+							if(Simulation.Grounded())
+								Score += 8.f;
+							if(HookChoice == 2)
+								Score -= 4.f;
+							if(Life > BestLife || (Life == BestLife && Score > BestScore))
+							{
+								BestLife = Life;
+								BestScore = Score;
+								BestInput = First;
+							}
+						}
+				}
+			}
+		}
+		Plan.m_Direction = BestInput.m_Direction;
+		Plan.m_Jump = Reuse ? 0 : BestInput.m_Jump;
+		Plan.m_Hook = BestInput.m_Hook;
+		if(Plan.m_Hook && HookState == HOOK_IDLE)
+		{
+			Plan.m_TargetX = BestInput.m_TargetX;
+			Plan.m_TargetY = BestInput.m_TargetY;
+		}
 	}
 	CNetObj_PlayerInput CSerial::Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot, bool Consume)
 	{

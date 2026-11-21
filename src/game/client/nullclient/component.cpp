@@ -5,6 +5,7 @@
 
 #include <engine/client.h>
 #include <engine/graphics.h>
+#include <engine/map.h>
 #include <engine/shared/config.h>
 
 #include <game/client/gameclient.h>
@@ -30,6 +31,11 @@ namespace OpenKrx::NullClient
 
 	void CNullClient::OnReset()
 	{
+		m_vShotPaths.clear();
+		m_ShotPathTick = -1;
+		StopRescueScene();
+		m_RescueSceneShown = false;
+		m_vRescueSnapshots.clear();
 		m_Idle.Reset();
 		m_Helpers.Reset();
 		m_Fly.Reset();
@@ -71,7 +77,16 @@ namespace OpenKrx::NullClient
 			return Input;
 		}
 		auto &Restore = m_aWeaponRestore[Slot];
-		auto &State = m_aControllers[Slot].Output();
+		auto &Controller = m_aControllers[Slot];
+		const bool Dummy = Slot != g_Config.m_ClDummy;
+		if(!Controller.MatchesMode(Settings, Dummy) || (!Dummy && Settings.m_Mode == CSettings::MODE_LEGIT))
+		{
+			Restore.Reset();
+			m_aNativeReturn[Slot].Reset();
+			m_aRestoreProbeTicks[Slot] = -1;
+			return Enabled && Controller.MatchesMode(Settings, Dummy) ? Controller.ApplyLegit(Input) : Input;
+		}
+		auto &State = Controller.Output();
 		const bool GrenadeAction = Enabled && State.m_HasPlan && State.m_WeaponAction == WEAPON_GRENADE;
 		const int EmissionWeapon = State.m_WeaponAction >= 0 ? WeaponOnDirectInput(GameClient()->KrxPredictedWorld(), Id, Input) : pCharacter->GetActiveWeapon();
 		const auto NativeInput = m_aNativeReturn[Slot].Prepare(Input, State, Settings);
@@ -112,7 +127,8 @@ namespace OpenKrx::NullClient
 
 	CNetObj_PlayerInput CNullClient::Apply(CNetObj_PlayerInput Input, int Slot)
 	{
-		if(!Selected() || Slot < 0 || Slot > 1 || !(Input.m_PlayerFlags & PLAYERFLAG_PLAYING))
+		if(!Selected() || Slot < 0 || Slot > 1 || GameClient()->m_Tas.Active() ||
+			(!(Input.m_PlayerFlags & PLAYERFLAG_PLAYING) && Slot == g_Config.m_ClDummy))
 			return Input;
 		auto Output = m_Fly.HasPlan(Slot) ? m_Fly.Apply(Input, Slot) : ApplyAvoid(m_Serial.Apply(GameClient(), Input, Slot), Slot);
 		// Original main Controls 121a57..121ad0 derives these gates from
@@ -120,6 +136,14 @@ namespace OpenKrx::NullClient
 		const bool HookAim = Output.m_Hook != Input.m_Hook || Output.m_TargetX != Input.m_TargetX || Output.m_TargetY != Input.m_TargetY;
 		const bool Changed = HookAim || Output.m_Direction != Input.m_Direction || Output.m_Jump != Input.m_Jump;
 		const bool FireChanged = Output.m_Fire != Input.m_Fire;
+		if(!Changed && !FireChanged)
+		{
+			const auto Laser = m_Helpers.ApplyDummyLaser(GameClient(), Output, Slot);
+			if(mem_comp(&Laser, &Output, sizeof(Output)) != 0)
+				return Laser;
+		}
+		if(!(Input.m_PlayerFlags & PLAYERFLAG_PLAYING))
+			return Input;
 		Output = m_Aimbot.Apply(GameClient(), Output, Slot, Changed);
 		return m_Helpers.Apply(GameClient(), Output, Slot, Changed, FireChanged, HookAim);
 	}
@@ -135,9 +159,14 @@ namespace OpenKrx::NullClient
 
 	void CNullClient::OnRender()
 	{
+		if(Selected() && Client()->State() == IClient::STATE_DEMOPLAYBACK)
+		{
+			RenderRescueScene();
+			return;
+		}
 		if(!Selected() || Client()->State() != IClient::STATE_ONLINE)
 		{
-			if(m_WasSelected)
+			if(m_WasSelected || m_RescueSceneStart != 0 || m_RescueSceneShown)
 				OnReset();
 			return;
 		}
@@ -148,6 +177,8 @@ namespace OpenKrx::NullClient
 		m_Idle.Update(GameClient());
 		m_Serial.Update(GameClient(), m_Warlist, m_Idle.Idle());
 		m_Helpers.Update(GameClient());
+		if(!g_Config.m_NullGodmodeVisuals)
+			m_vRescueSnapshots.clear();
 		const auto Settings = SettingsFromConfig();
 		for(int Slot = 0; Slot < 2; ++Slot)
 		{
@@ -194,7 +225,8 @@ namespace OpenKrx::NullClient
 			Raw = m_Serial.Apply(GameClient(), Raw, Slot, false);
 			const int64_t Start = time_get_impl();
 			CSimulation World;
-			if(!World.Initialize(GameClient()->KrxPredictedWorld(), Id, Settings, m_Idle.Idle()))
+			const bool Legit = Slot == g_Config.m_ClDummy && Settings.m_Mode == CSettings::MODE_LEGIT;
+			if(!World.Initialize(GameClient()->KrxPredictedWorld(), Id, Settings, m_Idle.Idle(), Legit))
 				continue;
 			CFrame Frame;
 			Frame.m_Tick = Client()->PredGameTick(g_Config.m_ClDummy);
@@ -203,7 +235,26 @@ namespace OpenKrx::NullClient
 			const auto &Snapshot = GameClient()->m_Snap.m_aCharacters[Id].m_Cur;
 			Frame.m_AuthoritativeWeapon = Snapshot.m_Weapon;
 			Frame.m_AuthoritativeAttackTick = Snapshot.m_AttackTick;
+			CRescueSnapshot Rescue;
+			if(g_Config.m_NullGodmodeVisuals && Slot == g_Config.m_ClDummy &&
+				(m_vRescueSnapshots.empty() || Start - m_vRescueSnapshots.back().m_Time >= time_freq() * 18 / 100))
+				Frame.m_pRescuePaths = &Rescue.m_vPaths;
 			m_aControllers[Slot].Decide(World, Settings, Raw, Frame);
+			if(Slot == g_Config.m_ClDummy && Settings.m_ShotPath)
+			{
+				m_vShotPaths = ProjectilePaths(World, Raw, Settings.m_ShotPathTicks);
+				m_ShotPathTick = Frame.m_Tick;
+			}
+			if(!Rescue.m_vPaths.empty())
+			{
+				Rescue.m_Time = Start;
+				Rescue.m_Tick = Client()->GameTick(Slot);
+				Rescue.m_MapCrc = GameClient()->Map()->Crc();
+				m_SavedRescue = Rescue;
+				m_vRescueSnapshots.push_back(std::move(Rescue));
+				if(m_vRescueSnapshots.size() > 8)
+					m_vRescueSnapshots.pop_front();
+			}
 			if(g_Config.m_NullPreserveJump && Slot == g_Config.m_ClDummy &&
 				GameClient()->m_Controls.m_PhysicalJump && !GameClient()->m_Controls.m_ManualJumpConsumed)
 				m_aControllers[Slot].PreserveManualJump(World, Settings, Raw, Frame);

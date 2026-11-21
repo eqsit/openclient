@@ -4,6 +4,7 @@
 
 #include <engine/client.h>
 #include <engine/graphics.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/config.h>
 #include <engine/textrender.h>
 
@@ -71,12 +72,15 @@ namespace OpenKrx
 		if(!Active())
 			return;
 		const float Intra = IntraTick();
+		auto *pWorld = World();
+		auto *pPreviousWorld = PreviousRenderWorld();
+		const bool NullEditor = NullEditorActive();
 		for(int Id = 0; Id < MAX_CLIENTS; ++Id)
 		{
-			auto *pCurrent = m_pWorld->GetCharacterById(Id);
+			auto *pCurrent = pWorld->GetCharacterById(Id);
 			if(!pCurrent)
 				continue;
-			auto *pPrevious = m_pPreviousWorld->GetCharacterById(Id);
+			auto *pPrevious = pPreviousWorld->GetCharacterById(Id);
 			auto &Data = GameClient()->m_aClients[Id];
 			Data.m_Predicted = pCurrent->GetCore();
 			Data.m_PrevPredicted = pPrevious ? pPrevious->GetCore() : Data.m_Predicted;
@@ -88,7 +92,7 @@ namespace OpenKrx
 			Data.m_RenderPrev.m_Weapon = pPrevious ? pPrevious->GetActiveWeapon() : pCurrent->GetActiveWeapon();
 			Data.m_RenderPrev.m_AttackTick = pPrevious ? pPrevious->GetAttackTick() : pCurrent->GetAttackTick();
 			Data.m_IsPredicted = true;
-			Data.m_IsPredictedLocal = Id == m_aIds[0] || Id == m_aIds[1];
+			Data.m_IsPredictedLocal = NullEditor ? Id == m_NullTas.m_ClientId : Id == m_aIds[0] || Id == m_aIds[1];
 			Data.m_RenderPos = mix(Data.m_PrevPredicted.m_Pos, Data.m_Predicted.m_Pos, Intra);
 			if(Id == GameClient()->m_aLocalIds[g_Config.m_ClDummy])
 			{
@@ -289,6 +293,11 @@ namespace OpenKrx
 
 	void CKrxTas::OnRender()
 	{
+		if(NullProfileActive())
+		{
+			RenderNullTas();
+			return;
+		}
 		UpdateVault();
 		UpdateLegacyConversion();
 		UpdateAnalysis();

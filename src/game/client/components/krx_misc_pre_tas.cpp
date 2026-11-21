@@ -353,7 +353,7 @@ void CKrxMiscPreTas::ShuffleReferenceIds(std::vector<int> &vIds, std::mt19937 &R
 
 std::string CKrxMiscPreTas::FancyChat(const char *pText)
 {
-	// Reference 272090: preserve commands and every non-ASCII byte verbatim.
+	// REA272090: preserve commands and every non-ASCII byte verbatim.
 	if(pText[0] == '/')
 		return pText;
 	std::string Result;
@@ -622,7 +622,7 @@ void CKrxMiscPreTas::MassMention()
 	// Original 2b4880 creates an independent random_device-seeded MT engine.
 	std::mt19937 PrefixRandom(std::random_device{}());
 	std::string Message = apPrefixes[ReferenceUniform(PrefixRandom, 5)];
-	// Reference 272270: reseed rand(time) for each inserted zero-width character.
+	// REA272270: reseed rand(time) for each inserted zero-width character.
 	std::string Advert = "krxclient·xyz";
 	ReferenceSrand(static_cast<unsigned>(std::time(nullptr)));
 	Advert.insert(ReferenceRand() % (Advert.size() - 1) + 1, "\xe2\x80\x8b");
@@ -719,7 +719,7 @@ void CKrxMiscPreTas::AfterComponentsUpdate()
 
 void CKrxMiscPreTas::OnConsoleInit()
 {
-	// Reference 2e5340 is an output callback, not a registry variable or upload API.
+	// REA2e5340 is an output callback, not a registry variable or upload API.
 	Console()->Register("krx_discord_payload", "r[text]", CFGFLAG_CLIENT, ConDiscordPayload, this, "Print Discord payload diagnostics locally");
 }
 

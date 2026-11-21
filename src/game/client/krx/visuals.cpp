@@ -416,7 +416,7 @@ namespace OpenKrx
 
 	void CMediumVisuals::RenderTeeTrail()
 	{
-		// Reference 371b40: a 200-tick ring per tee, newest-first path, adjacent
+		// REA371b40: a 200-tick ring per tee, newest-first path, adjacent
 		// duplicate removal, endpoint interpolation and per-point taper/fade.
 		// The current DDNet render/prediction flags replace old private offsets.
 		const int Slot = g_Config.m_ClDummy;
