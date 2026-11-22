@@ -6,6 +6,7 @@
 
 #include <engine/client.h>
 #include <engine/font_icons.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/config.h>
 #include <engine/storage.h>
 
@@ -25,6 +26,11 @@
 // Evidence and original conditional card sizes: research/easy-port-20261030/.
 void CMenus::RenderSettingsKrx(CUIRect MainView)
 {
+	if(OpenKrx::g_NullStandalone)
+	{
+		RenderSettingsNullClient(MainView);
+		return;
+	}
 	// Whole-client profiles: the selector is outside every provider's pages.
 	static CButtonContainer s_aProfiles[2];
 	CUIRect ProfileBar, ProfileButton;

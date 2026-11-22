@@ -39,7 +39,7 @@ namespace OpenKrx
 			CNetObj_PlayerInput Input{};
 			std::chrono::nanoseconds CpuTime{0};
 			int Ticks = 0;
-			// Reference 36bd40: add elapsed time around direct-input/predicted-input/world
+			// REA36bd40: add elapsed time around direct-input/predicted-input/world
 			// tick until one second, or ten million iterations. Setup is not timed.
 			while(CpuTime < std::chrono::seconds(1) && Ticks < 10000000 && !Cancel.load(std::memory_order_relaxed))
 			{

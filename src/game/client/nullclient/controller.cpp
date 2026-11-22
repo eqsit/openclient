@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace OpenKrx::NullClient
 {
@@ -70,7 +71,7 @@ namespace OpenKrx::NullClient
 	bool CController::CutSafe(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, unsigned Mask, bool FreezeFatal, int Window, bool AdvanceFirst)
 	{
 		World.Reset();
-		if(AdvanceFirst && (!World.Tick(Input) || World.Dead()))
+		if(AdvanceFirst && (!World.Tick(Input) || World.Dead() || (FreezeFatal && World.Frozen())))
 			return false;
 		const auto Released = Cut(Input, Mask);
 		if(!Safe(Probe(World, Released, Window, FreezeFatal), Window))
@@ -92,7 +93,7 @@ namespace OpenKrx::NullClient
 			m_Output.m_HookTicks = 0;
 	}
 
-	bool CController::Veto(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, bool FreezeFatal)
+	bool CController::Veto(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, bool FreezeFatal, bool CheckDoom)
 	{
 		m_Output.m_HasVeto = false;
 		m_Output.m_aVetoDirections = {};
@@ -108,6 +109,32 @@ namespace OpenKrx::NullClient
 			World.Reset();
 			m_Output.m_aVetoDirections[Direction + 1] = !Safe(Probe(World, ProbeInput, Settings.m_VetoTicks, FreezeFatal), Settings.m_VetoTicks);
 		}
+		if(CheckDoom && Settings.m_VetoDoom && !m_Output.m_aVetoDirections[1])
+		{
+			World.Reset();
+			if(World.NearFreeze(48.0f))
+				for(int Direction : {-1, 1})
+				{
+					bool &Blocked = m_Output.m_aVetoDirections[Direction + 1];
+					if(Blocked)
+						continue;
+					auto Step = Input;
+					Step.m_Direction = Direction;
+					World.Reset();
+					if(!Safe(Probe(World, Step, 2, FreezeFatal), 2))
+						continue;
+					auto pAfterStep = World.Clone();
+					const int aaEscapes[][3] = {{0, 0, 0}, {-Direction, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+					Blocked = std::none_of(std::begin(aaEscapes), std::end(aaEscapes), [&](const auto &aEscape) {
+						auto Escape = Input;
+						Escape.m_Direction = aEscape[0];
+						Escape.m_Jump = aEscape[1];
+						Escape.m_Hook = aEscape[2];
+						pAfterStep->Reset();
+						return Safe(Probe(*pAfterStep, Escape, 10, FreezeFatal), 10);
+					});
+				}
+		}
 		const bool AnyDirection = m_Output.m_aVetoDirections[0] || m_Output.m_aVetoDirections[1] || m_Output.m_aVetoDirections[2];
 		const bool SelectiveDirection = AnyDirection && !m_Output.m_aVetoDirections[1];
 		if(!SelectiveDirection)
@@ -119,18 +146,7 @@ namespace OpenKrx::NullClient
 		m_Output.m_VetoJump = !Safe(Probe(World, ProbeInput, JumpWindow, FreezeFatal), JumpWindow);
 		if(!Input.m_Hook && Settings.m_VetoHook > 0)
 		{
-			ProbeInput = Input;
-			ProbeInput.m_Hook = 1;
-			World.Reset();
-			m_Output.m_VetoHook = !Safe(Probe(World, ProbeInput, Settings.m_VetoHook, FreezeFatal), Settings.m_VetoHook);
-			if(m_Output.m_VetoHook && Settings.m_VetoHook > 1)
-			{
-				World.Reset();
-				bool Saved = World.Tick(ProbeInput) && !World.Dead() && (!FreezeFatal || !World.Frozen());
-				if(Saved)
-					Saved = Safe(Probe(World, Input, Settings.m_VetoHook - 1, FreezeFatal), Settings.m_VetoHook - 1);
-				m_Output.m_VetoHook = !Saved;
-			}
+			m_Output.m_VetoHook = HookVeto(World, Input, Settings.m_VetoHook, FreezeFatal);
 		}
 		m_Output.m_VetoFire = false;
 		World.Reset();
@@ -252,7 +268,7 @@ namespace OpenKrx::NullClient
 
 	bool CController::PreserveManualJump(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CFrame &Frame)
 	{
-		if(!Settings.m_Enabled || Frame.m_Dummy || !Raw.m_Jump)
+		if(!Settings.m_Enabled || Frame.m_Dummy || Settings.m_Mode == CSettings::MODE_LEGIT || !Raw.m_Jump)
 			return false;
 		World.Reset();
 		auto *pCharacter = World.Character();
@@ -325,14 +341,119 @@ namespace OpenKrx::NullClient
 		return true;
 	}
 
+	void CController::DecideLegit(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw)
+	{
+		constexpr int Horizon = 16;
+		constexpr int Delay = 2;
+		World.Reset();
+		const auto *pCharacter = World.Character();
+		if(!pCharacter || World.Dead() || World.Frozen())
+			return;
+
+		const auto *pCore = pCharacter->Core();
+		const int HeldDirection = std::clamp(Raw.m_Direction, -1, 1);
+		const bool AttachedHook = Raw.m_Hook && pCore->m_HookState == HOOK_GRABBED;
+		const bool KeepDirection = Raw.m_Hook && (HeldDirection * static_cast<float>(Raw.m_TargetX) < 0.0f ||
+			(AttachedHook && HeldDirection * (pCore->m_HookPos.x - World.Position().x) < 0.0f));
+		const bool KeepOpposite = AttachedHook && HeldDirection != 0 && std::abs(pCore->m_Vel.x) <= 3.0f;
+		const auto Allowed = [&](int Direction) {
+			return (!KeepDirection || Direction == HeldDirection) && (!KeepOpposite || Direction != -HeldDirection);
+		};
+		const auto Survival = [&](int Direction, bool ReleaseHook, int Wait) {
+			World.Reset();
+			if(Wait > 0)
+			{
+				const auto Held = Probe(World, Raw, Wait, true);
+				if(Held.m_Life < Wait)
+					return Held;
+			}
+			auto Input = Raw;
+			Input.m_Direction = Direction;
+			if(ReleaseHook)
+				Input.m_Hook = 0;
+			auto Result = Probe(World, Input, Horizon - Wait, true);
+			Result.m_Life += Wait;
+			return Result;
+		};
+
+		const auto Baseline = Survival(HeldDirection, false, 0);
+		m_BaselineLife = Baseline.m_Life;
+		m_BaselineDied = Baseline.m_Died;
+		m_Reaction = Horizon;
+		if(Baseline.m_Life == Horizon)
+			return;
+		int BestDirection = HeldDirection;
+		int BestLife = Baseline.m_Life;
+		for(int Direction : {0, -1, 1})
+		{
+			if(!Allowed(Direction))
+				continue;
+			const int Life = Survival(Direction, false, 0).m_Life;
+			if(Life > BestLife || (Life == BestLife && Life > Baseline.m_Life && std::abs(Direction - HeldDirection) < std::abs(BestDirection - HeldDirection)))
+			{
+				BestDirection = Direction;
+				BestLife = Life;
+			}
+		}
+		auto Plan = Raw;
+		if(BestLife > Baseline.m_Life && (BestLife < Horizon || Survival(BestDirection, false, Delay).m_Life < Horizon))
+			Plan.m_Direction = BestDirection;
+		if(Settings.m_LegitHook && Raw.m_Hook && BestLife < Horizon)
+		{
+			int BestCutDirection = HeldDirection;
+			int BestCutLife = -1, BestDelayedLife = -1;
+			for(int Direction : {HeldDirection, 0, -1, 1})
+			{
+				if(!Allowed(Direction))
+					continue;
+				const int Life = Survival(Direction, true, 0).m_Life;
+				if(Life > BestCutLife)
+				{
+					BestCutDirection = Direction;
+					BestCutLife = Life;
+				}
+				BestDelayedLife = std::max(BestDelayedLife, Survival(Direction, true, Delay).m_Life);
+			}
+			if(BestCutLife == Horizon && BestDelayedLife < Horizon)
+			{
+				Plan.m_Direction = BestCutDirection;
+				Plan.m_Hook = 0;
+			}
+		}
+		m_LegitRaw = Raw;
+		m_Output.m_Plan = Plan;
+		m_Output.m_HasPlan = Plan.m_Direction != Raw.m_Direction || Plan.m_Hook != Raw.m_Hook;
+		m_pStage = m_Output.m_HasPlan ? "legit rescue" : "watching";
+	}
+
+	CNetObj_PlayerInput CController::ApplyLegit(CNetObj_PlayerInput Input) const
+	{
+		if(m_Output.m_HasPlan && Input.m_Direction == m_LegitRaw.m_Direction && Input.m_Jump == m_LegitRaw.m_Jump && Input.m_Hook == m_LegitRaw.m_Hook)
+		{
+			const bool PullingAgainstMovement = (Input.m_Direction < 0 && Input.m_TargetX > 0) || (Input.m_Direction > 0 && Input.m_TargetX < 0);
+			if(Input.m_Hook && PullingAgainstMovement && m_Output.m_Plan.m_Direction != Input.m_Direction)
+				return Input;
+			Input.m_Direction = m_Output.m_Plan.m_Direction;
+			Input.m_Hook = m_Output.m_Plan.m_Hook;
+		}
+		return Input;
+	}
+
 	void CController::Decide(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CFrame &Frame)
 	{
+		const int Mode = Frame.m_Dummy ? CSettings::MODE_GOD : Settings.m_Mode;
+		if(m_Mode != Mode)
+		{
+			Reset();
+			m_Mode = Mode;
+		}
 		if(m_LastTick == Frame.m_Tick)
 			return;
 		m_LastTick = Frame.m_Tick;
 		// 20b540 publishes prepared threat IDs/radii before the frozen gate;
 		// 201d70 renders these arrays without creating another prediction world.
 		m_vHammerThreats = World.HammerThreats();
+		m_vRocketContactThreats = World.RocketContactThreats();
 		const bool WasActive = m_Active;
 		m_Output.m_HasPlan = false;
 		m_Output.m_HasVeto = false;
@@ -348,6 +469,11 @@ namespace OpenKrx::NullClient
 			m_Output.m_HookTicks = m_Output.m_CutTicks = 0;
 			m_HadPrevious = false;
 			m_pStage = "disabled";
+			return;
+		}
+		if(Mode == CSettings::MODE_LEGIT)
+		{
+			DecideLegit(World, Settings, Raw);
 			return;
 		}
 		World.Reset();
@@ -441,16 +567,17 @@ namespace OpenKrx::NullClient
 		World.Reset();
 		// First let-go branch: if releasing now survives but releasing after one
 		// additional held-input tick does not, emit the release on this tick.
-		if(Settings.m_LetGo && Input.m_Hook && m_BaselineLife < Settings.m_Horizon)
+		const int CutHorizon = Settings.m_CutTicks > 0 ? Settings.m_CutTicks : Settings.m_Horizon;
+		if(Settings.m_LetGo && Input.m_Hook && m_BaselineLife < CutHorizon)
 		{
 			const auto Released = Cut(Input, 1);
-			const bool ReleaseSafe = Safe(Probe(World, Released, Settings.m_Horizon, FreezeCost), Settings.m_Horizon);
+			const bool ReleaseSafe = Safe(Probe(World, Released, CutHorizon, FreezeCost), CutHorizon);
 			const bool CoastSafe = ReleaseSafe && (Settings.m_Coast <= 0 || Safe(Probe(World, Cut(Released, 7), Settings.m_Coast, FreezeCost), Settings.m_Coast));
 			if(CoastSafe)
 			{
 				World.Reset();
-				const bool FirstSafe = World.Tick(Input) && !World.Dead();
-				if(!FirstSafe || !Safe(Probe(World, Released, Settings.m_Horizon, FreezeCost), Settings.m_Horizon))
+				const bool FirstSafe = World.Tick(Input) && !World.Dead() && (!FreezeCost || !World.Frozen());
+				if(!FirstSafe || !Safe(Probe(World, Released, CutHorizon, FreezeCost), CutHorizon))
 				{
 					m_Active = false;
 					m_Output.m_HasVeto = false;
@@ -478,9 +605,12 @@ namespace OpenKrx::NullClient
 			Weights.m_pPrevious = &m_Previous;
 			Weights.m_Continuity = Settings.m_Continuity;
 		}
+		Weights.m_FreezeFatal = Frame.m_Dummy;
+		Weights.m_GroundedFreezeFatal = FreezeCost;
 		Weights.m_FreezeCost = Frame.m_Dummy ? std::max(100, Settings.m_FreezeCost) : Settings.m_FreezeCost;
 		Weights.m_HammerCost = Settings.m_HammerDodge ? Settings.m_HammerCost : 0;
 		Weights.m_RocketCost = World.RocketThreatCount() > 0 ? Settings.m_RocketCost : 0;
+		Weights.m_RocketContactCost = World.RocketContactThreats().empty() ? 0 : Settings.m_RocketContactCost;
 		Weights.m_RocketThrow = Settings.m_RocketThrow;
 		Weights.m_RocketSpread = Settings.m_RocketSpread;
 		Weights.m_AirJump = Settings.m_AirJump;
@@ -509,6 +639,18 @@ namespace OpenKrx::NullClient
 			Weights.m_CounterBelow = m_CounterBelow;
 			Weights.m_CounterPull = static_cast<float>(Settings.m_HookCounterPull) / 100.0f;
 			Weights.m_Anchor = vec2(HookerPosition.x, HookerPosition.y + (m_CounterBelow ? Settings.m_HookCounterGap : -Settings.m_HookCounterGap));
+			const vec2 Delta = Position - HookerPosition;
+			const float Radius = length(Delta);
+			if(Settings.m_HookCounterArc > 0 && Radius > 1.0f)
+			{
+				const vec2 Radial = Delta / Radius;
+				const float Side = m_CounterBelow ? 1.0f : -1.0f;
+				vec2 Tangent(-Radial.y, Radial.x);
+				if(Side * Tangent.y < 0.0f)
+					Tangent = -Tangent;
+				const vec2 Arc = HookerPosition + normalize(Radial + Tangent * ((1.0f - Side * Radial.y) * 0.9f)) * Radius;
+				Weights.m_Anchor += (Arc - Weights.m_Anchor) * (static_cast<float>(Settings.m_HookCounterArc) / 100.0f);
+			}
 			Weights.m_HoldSlack = Weights.m_Settle = Weights.m_Travel = Weights.m_Deviation = Weights.m_HammerCost = Weights.m_HookCost = 0;
 			Weights.m_Hold = std::max(Weights.m_Hold, Weights.m_CounterPull);
 			// Original 20c949 sets weights+0x6d: a counter-hook candidate
@@ -604,13 +746,33 @@ namespace OpenKrx::NullClient
 						return true;
 				}
 			}
+			World.Reset();
+			if(Weights.m_RocketContactCost > 0)
+			{
+				bool Danger = World.RocketContactDanger();
+				for(int Step = 0; !Danger && Step < Settings.m_RocketContactLookahead; ++Step)
+				{
+					if(!World.Tick(Input) || World.Dead())
+						break;
+					Danger = World.RocketContactDanger();
+				}
+				if(Danger)
+				{
+					auto W = Weights;
+					W.m_Travel = 0;
+					W.m_RespectHeld = !Idle;
+					W.m_FreezeFatal = FreezeCost;
+					if(Defensive(World, Settings, Raw, Input, W, FreezeCost, Idle, false))
+						return true;
+				}
+			}
 			return false;
 		};
 		if(m_BaselineLife >= Threshold)
 		{
 			m_Active = false;
 			m_pStage = "calm";
-			const bool AnyVeto = Veto(World, Settings, Input, FreezeCost);
+			const bool AnyVeto = Veto(World, Settings, Input, FreezeCost, true);
 			if(!AnyVeto && !UnderPull && !KnockbackHold)
 				m_Anchor = Position;
 			TryDefensive();
@@ -675,7 +837,7 @@ namespace OpenKrx::NullClient
 			{
 				m_Active = false;
 				m_pStage = "defer rescue";
-				if(KnockbackHold || World.HammerThreatCount() > 0 || World.RocketThreatCount() > 0)
+				if(KnockbackHold || World.HammerThreatCount() > 0 || World.RocketThreatCount() > 0 || Weights.m_RocketContactCost > 0)
 					if(TryDefensive())
 					{
 						m_Previous = m_Output.m_Plan;
@@ -696,6 +858,18 @@ namespace OpenKrx::NullClient
 			for(unsigned Mask : {1U, 2U, 4U, 3U, 5U, 6U, 7U})
 				if((Mask & Held) == Mask && CutSafe(World, Settings, Input, Mask, FreezeCost, Window, false))
 				{
+					if(Mask == 1 && !UnderPull && Settings.m_LastMoment && Settings.m_Grace <= Settings.m_CutHold)
+					{
+						World.Reset();
+						if(!World.NearestCharacter(std::numeric_limits<float>::max()) && !World.HasProjectiles() &&
+							CutSafe(World, Settings, Input, Mask, FreezeCost, std::max(Window, Settings.m_Grace), true))
+						{
+							m_Active = false;
+							m_Output.m_HasVeto = false;
+							m_pStage = "defer hook release";
+							return;
+						}
+					}
 					SetCut(Input, Mask, Settings.m_CutHold);
 					m_Previous = m_Output.m_Plan;
 					m_HadPrevious = true;
@@ -704,7 +878,7 @@ namespace OpenKrx::NullClient
 		}
 		World.Reset();
 		Generate(World, Settings, Input, true, ReadyWeapon, Immediate);
-		auto Selection = m_Planner.Select(World, Input, Weights, Horizon(Settings));
+		auto Selection = m_Planner.Select(World, Input, Weights, Horizon(Settings), Frame.m_pRescuePaths);
 		if(!Selection.m_Found)
 		{
 			bool HadWeapon = false;
@@ -717,17 +891,24 @@ namespace OpenKrx::NullClient
 				for(const auto &Move : m_Planner.Candidates())
 					HadWeapon |= Move.m_WeaponAction >= 0;
 				if(HadWeapon)
-					Selection = m_Planner.Select(World, Input, Weights, Horizon(Settings));
+					Selection = m_Planner.Select(World, Input, Weights, Horizon(Settings), Frame.m_pRescuePaths);
 			}
 		}
 		m_pStage = Selection.m_Found ? "rescue" : "best effort";
 		if(!Selection.m_Found && LaserRescue(World, Settings, Input, ReadyWeapon))
 		{
+			if(Frame.m_pRescuePaths)
+				for(auto &Path : *Frame.m_pRescuePaths)
+					Path.m_Selected = false;
 			Selection.m_Weapon = WEAPON_LASER;
 			Selection.m_HookHold = 0;
 		}
 		else if(Selection.m_Move >= 0)
+		{
 			m_Output.m_Plan = Selection.m_Input;
+			m_FollowCount = std::min(m_Planner.LastWindow(), Settings.m_Follow);
+			m_FollowStep = m_FollowCount > 0 ? 1 : 0;
+		}
 		else
 		{
 			m_HadPrevious = false;
@@ -739,8 +920,6 @@ namespace OpenKrx::NullClient
 			m_Output.m_HookX = m_Output.m_Plan.m_TargetX;
 			m_Output.m_HookY = m_Output.m_Plan.m_TargetY;
 		}
-		m_FollowCount = std::min(m_Planner.LastWindow(), Settings.m_Follow);
-		m_FollowStep = m_FollowCount > 0 ? 1 : 0;
 		if(Selection.m_Weapon >= 0)
 		{
 			m_Output.m_WeaponAction = Selection.m_Weapon;

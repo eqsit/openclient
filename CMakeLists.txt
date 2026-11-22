@@ -2758,6 +2758,7 @@ if(CLIENT)
     components/krx_name_data.h
     components/krx_tas.cpp
     components/krx_tas.h
+    components/krx_tas_null.cpp
     components/krx_tas_path.cpp
     components/krx_tas_vault.cpp
     components/krx_tas_visuals.cpp

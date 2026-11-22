@@ -23,10 +23,15 @@ namespace OpenKrx::NullClient
 			vec2 m_Stand = vec2(0, 0);
 			CRoute m_Route;
 			CNetObj_PlayerInput m_Plan{};
+			int m_NavigationTick = -1000;
+			int m_NavigationHook = 0;
+			vec2 m_NavigationGoal = vec2(0, 0);
+			CNetObj_PlayerInput m_NavigationInput{};
 		};
 		std::array<CState, 2> m_aStates;
 		int Pick(CGameClient *pClient, const CWarlist &Warlist, int Slot, int Mode) const;
 		void UpdateSlot(CGameClient *pClient, const CWarlist &Warlist, int Slot, const std::array<bool, MAX_CLIENTS> &Idle);
+		void Navigate(CGameClient *pClient, CState &State, vec2 Goal, vec2 Target, const class CSerialThreats &Threats, bool OpenAhead, const std::array<bool, MAX_CLIENTS> &Idle);
 
 	public:
 		void Reset() { m_aStates = {}; }

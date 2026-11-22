@@ -350,6 +350,29 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
+	if(GameClient()->m_Tas.NullEditorActive() || GameClient()->m_Tas.NullPlaybackActive())
+	{
+		const int Slot = g_Config.m_ClDummy;
+		auto &Input = m_aInputData[Slot];
+		auto Raw = Input;
+		Raw.m_Direction = (m_aInputDirectionRight[Slot] != 0) - (m_aInputDirectionLeft[Slot] != 0);
+		Raw.m_TargetX = (int)m_aMousePos[Slot].x;
+		Raw.m_TargetY = (int)m_aMousePos[Slot].y;
+		if(!Raw.m_TargetX && !Raw.m_TargetY)
+			Raw.m_TargetX = 1;
+		CNetObj_PlayerInput Packet;
+		if(GameClient()->m_Tas.ProcessNullTasInput(Raw, m_aLastData[Slot], Packet))
+		{
+			Input.m_Fire = Packet.m_Fire;
+			Input.m_NextWeapon = Packet.m_NextWeapon;
+			Input.m_PrevWeapon = Packet.m_PrevWeapon;
+			m_aLastData[Slot] = Packet;
+			m_LastSendTime = time_get();
+			mem_copy(pData, &Packet, sizeof(Packet));
+			return sizeof(Packet);
+		}
+	}
+
 	bool Send = m_aLastData[g_Config.m_ClDummy].m_PlayerFlags != m_aInputData[g_Config.m_ClDummy].m_PlayerFlags;
 
 	m_aLastData[g_Config.m_ClDummy].m_PlayerFlags = m_aInputData[g_Config.m_ClDummy].m_PlayerFlags;

@@ -15,6 +15,7 @@ namespace OpenKrx::NullClient
 		bool m_ResolvePendingWeapon = false; // OpenKRX dispatch adaptation, not original oracle.
 		int m_AuthoritativeWeapon = -1;
 		int m_AuthoritativeAttackTick = -1000;
+		std::vector<CRescuePath> *m_pRescuePaths = nullptr;
 	};
 
 	// Recovered 14020b540 decision state. Application to current input belongs to
@@ -38,24 +39,30 @@ namespace OpenKrx::NullClient
 		int m_CounterHooker = -1;
 		bool m_CounterLocked = false, m_CounterBelow = false;
 		bool m_DefensiveHold = false;
+		int m_Mode = -1;
+		CNetObj_PlayerInput m_LegitRaw{};
 		int m_LastTick = -1;
 		int m_BaselineLife = -1, m_Reaction = -1;
 		bool m_BaselineDied = false;
 		CWeights m_LastWeights;
 		const char *m_pStage = "idle";
 		std::vector<std::pair<int, float>> m_vHammerThreats;
+		std::vector<std::pair<int, float>> m_vRocketContactThreats;
 
 		void Generate(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, bool Weapons, int ActiveWeapon, bool Immediate, bool RocketTarget = false);
 		bool DeferredEscape(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, const CWeights &Weights, bool FreezeFatal, const CNetObj_PlayerInput *pFirst = nullptr);
 		bool CutSafe(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, unsigned Mask, bool FreezeFatal, int Window, bool AdvanceFirst);
-		bool Veto(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, bool FreezeFatal);
+		bool Veto(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, bool FreezeFatal, bool CheckDoom = false);
 		void SetCut(const CNetObj_PlayerInput &Input, unsigned Mask, int Hold);
 		bool Defensive(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Input, const CWeights &Weights, bool FreezeFatal, bool Idle, bool AllowWeapon);
 		bool LaserRescue(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, int ReadyWeapon);
+		void DecideLegit(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw);
 
 	public:
 		void Reset() { *this = {}; }
 		void Decide(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CFrame &Frame);
+		bool MatchesMode(const CSettings &Settings, bool Dummy) const { return m_Mode == (Dummy ? CSettings::MODE_GOD : Settings.m_Mode); }
+		CNetObj_PlayerInput ApplyLegit(CNetObj_PlayerInput Input) const;
 		// Optional OpenKRX manual-input extension; never called by original-policy fixtures.
 		bool PreserveManualJump(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CFrame &Frame);
 		COutputState &Output() { return m_Output; }
@@ -67,6 +74,7 @@ namespace OpenKrx::NullClient
 		int LastTick() const { return m_LastTick; }
 		const CPlanner &Planner() const { return m_Planner; }
 		const std::vector<std::pair<int, float>> &HammerThreats() const { return m_vHammerThreats; }
+		const std::vector<std::pair<int, float>> &RocketContactThreats() const { return m_vRocketContactThreats; }
 	};
 }
 

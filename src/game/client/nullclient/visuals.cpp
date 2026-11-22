@@ -1,6 +1,9 @@
 #include "component.h"
 #include "projectile_paths.h"
+#include <base/time.h>
+#include <engine/demo.h>
 #include <engine/graphics.h>
+#include <engine/map.h>
 #include <engine/textrender.h>
 #include <engine/shared/client_profile.h>
 #include <game/client/gameclient.h>
@@ -89,6 +92,173 @@ void Ribbon(IGraphics *pGraphics, const std::vector<CPoint> &vPath, float Scale,
 	}
 	pGraphics->QuadsEnd();
 }
+
+float RescueElapsed(std::int64_t Now, std::int64_t Start)
+{
+	return static_cast<float>(Now - Start) / time_freq();
+}
+
+void DrawRescuePaths(IGraphics *pGraphics, const std::vector<CRescuePath> &vPaths, size_t Budget, float Age, float Lifetime, bool Scene)
+{
+	if(Age < 0 || Age > Lifetime || vPaths.empty())
+		return;
+	const float Fade = std::clamp((Lifetime - Age) / std::min(Lifetime, 0.5f), 0.0f, 1.0f);
+	const size_t Stride = std::max<size_t>(1, (vPaths.size() + Budget - 1) / Budget);
+	const int Animation = g_Config.m_NullGodmodeVisualAnimation;
+	const float Speed = g_Config.m_NullGodmodeVisualSpeed;
+	pGraphics->TextureClear();
+	pGraphics->LinesBegin();
+	for(bool Selected : {false, true})
+		for(size_t Index = 0; Index < vPaths.size(); ++Index)
+		{
+			const auto &Path = vPaths[Index];
+			if(Path.m_Selected != Selected || Path.m_vPoints.size() < 2)
+				continue;
+			if(!Selected && (Index % Stride != 0 || (!Scene && g_Config.m_NullGodmodeVisualsSelected)))
+				continue;
+			float Progress = 1.0f;
+			float Opacity = Fade;
+			if(Scene)
+			{
+				const float Phase = Age * Speed / 100.0f;
+				Progress = Selected ? (Phase - 1.35f) / 0.55f : Phase / 0.4f;
+				if(!Selected)
+					Opacity *= std::clamp((1.65f - Phase) / 0.3f, 0.0f, 1.0f);
+			}
+			else if(Animation != 0)
+			{
+				const float Delay = Selected ? 0.0f : static_cast<float>(Index % 11) * 0.018f;
+				Progress = std::max(0.0f, Age * Speed / 80.0f - Delay);
+				if(Animation == 2)
+					Progress = std::fmod(Progress, 1.0f);
+			}
+			Progress = std::clamp(Progress, 0.0f, 1.0f);
+			if(Progress == 0.0f || Opacity == 0.0f)
+				continue;
+			ColorRGBA Color = Selected ?
+				(Path.m_Safe ? ColorRGBA(0.4f, 0.85f, 1.0f, 0.8f) : ColorRGBA(1.0f, 0.75f, 0.35f, 0.65f)) :
+				(Path.m_Safe ? ColorRGBA(0.5f, 0.75f, 1.0f, 0.2f) : ColorRGBA(1.0f, 0.5f, 0.35f, 0.16f));
+			Color.a *= Opacity;
+			pGraphics->SetColor(Color);
+			const float Count = static_cast<float>(Path.m_vPoints.size() - 1) * Progress;
+			vec2 Head = Path.m_vPoints.front();
+			for(size_t Point = 1; static_cast<float>(Point - 1) < Count && Point < Path.m_vPoints.size(); ++Point)
+			{
+				const vec2 From = Path.m_vPoints[Point - 1];
+				const vec2 To = Path.m_vPoints[Point];
+				Head = mix(From, To, std::min(1.0f, Count - static_cast<float>(Point - 1)));
+				if(distance(From, To) > 160.0f)
+					continue;
+				const IGraphics::CLineItem Item(From.x, From.y, Head.x, Head.y);
+				pGraphics->LinesDraw(&Item, 1);
+			}
+			if(Progress == 1.0f && g_Config.m_NullGodmodeVisualEnds && Path.m_Endpoint != ERescueEndpoint::NONE)
+			{
+				const bool Freeze = Path.m_Endpoint == ERescueEndpoint::FREEZE;
+				pGraphics->SetColor(ColorRGBA(1.0f, Freeze ? 0.3f : 0.75f, 0.3f, Opacity * (Freeze ? 0.7f : 0.6f)));
+				const IGraphics::CLineItem aCross[] = {
+					{Head.x - 3.0f, Head.y - 3.0f, Head.x + 3.0f, Head.y + 3.0f},
+					{Head.x - 3.0f, Head.y + 3.0f, Head.x + 3.0f, Head.y - 3.0f}};
+				pGraphics->LinesDraw(aCross, std::size(aCross));
+			}
+			else if(Animation != 0 && Progress < 1.0f)
+			{
+				const IGraphics::CLineItem Marker(Head.x - 1.5f, Head.y, Head.x + 1.5f, Head.y);
+				pGraphics->LinesDraw(&Marker, 1);
+			}
+		}
+	pGraphics->LinesEnd();
+}
+}
+
+bool CNullClient::CaptureRescueScene()
+{
+	if(!Selected() || Client()->State() != IClient::STATE_ONLINE || m_vRescueSnapshots.empty())
+		return false;
+	m_SavedRescue = m_vRescueSnapshots.back();
+	return true;
+}
+
+bool CNullClient::StartRescueScene(bool LogErrors)
+{
+	if(!Selected() || Client()->State() != IClient::STATE_DEMOPLAYBACK ||
+		!m_SavedRescue || GameClient()->Map()->Crc() != m_SavedRescue->m_MapCrc)
+	{
+		if(LogErrors)
+			Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/rescue", "Open the demo of the captured run on the same map.");
+		return false;
+	}
+	const auto *pInfo = DemoPlayer()->BaseInfo();
+	const int Tick = m_SavedRescue->m_Tick;
+	if(pInfo->m_LiveDemo || Tick < pInfo->m_FirstTick || Tick > pInfo->m_LastTick)
+	{
+		if(LogErrors)
+			Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/rescue", "The captured tick is unavailable in this demo.");
+		return false;
+	}
+	StopRescueScene();
+	m_RescueSceneWasPaused = pInfo->m_Paused;
+	DemoPlayer()->Pause();
+	if(!DemoPlayer()->SetPos(std::min(Tick + 1, pInfo->m_LastTick)))
+	{
+		if(!m_RescueSceneWasPaused && DemoPlayer()->IsPlaying())
+			DemoPlayer()->Unpause();
+		return false;
+	}
+	DemoPlayer()->Pause();
+	m_RescueSceneStart = time_get_impl();
+	m_RescueSceneShown = true;
+	return true;
+}
+
+void CNullClient::StopRescueScene()
+{
+	if(m_RescueSceneStart == 0)
+		return;
+	m_RescueSceneStart = 0;
+	if(Client()->State() == IClient::STATE_DEMOPLAYBACK)
+	{
+		if(m_RescueSceneWasPaused)
+			DemoPlayer()->Pause();
+		else
+			DemoPlayer()->Unpause();
+	}
+}
+
+void CNullClient::RenderRescueScene()
+{
+	if(!m_RescueSceneShown && g_Config.m_NullGodmodeVisuals && m_SavedRescue &&
+		DemoPlayer()->BaseInfo()->m_CurrentTick >= m_SavedRescue->m_Tick)
+		StartRescueScene(false);
+	if(m_RescueSceneStart == 0 || !m_SavedRescue)
+		return;
+	const float Lifetime = 240.0f / g_Config.m_NullGodmodeVisualSpeed;
+	const float Age = RescueElapsed(time_get_impl(), m_RescueSceneStart);
+	if(Age >= Lifetime)
+	{
+		StopRescueScene();
+		return;
+	}
+	const auto Screen = Graphics()->GetScreen();
+	const auto &Camera = GameClient()->m_Camera;
+	Graphics()->MapScreen(Graphics()->MapScreenToWorld(Camera.m_Center.x, Camera.m_Center.y, 100, 100, 100, 0, 0, Graphics()->ScreenAspect(), Camera.m_Zoom));
+	DrawRescuePaths(Graphics(), m_SavedRescue->m_vPaths, g_Config.m_NullGodmodeVisualCount, Age, Lifetime, true);
+	Graphics()->MapScreen(Screen);
+}
+
+void CNullClient::RenderRescuePaths()
+{
+	if(!g_Config.m_NullGodmodeVisuals || m_vRescueSnapshots.empty())
+		return;
+	const size_t History = std::min(m_vRescueSnapshots.size(), static_cast<size_t>(g_Config.m_NullGodmodeVisualHistory));
+	const size_t Budget = std::max<size_t>(1, g_Config.m_NullGodmodeVisualCount / History);
+	const auto Now = time_get_impl();
+	const float Lifetime = g_Config.m_NullGodmodeVisualDuration / 1000.0f;
+	for(size_t Index = m_vRescueSnapshots.size() - History; Index < m_vRescueSnapshots.size(); ++Index)
+	{
+		const auto &Snapshot = m_vRescueSnapshots[Index];
+		DrawRescuePaths(Graphics(), Snapshot.m_vPaths, Budget, RescueElapsed(Now, Snapshot.m_Time), Lifetime, false);
+	}
 }
 
 void CNullClient::RenderVisuals()
@@ -97,6 +267,7 @@ void CNullClient::RenderVisuals()
 	const auto Screen = Graphics()->GetScreen();
 	const auto &Camera = GameClient()->m_Camera;
 	Graphics()->MapScreen(Graphics()->MapScreenToWorld(Camera.m_Center.x, Camera.m_Center.y, 100, 100, 100, 0, 0, Graphics()->ScreenAspect(), Camera.m_Zoom));
+	RenderRescuePaths();
 	if(m_Fly.HasMarker())
 	{
 		auto Color = color_cast<ColorRGBA>(ColorHSLA(g_Config.m_NullFlymodeColor));
@@ -140,6 +311,12 @@ void CNullClient::RenderVisuals()
 			for(const auto &[Other, Radius] : Controller.HammerThreats())
 				if(Other >= 0 && Other < MAX_CLIENTS && GameClient()->m_Snap.m_aCharacters[Other].m_Active)
 					Ring(Graphics(), GameClient()->m_aClients[Other].m_RenderPos, Radius, 1, ColorRGBA(1, .45f, .35f, Pulse * .1f + .16f), 36);
+		}
+		if(Enabled && g_Config.m_NullGodmodeAvoidRocket && g_Config.m_NullGodmodeAvoidRocketRing)
+		{
+			for(const auto &[Other, Radius] : Controller.RocketContactThreats())
+				if(Other >= 0 && Other < MAX_CLIENTS && GameClient()->m_Snap.m_aCharacters[Other].m_Active)
+					Ring(Graphics(), GameClient()->m_aClients[Other].m_RenderPos, Radius, 1, ColorRGBA(1, .65f, .25f, Pulse * .1f + .16f), 36);
 		}
 		if(g_Config.m_NullGodmodeDebug && Enabled)
 		{
@@ -343,7 +520,14 @@ void CNullClient::RenderWeaponLines()
 			}
 		}
 	if(g_Config.m_NullGodmodeShotPath)
-		for(const auto &Path : ProjectilePaths(Source, g_Config.m_NullGodmodeShotPathTicks))
+	{
+		const int Tick = Client()->PredGameTick(g_Config.m_ClDummy);
+		if(Tick != m_ShotPathTick)
+		{
+			m_vShotPaths = ProjectilePaths(Source, g_Config.m_NullGodmodeShotPathTicks);
+			m_ShotPathTick = Tick;
+		}
+		for(const auto &Path : m_vShotPaths)
 		{
 			if(!ProjectileEnabled(Path.m_Weapon, false) || (g_Config.m_NullBulletLineSelfOnly && Path.m_Owner != Own)) continue;
 			for(size_t i = 1; i < Path.m_vPoints.size(); ++i)
@@ -351,5 +535,6 @@ void CNullClient::RenderWeaponLines()
 			if(Path.m_Impact && Path.m_Weapon == WEAPON_GRENADE && !Path.m_vPoints.empty())
 				Ring(Graphics(), Path.m_vPoints.back(), 70, 1, ColorRGBA(1, .4f, .3f, .3f), 32);
 		}
+	}
 }
 }

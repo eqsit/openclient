@@ -348,7 +348,9 @@ namespace OpenKrx
 			J.WriteAttribute("settings");
 			J.BeginObject();
 #define MACRO_CONFIG_INT(Name, ScriptName, Def, Min, Max, Save, Desc) Int(J, #ScriptName, g_Config.m_##Name);
+#define MACRO_CONFIG_STR(Name, ScriptName, Size, Def, Save, Desc)
 #include <engine/shared/nullclient_config.h>
+#undef MACRO_CONFIG_STR
 #undef MACRO_CONFIG_INT
 			Int(J, "openkrx_null_rocket_restore_weapon", g_Config.m_NullRocketRestoreWeapon);
 			Int(J, "openkrx_null_preserve_jump", g_Config.m_NullPreserveJump);

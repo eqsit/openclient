@@ -51,19 +51,18 @@ namespace OpenKrx::NullClient
 		};
 		class CCandidateJob final : public IJob
 		{
-			std::unique_ptr<CSimulation> m_pWorld;
+			CSimulation &m_World;
 			std::shared_ptr<CCandidateWork> m_pWork;
 			std::promise<uint64_t> m_Completed;
 			void Run() override
 			{
-				m_pWork->Run(*m_pWorld);
-				const auto Steps = m_pWorld->TotalSteps();
-				m_pWorld.reset();
-				m_Completed.set_value(Steps);
+				const auto Before = m_World.TotalSteps();
+				m_pWork->Run(m_World);
+				m_Completed.set_value(m_World.TotalSteps() - Before);
 			}
 
 		public:
-			CCandidateJob(std::unique_ptr<CSimulation> pWorld, std::shared_ptr<CCandidateWork> pWork) : m_pWorld(std::move(pWorld)), m_pWork(std::move(pWork)) {}
+			CCandidateJob(CSimulation &World, std::shared_ptr<CCandidateWork> pWork) : m_World(World), m_pWork(std::move(pWork)) { Abortable(false); }
 			std::future<uint64_t> Result() { return m_Completed.get_future(); }
 		};
 	}
@@ -125,8 +124,17 @@ namespace OpenKrx::NullClient
 		return pCharacter->GetActiveWeapon();
 	}
 
-	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle)
+	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, bool Legit)
 	{
+		const float Radius = Legit ? 320.0f : std::min(static_cast<float>(Settings.m_SimRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 160.0f);
+		const float WeaponRadius = Legit ? 320.0f : Settings.m_Weapons ? std::min(static_cast<float>(Settings.m_WeaponRadius), static_cast<float>(Settings.m_Horizon) * 24.0f + 200.0f) : 0;
+		const float PlayerRadius = Legit ? 640.0f : std::min(static_cast<float>(Settings.m_PlayerRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 580.0f);
+		return Initialize(Source, ClientId, Settings, aIdle, CPruneRadii{Radius, WeaponRadius, PlayerRadius});
+	}
+
+	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, CPruneRadii Radii)
+	{
+		m_vWorkerContexts.clear();
 		m_pTotalSteps = std::make_shared<uint64_t>(0);
 		m_ClientId = ClientId;
 		m_aIdle = aIdle;
@@ -150,7 +158,7 @@ namespace OpenKrx::NullClient
 			for(int Weapon = 0; Weapon < NUM_WEAPONS; ++Weapon)
 				if(pLocal->GetWeaponGot(Weapon) && pLocal->GetWeaponAmmo(Weapon) == 0)
 					pLocal->SetWeaponAmmo(Weapon, -1);
-		Prune(Settings);
+		Prune(Radii);
 		m_Adversarial = 0;
 		for(int Id = 0; Id < MAX_CLIENTS; ++Id)
 			if(Id != ClientId && m_Root.GetCharacterById(Id))
@@ -163,15 +171,12 @@ namespace OpenKrx::NullClient
 		return Valid();
 	}
 
-	void CSimulation::Prune(const CSettings &Settings)
+	void CSimulation::Prune(CPruneRadii Radii)
 	{
 		auto *pLocal = m_Root.GetCharacterById(m_ClientId);
 		if(!pLocal)
 			return;
 		const vec2 Origin = pLocal->GetPos();
-		const float Radius = std::min(static_cast<float>(Settings.m_SimRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 160.0f);
-		const float WeaponRadius = Settings.m_Weapons ? std::min(static_cast<float>(Settings.m_WeaponRadius), static_cast<float>(Settings.m_Horizon) * 24.0f + 200.0f) : 0;
-		const float PlayerRadius = std::min(static_cast<float>(Settings.m_PlayerRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 580.0f);
 		for(int Type = 0; Type < CGameWorld::NUM_ENTTYPES; ++Type)
 			for(auto *pEntity = m_Root.FindFirst(Type); pEntity;)
 			{
@@ -181,22 +186,34 @@ namespace OpenKrx::NullClient
 				{
 					if(Type == CGameWorld::ENTTYPE_PICKUP)
 						Remove = true;
-					else if(Type == CGameWorld::ENTTYPE_PROJECTILE && static_cast<CProjectile *>(pEntity)->GetData().m_Type == WEAPON_SHOTGUN)
-						Remove = true;
+					else if(Type == CGameWorld::ENTTYPE_PROJECTILE)
+					{
+						auto *pProjectile = static_cast<CProjectile *>(pEntity);
+						const auto Data = pProjectile->GetData();
+						const int Age = std::max(0, m_Root.GameTick() - Data.m_StartTick);
+						const float Range = std::max(Radii.m_General, Radii.m_Weapons);
+						Remove = (Data.m_Type == WEAPON_GUN && !Data.m_Explosive && !Data.m_Freeze) ||
+							distance(pProjectile->GetPos(static_cast<float>(Age) / m_Root.GameTickSpeed()), Origin) > Range;
+					}
 					else if(Type == CGameWorld::ENTTYPE_CHARACTER && static_cast<CCharacter *>(pEntity)->Core()->HookedPlayer() == m_ClientId)
 						Remove = false;
 					else
 					{
-						const float Range = Type < 2 ? std::max(Radius, WeaponRadius) : Type == CGameWorld::ENTTYPE_CHARACTER ? std::max(Radius, PlayerRadius) :
-																			Radius;
+						const float Range = Type < 2 ? std::max(Radii.m_General, Radii.m_Weapons) : Type == CGameWorld::ENTTYPE_CHARACTER ? std::max(Radii.m_General, Radii.m_Players) :
+																			Radii.m_General;
 						const float Distance = distance(pEntity->GetPos(), Origin);
 						Remove = Distance > Range;
 						if(Type == CGameWorld::ENTTYPE_CHARACTER && Distance > 320.0f)
 						{
-							const auto *pCharacter = static_cast<CCharacter *>(pEntity);
+							auto *pCharacter = static_cast<CCharacter *>(pEntity);
+							const auto *pCore = pCharacter->Core();
 							if(m_aIdle[pCharacter->GetId()] || FrozenThreat(pCharacter))
-								Remove = true;
-							else if(pCharacter->GetActiveWeapon() != WEAPON_GRENADE && m_Root.Collision()->IntersectLine(Origin, pEntity->GetPos(), nullptr, nullptr))
+							{
+								if(dot(pCore->m_Vel, pCore->m_Vel) <= 0.000001f && pCore->m_HookState < HOOK_RETRACT_START && pCharacter->IsGrounded())
+									Remove = true;
+							}
+							else if(pCharacter->GetActiveWeapon() != WEAPON_GRENADE && pCore->m_HookState != HOOK_FLYING &&
+								m_Root.Collision()->IntersectLine(Origin, pEntity->GetPos(), nullptr, nullptr))
 								Remove = true;
 						}
 					}
@@ -210,6 +227,7 @@ namespace OpenKrx::NullClient
 	void CSimulation::PrepareThreats(const CSettings &Settings)
 	{
 		m_vHammerThreats.clear();
+		m_vRocketContactThreats.clear();
 		m_vRocketThreats.clear();
 		m_RocketNear = 0;
 		auto *pLocal = m_Root.GetCharacterById(m_ClientId);
@@ -224,6 +242,9 @@ namespace OpenKrx::NullClient
 			if(Settings.m_HammerDodge && !pOther->HammerHitDisabled() &&
 				(Settings.m_HammerDodgeMode == 0 ? Hooker : (m_aIdle[Id] ? Hooker : Hooker || pOther->GetActiveWeapon() == WEAPON_HAMMER)))
 				m_vHammerThreats.emplace_back(Id, pOther->GetProximityRadius() * 1.25f + pLocal->GetProximityRadius());
+			if(Settings.m_RocketContact && pOther->GetActiveWeapon() == WEAPON_GRENADE &&
+				(Hooker || (Settings.m_RocketContactMode == 1 && !m_aIdle[Id])))
+				m_vRocketContactThreats.emplace_back(Id, pOther->GetProximityRadius() * 1.25f + pLocal->GetProximityRadius());
 			if(Settings.m_RocketDodge && !m_aIdle[Id] && pOther->GetActiveWeapon() == WEAPON_GRENADE && distance(pOther->GetPos(), pLocal->GetPos()) <= Settings.m_RocketRange)
 			{
 				bool Near = distance(pOther->GetPos(), pLocal->GetPos()) <= Settings.m_RocketNear;
@@ -263,6 +284,7 @@ namespace OpenKrx::NullClient
 		pCopy->m_Adversarial = m_Adversarial;
 		pCopy->m_aIdle = m_aIdle;
 		pCopy->m_vHammerThreats = m_vHammerThreats;
+		pCopy->m_vRocketContactThreats = m_vRocketContactThreats;
 		pCopy->m_vRocketThreats = m_vRocketThreats;
 		pCopy->m_RocketNear = m_RocketNear;
 		pCopy->Reset();
@@ -270,13 +292,20 @@ namespace OpenKrx::NullClient
 	}
 	std::unique_ptr<CSimulation> CSimulation::CloneForWorker() const
 	{
-		auto pCopy = std::unique_ptr<CSimulation>(static_cast<CSimulation *>(Clone().release()));
-		pCopy->m_pTotalSteps = std::make_shared<uint64_t>(0);
+		auto pCopy = std::make_unique<CSimulation>();
 		pCopy->m_pCollisionOwner = m_World.Collision()->CreateIsolatedCopy();
 		pCopy->m_pTuningOwner = std::make_shared<std::array<CTuningParams, 256>>();
 		std::copy_n(m_World.TuningList(), 256, pCopy->m_pTuningOwner->begin());
+		pCopy->m_Root.CopyWorldIsolated(&m_Root);
 		pCopy->m_Root.RebindCollision(pCopy->m_pCollisionOwner.get());
 		pCopy->m_Root.RebindTuning(pCopy->m_pTuningOwner->data());
+		pCopy->m_ClientId = m_ClientId;
+		pCopy->m_Adversarial = m_Adversarial;
+		pCopy->m_aIdle = m_aIdle;
+		pCopy->m_vHammerThreats = m_vHammerThreats;
+		pCopy->m_vRocketContactThreats = m_vRocketContactThreats;
+		pCopy->m_vRocketThreats = m_vRocketThreats;
+		pCopy->m_RocketNear = m_RocketNear;
 		pCopy->Reset();
 		return pCopy;
 	}
@@ -299,23 +328,22 @@ namespace OpenKrx::NullClient
 		auto pWork = std::make_shared<CCandidateWork>();
 		pWork->m_Count = Count;
 		pWork->m_Evaluate = Evaluate;
-		std::vector<std::shared_ptr<CCandidateJob>> vJobs;
-		std::vector<std::future<uint64_t>> vResults;
-		// Finish every snapshot before the caller starts mutating its world.
+		std::array<std::future<uint64_t>, 15> aResults;
+		// Reuse private snapshots between priority groups sharing this root.
 		Reset();
-		for(int Worker = 1; Worker < Participants; ++Worker)
+		while(static_cast<int>(m_vWorkerContexts.size()) < Participants - 1)
+			m_vWorkerContexts.push_back(CloneForWorker());
+		for(int Worker = 0; Worker < Participants - 1; ++Worker)
 		{
-			auto pJob = std::make_shared<CCandidateJob>(CloneForWorker(), pWork);
-			vResults.push_back(pJob->Result());
-			vJobs.push_back(std::move(pJob));
+			auto pJob = std::make_shared<CCandidateJob>(*m_vWorkerContexts[Worker], pWork);
+			aResults[Worker] = pJob->Result();
+			Pool.m_Jobs.Add(std::move(pJob));
 		}
-		for(auto &pJob : vJobs)
-			Pool.m_Jobs.Add(pJob);
 		pWork->Run(*this);
 		// Drain every job before captured candidate arrays, weights, and input
 		// go out of scope. The client is compiled without C++ exceptions.
-		for(auto &Result : vResults)
-			*m_pTotalSteps += Result.get();
+		for(int Worker = 0; Worker < Participants - 1; ++Worker)
+			*m_pTotalSteps += aResults[Worker].get();
 	}
 	void CSimulation::Reset()
 	{
@@ -324,6 +352,7 @@ namespace OpenKrx::NullClient
 	}
 	void CSimulation::CommitRoot()
 	{
+		m_vWorkerContexts.clear();
 		m_Root.CopyWorldIsolated(&m_World);
 		m_Steps = 0;
 	}
@@ -343,6 +372,14 @@ namespace OpenKrx::NullClient
 	{
 		auto *p = Character();
 		return p && p->IsGrounded();
+	}
+	bool CSimulation::GroundedOnFreeze() const
+	{
+		if(!Grounded())
+			return false;
+		const auto *pCollision = m_World.Collision();
+		const int Index = pCollision->GetPureMapIndex(Position());
+		return pCollision->GetTileIndex(Index) == TILE_FREEZE || pCollision->GetFrontTileIndex(Index) == TILE_FREEZE;
 	}
 	vec2 CSimulation::Position() const
 	{
@@ -424,6 +461,17 @@ namespace OpenKrx::NullClient
 			return false;
 		for(const auto &[Id, Radius] : m_vHammerThreats)
 			if(const auto *p = const_cast<CGameWorld &>(m_World).GetCharacterById(Id); p && distance(p->GetPos(), Position()) < Radius)
+				return true;
+		return false;
+	}
+
+	bool CSimulation::RocketContactDanger() const
+	{
+		if(!Valid())
+			return false;
+		const vec2 Origin = Position();
+		for(const auto &[Id, Radius] : m_vRocketContactThreats)
+			if(const auto *pCharacter = const_cast<CGameWorld &>(m_World).GetCharacterById(Id); pCharacter && distance(pCharacter->GetPos(), Origin) < Radius)
 				return true;
 		return false;
 	}

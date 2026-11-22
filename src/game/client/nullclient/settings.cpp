@@ -1,13 +1,149 @@
 #include "settings.h"
 
+#include <base/str.h>
 #include <engine/shared/config.h>
+
+#include <algorithm>
+#include <array>
+#include <charconv>
+#include <string>
+#include <string_view>
 
 namespace OpenKrx::NullClient
 {
+	namespace
+	{
+		struct CAvoidOption
+		{
+			int CConfig::*m_pValue;
+			int m_aDefaults[3];
+			int m_Minimum;
+			int m_Maximum;
+		};
+
+		// This order is the on-disk version-one preset format.
+		constexpr CAvoidOption s_aAvoidOptions[] = {
+			{&CConfig::m_NullGodmodeHorizon, {25, 32, 40}, 5, 200},
+			{&CConfig::m_NullGodmodeReact, {11, 13, 15}, 1, 200},
+			{&CConfig::m_NullGodmodePlanHorizon, {8, 9, 10}, 2, 60},
+			{&CConfig::m_NullGodmodeDeep, {0, 0, 0}, 0, 1},
+			{&CConfig::m_NullGodmodeDeepHorizon, {20, 20, 20}, 10, 60},
+			{&CConfig::m_NullGodmodeDeepChain, {6, 6, 6}, 0, 12},
+			{&CConfig::m_NullGodmodeDeviation, {300, 250, 200}, 0, 5000},
+			{&CConfig::m_NullGodmodeHold, {10, 15, 15}, 0, 200},
+			{&CConfig::m_NullGodmodeHysteresis, {10, 12, 15}, 0, 200},
+			{&CConfig::m_NullGodmodeAnchorSpeed, {500, 500, 500}, 0, 4000},
+			{&CConfig::m_NullGodmodeAnchorLeash, {120, 120, 120}, 16, 1000},
+			{&CConfig::m_NullGodmodeContinuity, {120, 120, 120}, 0, 2000},
+			{&CConfig::m_NullGodmodeHoldSlack, {24, 24, 24}, 0, 400},
+			{&CConfig::m_NullGodmodeSettle, {40, 40, 40}, 0, 2000},
+			{&CConfig::m_NullGodmodeFreezeCost, {9000, 15000, 20000}, 0, 100000},
+			{&CConfig::m_NullGodmodeSimRadius, {1200, 1200, 1200}, 0, 4000},
+			{&CConfig::m_NullGodmodeAdversarial, {1, 1, 1}, 0, 2},
+			{&CConfig::m_NullGodmodePlayerRadius, {2000, 2000, 2000}, 0, 8000},
+			{&CConfig::m_NullGodmodeReactHooked, {12, 12, 12}, 0, 100},
+			{&CConfig::m_NullGodmodeHookAngles, {12, 12, 12}, 8, 128},
+			{&CConfig::m_NullGodmodeLetGo, {1, 1, 1}, 0, 1},
+			{&CConfig::m_NullGodmodeCutHold, {5, 5, 5}, 0, 40},
+			{&CConfig::m_NullGodmodeCutTicks, {0, 0, 0}, 0, 200},
+			{&CConfig::m_NullGodmodeCutWindow, {0, 0, 0}, 0, 200},
+			{&CConfig::m_NullGodmodeTravel, {300, 300, 300}, 0, 5000},
+			{&CConfig::m_NullGodmodeHandBack, {0, 0, 0}, 0, 1},
+			{&CConfig::m_NullGodmodeLastMoment, {1, 1, 1}, 0, 1},
+			{&CConfig::m_NullGodmodeGrace, {1, 2, 3}, 1, 40},
+			{&CConfig::m_NullGodmodeVetoFire, {14, 14, 14}, 0, 60},
+			{&CConfig::m_NullGodmodeVetoTicks, {2, 3, 3}, 0, 20},
+			{&CConfig::m_NullGodmodeReactSpeed, {30, 30, 30}, 0, 400},
+			{&CConfig::m_NullGodmodeReactShock, {100, 100, 100}, 0, 400},
+			{&CConfig::m_NullGodmodeAntiknockback, {250, 250, 250}, 100, 2000},
+			{&CConfig::m_NullGodmodeAirJump, {7000, 5000, 5000}, 0, 50000},
+			{&CConfig::m_NullGodmodeFollow, {10, 10, 10}, 0, 40},
+			{&CConfig::m_NullGodmodeCommitment, {1600, 1500, 2000}, 0, 20000},
+			{&CConfig::m_NullGodmodeHookCost, {1300, 900, 900}, 0, 20000},
+			{&CConfig::m_NullGodmodeHookAge, {20, 25, 25}, 0, 2000},
+			{&CConfig::m_NullGodmodeWallCost, {40, 40, 40}, 0, 2000},
+			{&CConfig::m_NullGodmodeTeeHookCost, {1500, 1500, 1500}, 0, 20000},
+			{&CConfig::m_NullGodmodeChain, {0, 0, 0}, 0, 12},
+			{&CConfig::m_NullGodmodeCoast, {10, 10, 10}, 0, 60},
+		};
+		using CAvoidValues = std::array<int, std::size(s_aAvoidOptions)>;
+
+		CAvoidValues ReadAvoidValues()
+		{
+			CAvoidValues aValues;
+			for(size_t Index = 0; Index < aValues.size(); ++Index)
+				aValues[Index] = g_Config.*s_aAvoidOptions[Index].m_pValue;
+			return aValues;
+		}
+
+		bool ParseAvoidValues(std::string_view Text, int Mode, CAvoidValues &aValues)
+		{
+			for(size_t Index = 0; Index < aValues.size(); ++Index)
+				aValues[Index] = s_aAvoidOptions[Index].m_aDefaults[Mode - 1];
+			if(!Text.starts_with("1:") || Text.size() == 2)
+				return false;
+			Text.remove_prefix(2);
+			for(size_t Index = 0; !Text.empty(); ++Index)
+			{
+				if(Index == aValues.size())
+					return false;
+				const auto End = Text.find(',');
+				const auto Field = Text.substr(0, End);
+				int Value = 0;
+				const auto Parsed = std::from_chars(Field.data(), Field.data() + Field.size(), Value);
+				if(Parsed.ec != std::errc{} || Parsed.ptr != Field.data() + Field.size())
+					return false;
+				const auto &Option = s_aAvoidOptions[Index];
+				aValues[Index] = std::clamp(Value, Option.m_Minimum, Option.m_Maximum);
+				Text.remove_prefix(End == std::string_view::npos ? Text.size() : End + 1);
+			}
+			return true;
+		}
+	}
+
+	void SyncAvoidModeSettings(bool RestoreFromProfile, bool RestorePreset)
+	{
+		static int s_PreviousMode = -1;
+		static CAvoidValues s_aPreviousValues{};
+		static std::string s_PreviousPreset;
+		const int Mode = std::clamp(g_Config.m_NullAvoidMode, 0, 3);
+		if(Mode == 0)
+		{
+			s_PreviousMode = 0;
+			return;
+		}
+		char *pPreset = Mode == 1 ? g_Config.m_NullAvoidBoostSettings : Mode == 2 ? g_Config.m_NullAvoidOverdriveSettings : g_Config.m_NullAvoidGodSettings;
+		const bool Reload = RestoreFromProfile || Mode != s_PreviousMode || pPreset != s_PreviousPreset;
+		if(Reload && RestorePreset)
+		{
+			CAvoidValues aPreset;
+			const bool Loaded = ParseAvoidValues(pPreset, Mode, aPreset);
+			if(Loaded || (Mode != 3 || (s_PreviousMode >= 0 && !RestoreFromProfile)))
+				for(size_t Index = 0; Index < aPreset.size(); ++Index)
+					g_Config.*s_aAvoidOptions[Index].m_pValue = Loaded ? aPreset[Index] : s_aAvoidOptions[Index].m_aDefaults[Mode - 1];
+		}
+		const CAvoidValues aCurrent = ReadAvoidValues();
+		if(Reload || aCurrent != s_aPreviousValues)
+		{
+			s_PreviousPreset = "1:";
+			for(size_t Index = 0; Index < aCurrent.size(); ++Index)
+			{
+				if(Index != 0)
+					s_PreviousPreset += ',';
+				s_PreviousPreset += std::to_string(aCurrent[Index]);
+			}
+			str_copy(pPreset, s_PreviousPreset.c_str(), sizeof(g_Config.m_NullAvoidGodSettings));
+			s_PreviousMode = Mode;
+			s_aPreviousValues = aCurrent;
+		}
+	}
 	CSettings SettingsFromConfig()
 	{
+		SyncAvoidModeSettings();
 		CSettings Settings;
 		Settings.m_Enabled = g_Config.m_NullGodmode;
+		Settings.m_Mode = g_Config.m_NullAvoidMode;
+		Settings.m_LegitHook = g_Config.m_NullAvoidLegitHook;
 		Settings.m_Dummy = g_Config.m_NullGodmodeDummy;
 		Settings.m_Horizon = g_Config.m_NullGodmodeHorizon;
 		Settings.m_React = g_Config.m_NullGodmodeReact;
@@ -34,6 +170,7 @@ namespace OpenKrx::NullClient
 		Settings.m_Debug = g_Config.m_NullGodmodeDebug;
 		Settings.m_LetGo = g_Config.m_NullGodmodeLetGo;
 		Settings.m_CutHold = g_Config.m_NullGodmodeCutHold;
+		Settings.m_CutTicks = g_Config.m_NullGodmodeCutTicks;
 		Settings.m_CutWindow = g_Config.m_NullGodmodeCutWindow;
 		Settings.m_Travel = g_Config.m_NullGodmodeTravel;
 		Settings.m_HandBack = g_Config.m_NullGodmodeHandBack;
@@ -42,6 +179,7 @@ namespace OpenKrx::NullClient
 		Settings.m_Grace = g_Config.m_NullGodmodeGrace;
 		Settings.m_VetoFire = g_Config.m_NullGodmodeVetoFire;
 		Settings.m_VetoTicks = g_Config.m_NullGodmodeVetoTicks;
+		Settings.m_VetoDoom = g_Config.m_NullGodmodeVetoDoom;
 		Settings.m_ReactSpeed = g_Config.m_NullGodmodeReactSpeed;
 		Settings.m_ReactSpeedFast = g_Config.m_NullGodmodeReactSpeedFast;
 		Settings.m_ReactShock = g_Config.m_NullGodmodeReactShock;
@@ -56,6 +194,10 @@ namespace OpenKrx::NullClient
 		Settings.m_RocketNear = g_Config.m_NullGodmodeRocketNear;
 		Settings.m_RocketLookahead = g_Config.m_NullGodmodeRocketLookahead;
 		Settings.m_RocketAnswer = g_Config.m_NullGodmodeRocketAnswer;
+		Settings.m_RocketContact = g_Config.m_NullGodmodeAvoidRocket;
+		Settings.m_RocketContactMode = g_Config.m_NullGodmodeAvoidRocketMode;
+		Settings.m_RocketContactLookahead = g_Config.m_NullGodmodeAvoidRocketLookahead;
+		Settings.m_RocketContactCost = g_Config.m_NullGodmodeAvoidRocketCost;
 		Settings.m_HammerCost = g_Config.m_NullGodmodeHammerCost;
 		Settings.m_HammerRing = g_Config.m_NullGodmodeHammerRing;
 		Settings.m_Knockback = g_Config.m_NullGodmodeKnockback;
@@ -67,6 +209,7 @@ namespace OpenKrx::NullClient
 		Settings.m_HookCounter = g_Config.m_NullGodmodeHookCounter;
 		Settings.m_HookCounterGap = g_Config.m_NullGodmodeHookCounterGap;
 		Settings.m_HookCounterPull = g_Config.m_NullGodmodeHookCounterPull;
+		Settings.m_HookCounterArc = g_Config.m_NullGodmodeHookCounterArc;
 		Settings.m_Weapons = g_Config.m_NullGodmodeWeapons;
 		Settings.m_WeaponRadius = g_Config.m_NullGodmodeWeaponRadius;
 		Settings.m_ShotPath = g_Config.m_NullGodmodeShotPath;

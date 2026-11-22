@@ -4915,6 +4915,8 @@ int main(int argc, const char **argv)
 	CWindowsComLifecycle WindowsComLifecycle(true);
 #endif
 	CCmdlineFix CmdlineFix(&argc, &argv);
+	const char *pExecutable = fs_filename(argv[0]);
+	OpenKrx::g_NullStandalone = str_comp_nocase(pExecutable, "NullClient") == 0 || str_comp_nocase(pExecutable, "NullClient.exe") == 0;
 
 	std::vector<std::shared_ptr<ILogger>> vpLoggers;
 	std::shared_ptr<ILogger> pStdoutLogger = nullptr;
@@ -5227,6 +5229,11 @@ int main(int argc, const char **argv)
 	pEngine->Init();
 	pConsole->Init();
 	pConfigManager->Init();
+	if(OpenKrx::g_NullStandalone)
+	{
+		g_Config.m_OpenKrxAvoidProvider = 1;
+		pConfigManager->SetReadOnly("openkrx_profile", true);
+	}
 	pNotifications->Init(GAME_NAME " Client");
 
 	// register all console commands

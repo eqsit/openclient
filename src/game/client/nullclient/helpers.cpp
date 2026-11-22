@@ -1,14 +1,17 @@
 #include "helpers.h"
+#include "simulation.h"
 
 #include <engine/client.h>
 #include <engine/shared/client_profile.h>
 #include <game/client/gameclient.h>
 #include <game/client/prediction/entities/character.h>
 #include <game/collision.h>
+#include <game/mapitems.h>
 #include <base/math.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 
 namespace OpenKrx::NullClient
 {
@@ -32,6 +35,104 @@ bool Held(CGameClient *pClient, int Key)
 {
 	return Key == 0 || pClient->Input()->KeyIsPressed(Key);
 }
+
+bool SafeGrenade(const CGameWorld &Source, int Id, vec2 Direction)
+{
+	if(!g_Config.m_NullAutoGrenadeSafe)
+		return true;
+	CSettings Settings;
+	Settings.m_Horizon = 24;
+	Settings.m_Weapons = true;
+	Settings.m_Adversarial = 0;
+	CSimulation Simulation;
+	if(!Simulation.Initialize(Source, Id, Settings, {}))
+		return true;
+
+	auto *pCharacter = Simulation.Character();
+	pCharacter->GiveWeapon(WEAPON_GRENADE);
+	pCharacter->SetWeaponAmmo(WEAPON_GRENADE, -1);
+	pCharacter->SetWeapon(WEAPON_GRENADE);
+	CNetObj_PlayerInput Input{};
+	Input.m_PlayerFlags = PLAYERFLAG_PLAYING;
+	Input.m_WantedWeapon = WEAPON_GRENADE + 1;
+	Input.m_TargetX = static_cast<int>(Direction.x * 200.0f);
+	Input.m_TargetY = static_cast<int>(Direction.y * 200.0f);
+	if(!Input.m_TargetX && !Input.m_TargetY)
+		Input.m_TargetX = 1;
+	for(int Tick = 1; Tick <= 24; ++Tick)
+	{
+		Input.m_Fire = Tick;
+		if(!Simulation.Tick(Input) || Simulation.Dead())
+			return false;
+		const auto *pLocal = Simulation.Character();
+		if(pLocal->m_FreezeTime > 0 || pLocal->Core()->m_DeepFrozen)
+			return false;
+	}
+	return true;
+}
+
+std::optional<vec2> FindDummyLaser(CGameWorld &World, CCharacter &Shooter, const CCharacter &Target)
+{
+	const vec2 Delta = Target.Core()->m_Pos - Shooter.Core()->m_Pos;
+	const float Distance = length(Delta);
+	if(Distance < .001f)
+		return std::nullopt;
+	const auto &Tuning = *Shooter.GetTuning(Shooter.GetPureTuneZone());
+	const int MaxBounces = std::clamp(static_cast<int>(static_cast<float>(Tuning.m_LaserBounceNum)), 0, 8);
+	auto *pCollision = World.Collision();
+	const auto Trace = [&](vec2 Direction) {
+		vec2 Start = Shooter.Core()->m_Pos;
+		float Energy = Tuning.m_LaserReach;
+		for(int Bounce = 0; Bounce <= MaxBounces && Energy >= 0; ++Bounce)
+		{
+			vec2 End = Start + Direction * Energy;
+			const int Collision = pCollision->IntersectLineTeleWeapon(Start, End, nullptr, &End);
+			vec2 Intersection;
+			const bool SkipShooter = Bounce == 0 || World.m_WorldConfig.m_OldLaser || !World.m_WorldConfig.m_IsDDRace;
+			if(const auto *pHit = World.IntersectCharacter(Start, End, 0.0f, Intersection, SkipShooter ? &Shooter : nullptr, Shooter.GetId()))
+				return pHit == &Target ? Bounce : -1;
+			if(Bounce == MaxBounces || Collision <= 0 || Collision == TILE_TELEINWEAPON)
+				break;
+			vec2 Reflection = Direction * 4.0f;
+			pCollision->MovePoint(&End, &Reflection, 1.0f, nullptr);
+			const float Travel = distance(Start, End);
+			if(Travel < .001f || length(Reflection) < .001f)
+				break;
+			Energy -= Travel + static_cast<float>(Tuning.m_LaserBounceCost);
+			Start = End;
+			Direction = normalize(Reflection);
+		}
+		return -1;
+	};
+	const auto Aim = [](float Angle) {
+		const vec2 Wire(round_to_int(std::cos(Angle) * 10000.0f), round_to_int(std::sin(Angle) * 10000.0f));
+		return normalize(Wire);
+	};
+	const float Center = std::atan2(Delta.y, Delta.x);
+	const float HalfWidth = std::asin(std::min(.95f, Target.GetProximityRadius() * .9f / Distance));
+	for(int Sample = 0; Sample < 33; ++Sample)
+	{
+		const auto Direction = Aim(Center - HalfWidth + 2.0f * HalfWidth * Sample / 32);
+		if(Trace(Direction) == 0)
+			return Direction;
+	}
+	if(MaxBounces == 0)
+		return std::nullopt;
+	std::optional<vec2> Best;
+	int BestBounces = MaxBounces + 1;
+	for(int Angle = 0; Angle < 360; ++Angle)
+	{
+		const auto Direction = Aim(Angle * (6.28318530718f / 360.f));
+		const int Bounces = Trace(Direction);
+		if(Bounces < 0 || Bounces >= BestBounces)
+			continue;
+		Best = Direction;
+		BestBounces = Bounces;
+		if(Bounces <= 1)
+			break;
+	}
+	return Best;
+}
 }
 
 CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot, bool AvoidChanged, bool AvoidFire, bool AvoidHookAim)
@@ -52,6 +153,7 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 	const int Weapon = pCharacter->GetActiveWeapon();
 	const bool Frozen = pCharacter->m_FreezeTime != 0;
 	const bool Ready = pCharacter->DiagnosticReloadTimer() == 0 && !Frozen;
+	const int OriginalFire = Input.m_Fire;
 	std::array<std::optional<vec2>, MAX_CLIENTS> aTargets;
 	for(int Other = 0; Other < MAX_CLIENTS; ++Other)
 		if(const auto *pOther = World.GetCharacterById(Other))
@@ -115,6 +217,32 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 			Fire(Input);
 		}
 	}
+	if(g_Config.m_NullCounterHammer && !AvoidChanged && !AvoidFire && Input.m_Fire == OriginalFire &&
+		Weapon == WEAPON_HAMMER && Ready && !pCore->m_DeepFrozen && pCharacter->GetWeaponAmmo(Weapon) != 0)
+	{
+		const CCharacter *pAttacker = nullptr;
+		float Nearest = std::numeric_limits<float>::infinity();
+		for(int Other = 0; Other < MAX_CLIENTS; ++Other)
+		{
+			if(Other == Id || !pClient->m_Snap.m_aCharacters[Other].m_Active || !pCharacter->CanCollide(Other))
+				continue;
+			const auto *pOther = World.GetCharacterById(Other);
+			if(!pOther || pOther->GetActiveWeapon() != WEAPON_HAMMER ||
+				pOther->GetAttackTick() > Tick || Tick - pOther->GetAttackTick() >= 4)
+				continue;
+			const float Distance = distance(pCore->m_Pos, pOther->Core()->m_Pos);
+			if(Distance <= pCharacter->GetProximityRadius() * 1.25f + pOther->GetProximityRadius() && Distance < Nearest)
+			{
+				pAttacker = pOther;
+				Nearest = Distance;
+			}
+		}
+		if(pAttacker)
+		{
+			AimAt(Input, pAttacker->Core()->m_Pos - pCore->m_Pos);
+			Fire(Input);
+		}
+	}
 	if(!g_Config.m_NullAutoGrenade || !Held(pClient, g_Config.m_NullBindAutoGrenade))
 		State.m_GrenadeDelay = -1, State.m_HasVelocity = false;
 	else
@@ -154,8 +282,13 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 			const auto *pTarget = World.GetCharacterById(State.m_GrenadeTarget);
 			if(pTarget && distance(pTarget->Core()->m_Pos, pCore->m_Pos) <= g_Config.m_NullAutoGrenadeRange * 32.0f * 1.5f)
 			{
-				AimAt(Input, pTarget->Core()->m_Pos - pCore->m_Pos);
-				Fire(Input);
+				const vec2 Delta = pTarget->Core()->m_Pos - pCore->m_Pos;
+				const float Distance = length(Delta);
+				if(Distance > .001f && SafeGrenade(World, Id, Delta / Distance))
+				{
+					AimAt(Input, Delta);
+					Fire(Input);
+				}
 			}
 			State.m_GrenadeDelay = State.m_GrenadeTarget = -1;
 		}
@@ -211,6 +344,47 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 			State.m_SentAim = Aim;
 			State.m_HasFakeAim = true;
 		}
+	}
+	return Input;
+}
+
+CNetObj_PlayerInput CHelpers::ApplyDummyLaser(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot)
+{
+	if(!g_Config.m_NullDummyLaserUnfreeze || Slot == g_Config.m_ClDummy ||
+		!pClient->Client()->DummyConnected() || pClient->m_Snap.m_SpecInfo.m_Active)
+		return Input;
+	const int Shooter = pClient->m_aLocalIds[Slot];
+	const int Target = pClient->m_aLocalIds[g_Config.m_ClDummy];
+	auto &World = pClient->KrxPredictedWorld();
+	auto *pShooter = World.GetCharacterById(Shooter);
+	auto *pTarget = World.GetCharacterById(Target);
+	if(!pShooter || !pTarget || pTarget->m_FreezeTime <= 0 || pTarget->Core()->m_DeepFrozen || pTarget->Core()->m_LiveFrozen ||
+		pShooter->m_FreezeTime > 0 || pShooter->Core()->m_DeepFrozen || pShooter->Core()->m_LiveFrozen ||
+		pShooter->LaserHitDisabled() || !pShooter->CanCollide(Target) ||
+		!pShooter->GetWeaponGot(WEAPON_LASER) || pShooter->GetWeaponAmmo(WEAPON_LASER) == 0 || Input.m_Hook)
+		return Input;
+	const int Tile = World.Collision()->GetPureMapIndex(pTarget->Core()->m_Pos);
+	if((World.Collision()->GetTileIndex(Tile) == TILE_FREEZE || World.Collision()->GetFrontTileIndex(Tile) == TILE_FREEZE) &&
+		!pTarget->IsGrounded())
+		return Input;
+	auto &State = m_aSlots[Slot];
+	const int Tick = pClient->Client()->GameTick(g_Config.m_ClDummy);
+	if(State.m_LaserScanTick != Tick || State.m_LaserShooter != Shooter || State.m_LaserTarget != Target)
+	{
+		State.m_LaserScanTick = Tick;
+		State.m_LaserShooter = Shooter;
+		State.m_LaserTarget = Target;
+		State.m_LaserAim = FindDummyLaser(World, *pShooter, *pTarget);
+	}
+	if(!State.m_LaserAim)
+		return Input;
+	Input.m_WantedWeapon = WEAPON_LASER + 1;
+	Input.m_TargetX = round_to_int(State.m_LaserAim->x * 10000.0f);
+	Input.m_TargetY = round_to_int(State.m_LaserAim->y * 10000.0f);
+	if(pShooter->GetActiveWeapon() == WEAPON_LASER && pShooter->DiagnosticReloadTimer() == 0 && State.m_LaserFireTick != Tick)
+	{
+		Input.m_Fire = (Input.m_Fire + 3) & (INPUT_STATE_MASK & ~1);
+		State.m_LaserFireTick = Tick;
 	}
 	return Input;
 }

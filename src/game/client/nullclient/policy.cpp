@@ -101,6 +101,29 @@ namespace OpenKrx::NullClient
 		return Result;
 	}
 
+	bool HookVeto(IWorld &World, const CNetObj_PlayerInput &Released, int Window, bool FreezeFatal)
+	{
+		auto Held = Released;
+		Held.m_Hook = 1;
+		World.Reset();
+		const int Life = Probe(World, Held, Window, FreezeFatal).m_Life;
+		if(Life == Window || Window <= 1)
+			return Life != Window;
+		const int Longest = std::clamp(Life, 1, Window - 1);
+		const std::array<int, 3> Durations{Longest, Longest - 1, 1};
+		for(auto it = Durations.begin(); it != Durations.end(); ++it)
+		{
+			const int Hold = *it;
+			if(Hold <= 0 || std::find(Durations.begin(), it, Hold) != it)
+				continue;
+			World.Reset();
+			if(Probe(World, Held, Hold, FreezeFatal).m_Life == Hold &&
+				Probe(World, Released, Window - Hold, FreezeFatal).m_Life == Window - Hold)
+				return false;
+		}
+		return true;
+	}
+
 	std::vector<CMove> MovementCandidates(CCollision *pCollision, vec2 Position, float HookLength, int HookState, bool CanJump, int HookAngles, bool AllowHook, std::vector<vec2> *pHookPoints)
 	{
 		std::vector<CMove> vMoves;
@@ -207,7 +230,7 @@ namespace OpenKrx::NullClient
 			Add(0, normalize(*HammerTarget - Position));
 	}
 
-	CEvaluation Evaluate(IWorld &World, const CMove &Move, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, float CostLimit)
+	CEvaluation Evaluate(IWorld &World, const CMove &Move, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, float CostLimit, CRescuePath *pPath)
 	{
 		CEvaluation Result;
 		if(!World.Valid())
@@ -215,6 +238,11 @@ namespace OpenKrx::NullClient
 			Result.m_FailureTick = 0;
 			Result.m_SafeEnd = false;
 			return Result;
+		}
+		if(pPath)
+		{
+			pPath->m_vPoints.reserve(Ticks + Weights.m_Coast + 1);
+			pPath->m_vPoints.push_back(World.Position());
 		}
 		const bool Grounded = World.Grounded();
 		float Cost = 0;
@@ -243,32 +271,46 @@ namespace OpenKrx::NullClient
 		}
 		if(First.m_Hook != 0)
 			Cost += static_cast<float>(Weights.m_HookAge) * Weights.m_HookAgeCost;
-		int FrozenTicks = 0, HammerTicks = 0, RocketTicks = 0, ClearanceTicks = 0, WallTicks = 0;
+		int FrozenTicks = 0, HammerTicks = 0, RocketTicks = 0, RocketContactTicks = 0, ClearanceTicks = 0, WallTicks = 0;
+		int FreezeStart = -1;
 		bool DeepFrozen = false;
 		for(int Step = 0; Step < Ticks; ++Step)
 		{
 			const auto Input = MoveInput(Move, Base, Step, Weights.m_HandBack);
-			if(!World.Tick(Input) || World.Dead())
+			const bool Dead = !World.Tick(Input) || World.Dead();
+			const bool Frozen = !Dead && World.Frozen();
+			if(pPath)
+			{
+				if(World.Valid())
+					pPath->m_vPoints.push_back(World.Position());
+				pPath->m_Endpoint = Dead ? ERescueEndpoint::DEATH : Frozen ? ERescueEndpoint::FREEZE : ERescueEndpoint::NONE;
+			}
+			if(Dead)
 			{
 				Result.m_FailureTick = Step;
 				Result.m_SafeEnd = false;
 				Result.m_Cost = Cost;
 				return Result;
 			}
-			if(World.Frozen())
+			if(Frozen)
 			{
 				Result.m_SafeEnd = false;
-				if(Weights.m_FreezeFatal)
+				if(FreezeStart < 0)
+					FreezeStart = Step;
+				if(Weights.m_FreezeFatal || (Weights.m_GroundedFreezeFatal && World.GroundedOnFreeze()))
 				{
-					Result.m_FailureTick = Step;
+					Result.m_FailureTick = Weights.m_FreezeFatal ? Step : FreezeStart;
 					Result.m_Cost = Cost;
 					return Result;
 				}
 				++FrozenTicks;
 				DeepFrozen |= World.DeepFrozen();
 			}
+			else
+				FreezeStart = -1;
 			HammerTicks += Weights.m_HammerCost > 0 && World.HammerDanger();
 			RocketTicks += Weights.m_RocketCost > 0 && World.RocketDanger(Weights.m_RocketThrow, Weights.m_RocketSpread);
+			RocketContactTicks += Weights.m_RocketContactCost > 0 && World.RocketContactDanger();
 			ClearanceTicks += Weights.m_Clearance > 0 && Weights.m_FreezeCost > 0 && World.NearFreeze(Weights.m_Clearance);
 			WallTicks += World.WallStopped();
 			const float Distance = std::max(0.0f, distance(World.Position(), Weights.m_Anchor) - Weights.m_HoldSlack);
@@ -304,16 +346,38 @@ namespace OpenKrx::NullClient
 		}
 		if(Weights.m_Travel > 0)
 			Cost = std::max(0.0f, distance(Position, Weights.m_Start) - 32.0f) * Weights.m_Travel + Cost;
-		if(Weights.m_Coast > 0 && Result.m_SafeEnd && (!EndGrounded || length(Velocity) >= 8.0f))
+		const bool FrozenCoast = Weights.m_GroundedFreezeFatal && FreezeStart >= 0;
+		if(Weights.m_Coast > 0 && (FrozenCoast || (Result.m_SafeEnd && (!EndGrounded || length(Velocity) >= 8.0f))))
 		{
 			auto Input = MoveInput(Move, Base, Ticks, Weights.m_HandBack);
 			Input.m_Direction = Input.m_Jump = Input.m_Hook = 0;
 			for(int Step = 0; Step < Weights.m_Coast; ++Step)
-				if(!World.Tick(Input) || World.Dead() || World.Frozen())
+			{
+				const bool Dead = !World.Tick(Input) || World.Dead();
+				const bool Frozen = !Dead && World.Frozen();
+				if(pPath)
+				{
+					if(World.Valid())
+						pPath->m_vPoints.push_back(World.Position());
+					pPath->m_Endpoint = Dead ? ERescueEndpoint::DEATH : Frozen ? ERescueEndpoint::FREEZE : ERescueEndpoint::NONE;
+				}
+				if(FrozenCoast)
+				{
+					if(Dead || (Frozen && World.GroundedOnFreeze()))
+					{
+						Result.m_FailureTick = FreezeStart;
+						Result.m_Cost = Cost;
+						return Result;
+					}
+					if(!Frozen)
+						break;
+				}
+				else if(Dead || Frozen)
 				{
 					Result.m_SafeEnd = false;
 					break;
 				}
+			}
 		}
 		if(Weights.m_Settle > 0 && Distance > 0.001f)
 		{
@@ -323,7 +387,7 @@ namespace OpenKrx::NullClient
 		Cost = static_cast<float>(FrozenTicks) * Weights.m_FreezeCost * (DeepFrozen ? 40.0f : 1.0f) + Cost +
 		       static_cast<float>(ClearanceTicks) * Weights.m_FreezeCost * 0.25f +
 		       static_cast<float>(RocketTicks) * Weights.m_RocketCost + static_cast<float>(HammerTicks) * Weights.m_HammerCost +
-		       static_cast<float>(WallTicks) * Weights.m_WallCost;
+		       static_cast<float>(RocketContactTicks) * Weights.m_RocketContactCost + static_cast<float>(WallTicks) * Weights.m_WallCost;
 		if(World.HookedPlayer())
 			Cost += Weights.m_TeeHookCost;
 		const float Hazard = World.HazardRay(Position, Velocity);
@@ -416,8 +480,8 @@ namespace OpenKrx::NullClient
 			{
 				if((Move.m_HookMode == 2 && Move.m_ReleaseHookAt != 3) || Move.m_WeaponAction >= 0)
 					continue;
-				auto pSuffix = pAfterPrefix->Clone();
-				const auto Evaluation = Evaluate(*pSuffix, Move, Base, FollowWeights, Ticks);
+				pAfterPrefix->Reset();
+				const auto Evaluation = Evaluate(*pAfterPrefix, Move, Base, FollowWeights, Ticks);
 				if(Evaluation.m_FailureTick < 0 &&
 					((Evaluation.m_SafeEnd && !BestStable) || (Evaluation.m_SafeEnd == BestStable && Evaluation.m_Cost < BestCost)))
 				{
@@ -430,9 +494,11 @@ namespace OpenKrx::NullClient
 		return BestStable ? Best : -1;
 	}
 
-	CSelection CPlanner::Select(IWorld &World, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks)
+	CSelection CPlanner::Select(IWorld &World, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, std::vector<CRescuePath> *pvPaths)
 	{
 		CSelection Selection;
+		if(pvPaths)
+			pvPaths->clear();
 		if(m_vMoves.empty())
 			return Selection;
 		std::vector<int> vOrder;
@@ -458,19 +524,29 @@ namespace OpenKrx::NullClient
 		std::stable_sort(vOrder.begin(), vOrder.end(), [&](int Left, int Right) { return vKeys[Left] < vKeys[Right]; });
 		// Null initializes all entries before applying the held-input filter.
 		m_vEvaluations.assign(m_vMoves.size(), CEvaluation{});
-		World.ForEachCandidate(static_cast<int>(vOrder.size()), [&](IWorld &Private, int OrderIndex) {
-			const int Index = vOrder[OrderIndex];
-			Private.Reset();
-			m_vEvaluations[Index] = Evaluate(Private, m_vMoves[Index], Base, Weights, Ticks);
-		});
+		// Each worker owns its candidate slot. Rendering only sees the reduced
+		// snapshot after every worker has returned.
+		std::vector<CRescuePath> vPaths(pvPaths ? m_vMoves.size() : 0);
 		int Best = -1;
-		for(int Index : vOrder)
+		for(auto Group = vOrder.begin(); Group != vOrder.end() && Best < 0;)
 		{
-			const auto &Evaluation = m_vEvaluations[Index];
-			if(Evaluation.m_FailureTick < 0 && Evaluation.m_SafeEnd &&
-				(Best < 0 || std::tie(Evaluation.m_ManualDifference, Evaluation.m_PreviousDifference, Evaluation.m_Cost) <
-						     std::tie(m_vEvaluations[Best].m_ManualDifference, m_vEvaluations[Best].m_PreviousDifference, m_vEvaluations[Best].m_Cost)))
-				Best = Index;
+			const auto End = std::find_if(Group + 1, vOrder.end(), [&](int Index) { return vKeys[Index] != vKeys[*Group]; });
+			World.ForEachCandidate(static_cast<int>(End - Group), [&](IWorld &Private, int GroupIndex) {
+				const int Index = Group[GroupIndex];
+				Private.Reset();
+				CRescuePath *pPath = pvPaths ? &vPaths[Index] : nullptr;
+				m_vEvaluations[Index] = Evaluate(Private, m_vMoves[Index], Base, Weights, Ticks, 0, pPath);
+			});
+			for(auto It = Group; It != End; ++It)
+			{
+				const int Index = *It;
+				const auto &Evaluation = m_vEvaluations[Index];
+				if(Evaluation.m_FailureTick < 0 && Evaluation.m_SafeEnd &&
+					(Best < 0 || std::tie(Evaluation.m_ManualDifference, Evaluation.m_PreviousDifference, Evaluation.m_Cost) <
+							     std::tie(m_vEvaluations[Best].m_ManualDifference, m_vEvaluations[Best].m_PreviousDifference, m_vEvaluations[Best].m_Cost)))
+					Best = Index;
+			}
+			Group = End;
 		}
 		Selection.m_StableEnd = Best >= 0;
 		Selection.m_Found = Best >= 0;
@@ -504,6 +580,18 @@ namespace OpenKrx::NullClient
 		}
 		if(Best < 0)
 			return Selection;
+		if(pvPaths)
+		{
+			vPaths[Best].m_Selected = true;
+			for(size_t Index = 0; Index < vPaths.size(); ++Index)
+				vPaths[Index].m_Safe = m_vEvaluations[Index].m_FailureTick < 0 && m_vEvaluations[Index].m_SafeEnd;
+			std::erase_if(vPaths, [](const auto &Path) { return Path.m_vPoints.size() < 2; });
+			constexpr size_t MAX_PATHS = 256;
+			const size_t Stride = std::max<size_t>(1, (vPaths.size() + MAX_PATHS - 2) / (MAX_PATHS - 1));
+			for(size_t Index = 0; Index < vPaths.size(); ++Index)
+				if(Index % Stride == 0 || vPaths[Index].m_Selected)
+					pvPaths->push_back(std::move(vPaths[Index]));
+		}
 		const auto &Move = m_vMoves[Best];
 		Selection.m_Input = MoveInput(Move, Base, 0, Weights.m_HandBack);
 		Selection.m_Move = Best;

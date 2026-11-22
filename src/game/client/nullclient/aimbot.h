@@ -5,7 +5,6 @@
 #include <array>
 
 class CGameClient;
-class CCollision;
 namespace OpenKrx::NullClient
 {
 struct CBallisticAim { vec2 m_Direction; float m_Ticks; };
@@ -13,14 +12,13 @@ struct CBallisticAim { vec2 m_Direction; float m_Ticks; };
 int SolveBallistic(vec2 From, vec2 To, float Curvature, float Speed, float TickSpeed, std::array<CBallisticAim, 2> &aResult);
 class CAimbot
 {
-	struct CState { int m_Target = -1, m_StickyTarget = -1, m_LastFire = 0, m_Weapon = -1; };
+	struct CState { int m_Target = -1, m_StickyTarget = -1, m_LastFire = 0, m_Weapon = -1, m_StickyWeapon = -2; bool m_LastHook = false; };
 	std::array<CState, 2> m_aStates{};
 public:
 	void Reset() { m_aStates = {}; }
 	CNetObj_PlayerInput Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot, bool AvoidChanged);
 	int Target(int Slot) const { return Slot >= 0 && Slot < 2 ? m_aStates[Slot].m_Target : -1; }
 	int Weapon(int Slot) const { return Slot >= 0 && Slot < 2 ? m_aStates[Slot].m_Weapon : -1; }
-	static bool BounceAim(CCollision *pCollision, vec2 From, vec2 Target, float Radius, float Reach, float BounceCost, int Rays, vec2 &Aim);
 };
 }
 #endif

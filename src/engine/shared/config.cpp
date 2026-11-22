@@ -241,7 +241,7 @@ void SStringConfigVariable::SetValue(const char *pValue)
 {
 	if(CheckReadOnly())
 		return;
-	char aBuf[2048];
+	char aBuf[4096];
 	Serialize(aBuf, sizeof(aBuf), pValue);
 	ExecuteLine(aBuf);
 }
@@ -393,7 +393,7 @@ bool CConfigManager::Save()
 
 	m_Failed = false;
 
-	char aLineBuf[2048];
+	char aLineBuf[4096];
 	for(const SConfigVariable *pVariable : m_vpAllVariables)
 	{
 		if((pVariable->m_Flags & CFGFLAG_SAVE) != 0 && !pVariable->IsDefault())

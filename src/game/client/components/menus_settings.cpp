@@ -7,6 +7,7 @@
 #include <base/str.h>
 
 #include <engine/graphics.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/config.h>
 
 #include <game/client/components/menu_background.h>
@@ -51,7 +52,7 @@ void CMenus::RenderSettings(CUIRect MainView)
 		Localize("Sound"),
 		Localize("DDNet"),
 		Localize("Assets"),
-		"KRX / NullClient",
+		OpenKrx::g_NullStandalone ? "NullClient" : "KRX / NullClient",
 		Localize("Credits")};
 	static CButtonContainer s_aTabButtons[SETTINGS_LENGTH];
 

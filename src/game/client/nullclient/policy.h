@@ -59,6 +59,7 @@ namespace OpenKrx::NullClient
 		float m_CounterY = 0;
 		bool m_CounterBelow = false;
 		bool m_FreezeFatal = false;
+		bool m_GroundedFreezeFatal = false;
 		int m_Chain = 0;
 		int m_Coast = 0;
 		float m_ReleaseHookCost = 0;
@@ -71,8 +72,8 @@ namespace OpenKrx::NullClient
 		float m_WallCost = 0;
 		float m_TeeHookCost = 0;
 		float m_HazardSpeed = 0;
+		float m_RocketContactCost = 0;
 	};
-	static_assert(sizeof(CWeights) == 0xa0);
 
 	struct CEvaluation
 	{
@@ -105,10 +106,12 @@ namespace OpenKrx::NullClient
 		virtual bool Frozen() const = 0;
 		virtual bool DeepFrozen() const = 0;
 		virtual bool Grounded() const = 0;
+		virtual bool GroundedOnFreeze() const { return false; }
 		virtual vec2 Position() const = 0;
 		virtual vec2 Velocity() const = 0;
 		virtual bool HammerDanger() const = 0;
 		virtual bool RocketDanger(float Throw, float Spread) const = 0;
+		virtual bool RocketContactDanger() const { return false; }
 		virtual bool NearFreeze(float Clearance) const = 0;
 		virtual bool WallStopped() const = 0;
 		virtual bool HookedPlayer() const = 0;
@@ -131,6 +134,21 @@ namespace OpenKrx::NullClient
 		int m_Move = -1;
 		bool m_Chained = false;
 		bool m_StableEnd = false;
+	};
+
+	enum class ERescueEndpoint
+	{
+		NONE,
+		FREEZE,
+		DEATH,
+	};
+
+	struct CRescuePath
+	{
+		std::vector<vec2> m_vPoints;
+		bool m_Safe = false;
+		bool m_Selected = false;
+		ERescueEndpoint m_Endpoint = ERescueEndpoint::NONE;
 	};
 
 	class CPlanner
@@ -156,16 +174,17 @@ namespace OpenKrx::NullClient
 		bool CanFollow(IWorld &World, const CNetObj_PlayerInput &Base, int Start, int Ticks, bool FreezeFatal) const;
 		CNetObj_PlayerInput FollowInput(const CNetObj_PlayerInput &Base, int Step) const;
 		bool HasEscape(IWorld &World, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks);
-		CSelection Select(IWorld &World, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks);
+		CSelection Select(IWorld &World, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, std::vector<CRescuePath> *pvPaths = nullptr);
 	};
 
 	// Pure policy, separate from DDNet's mutable input and world ownership.
 	CNetObj_PlayerInput MoveInput(const CMove &Move, const CNetObj_PlayerInput &Base, int Step, bool HandBack);
 	float InputDifference(const CNetObj_PlayerInput &Input, const CNetObj_PlayerInput &Reference, float JumpCost, float ReleaseHookCost);
 	CProbeResult Probe(IWorld &World, const CNetObj_PlayerInput &Input, int Ticks, bool FreezeFatal);
+	bool HookVeto(IWorld &World, const CNetObj_PlayerInput &Released, int Window, bool FreezeFatal);
 	std::vector<CMove> MovementCandidates(CCollision *pCollision, vec2 Position, float HookLength, int HookState, bool CanJump, int HookAngles, bool AllowHook, std::vector<vec2> *pHookPoints = nullptr);
 	void AddWeaponCandidates(std::vector<CMove> &vMoves, const std::vector<vec2> &vHookPoints, vec2 Position, bool Grenade, std::optional<vec2> HammerTarget, bool CanJump, int ActiveWeapon, int Reload);
-	CEvaluation Evaluate(IWorld &World, const CMove &Move, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, float CostLimit = 0);
+	CEvaluation Evaluate(IWorld &World, const CMove &Move, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, float CostLimit = 0, CRescuePath *pPath = nullptr);
 }
 
 #endif

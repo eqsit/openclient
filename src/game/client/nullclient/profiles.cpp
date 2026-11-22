@@ -1,6 +1,8 @@
 #include "component.h"
+#include "settings.h"
 #include <base/str.h>
 #include <base/io.h>
+#include <base/time.h>
 #include <engine/client.h>
 #include <game/client/gameclient.h>
 #include <engine/console.h>
@@ -44,9 +46,15 @@ bool SingleOption(const char *pLine)
 }
 }
 
-std::vector<std::string> CNullClient::Profiles()
+const std::vector<std::string> &CNullClient::Profiles(bool Refresh)
 {
-	std::vector<std::string> Files;
+	const auto Now = time_get_impl();
+	if(!Refresh && !m_ProfilesDirty && Now < m_NextProfileScan)
+		return m_vProfiles;
+	m_NextProfileScan = Now + time_freq();
+	m_ProfilesDirty = false;
+	auto &Files = m_vProfiles;
+	Files.clear();
 	Storage()->ListDirectory(IStorage::TYPE_SAVE, "null_profiles", [](const char *pName, int IsDir, int, void *pUser) {
 		if(!IsDir && str_endswith(pName, ".cfg"))
 		{
@@ -69,12 +77,15 @@ bool CNullClient::SaveProfile(const char *pName)
 	const std::string Temporary = Path + ".tmp";
 	IOHANDLE File = Storage()->OpenFile(Temporary.c_str(), IOFLAG_WRITE, IStorage::TYPE_SAVE);
 	if(!File) return false;
+	SyncAvoidModeSettings();
 	const char *pHeader = "# Null settings profile, including OpenClient's Null extensions.\n# Loading applies only known Null options; every other line is ignored.\n";
 	bool Ok = io_write(File, pHeader, str_length(pHeader)) == static_cast<unsigned>(str_length(pHeader));
 	const auto Write = [&](const char *pKey, const char *pValue) {
-		char aLine[1024];
-		str_format(aLine, sizeof(aLine), "%s %s\n", pKey, pValue);
-		Ok &= io_write(File, aLine, str_length(aLine)) == static_cast<unsigned>(str_length(aLine));
+		std::string Line(pKey);
+		Line += ' ';
+		Line += pValue;
+		Line += '\n';
+		Ok &= io_write(File, Line.data(), Line.size()) == Line.size();
 	};
 #define MACRO_CONFIG_INT(Name, Script, Def, Min, Max, Flags, Desc) { char aValue[32]; str_format(aValue, sizeof(aValue), "%d", g_Config.m_##Name); Write(#Script, aValue); }
 #define MACRO_CONFIG_COL(Name, Script, Def, Flags, Desc) { char aValue[32]; str_format(aValue, sizeof(aValue), "%u", g_Config.m_##Name); Write(#Script, aValue); }
@@ -94,6 +105,7 @@ bool CNullClient::SaveProfile(const char *pName)
 		Ok = Storage()->RenameFile(Temporary.c_str(), Path.c_str(), IStorage::TYPE_SAVE);
 	if(!Ok)
 		Storage()->RemoveFile(Temporary.c_str(), IStorage::TYPE_SAVE);
+	m_ProfilesDirty |= Ok;
 	return Ok;
 }
 
@@ -106,6 +118,7 @@ bool CNullClient::LoadProfile(const char *pName)
 	if(!File) return false;
 	CLineReader Reader;
 	if(!Reader.OpenFile(File)) return false;
+	std::array<bool, 3> aPresetPresent{};
 	while(const char *pLine = Reader.Get())
 	{
 		pLine = str_skip_whitespaces_const(pLine);
@@ -121,8 +134,15 @@ bool CNullClient::LoadProfile(const char *pName)
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
 		if(Known && SingleOption(pLine))
+		{
+			aPresetPresent[0] |= Key == "null_avoid_boost_settings";
+			aPresetPresent[1] |= Key == "null_avoid_overdrive_settings";
+			aPresetPresent[2] |= Key == "null_avoid_god_settings";
 			Console()->ExecuteLine(pLine, IConsole::CLIENT_ID_UNSPECIFIED, false);
+		}
 	}
+	const int Mode = g_Config.m_NullAvoidMode;
+	SyncAvoidModeSettings(true, Mode >= 1 && Mode <= 3 && aPresetPresent[Mode - 1]);
 	OnReset();
 	return true;
 }
@@ -131,7 +151,9 @@ bool CNullClient::DeleteProfile(const char *pName)
 {
 	const std::string Name = ProfileName(pName);
 	if(Name.empty()) return false;
-	return Storage()->RemoveFile(("null_profiles/" + Name + ".cfg").c_str(), IStorage::TYPE_SAVE);
+	const bool Removed = Storage()->RemoveFile(("null_profiles/" + Name + ".cfg").c_str(), IStorage::TYPE_SAVE);
+	m_ProfilesDirty |= Removed;
+	return Removed;
 }
 
 void CNullClient::OpenProfileFolder()
@@ -160,14 +182,34 @@ void CNullClient::OnConsoleInit()
 		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/autopsy", pSelf->m_Reports.Dump(pSelf->GameClient(),g_Config.m_ClDummy,true,"manual") ? "report saved" : "nothing recorded yet - switch null_autopsy on first");
 	}, this, "Save the recorded fight now");
 	Console()->Register("null_autopsy_clear", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
-		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->m_Reports.Clear(pSelf->Storage(), true);
+		auto *pSelf = static_cast<CNullClient *>(pUser);
+		const bool Removed = pSelf->m_Reports.Clear(pSelf->Storage(), true);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/autopsy", Removed ? "reports deleted" : "no reports to delete");
 	}, this, "Delete the saved fight reports");
 	Console()->Register("null_trace_dump", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->m_Reports.Dump(pSelf->GameClient(),g_Config.m_ClDummy,false,"manual");
 	}, this, "Save the last 100 recorded Avoid ticks");
-	Console()->Register("null_trace_clear", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
-		auto *pSelf = static_cast<CNullClient *>(pUser); pSelf->m_Reports.Clear(pSelf->Storage(), false);
-	}, this, "Delete the saved Avoid traces and clear the recorded history");
+	const auto ClearTrace = [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser);
+		const bool Removed = pSelf->m_Reports.Clear(pSelf->Storage(), false);
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/god", Removed ? "black box deleted" : "no black box to delete");
+	};
+	for(const char *pCommand : {"null_delete_blackbox", "null_trace_clear"})
+		Console()->Register(pCommand, "", CFGFLAG_CLIENT, ClearTrace, this, "Delete the saved Avoid traces and clear the recorded history");
+	Console()->Register("null_rescue_capture", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		auto *pSelf = static_cast<CNullClient *>(pUser);
+		const bool Captured = pSelf->CaptureRescueScene();
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/rescue",
+			Captured ? "Rescue simulation saved for this session." : "Enable rescue visuals and capture after a rescue calculation.");
+	}, this, "Keep the latest rescue calculation for a demo scene");
+	const auto PlayRescue = [](IConsole::IResult *, void *pUser) {
+		static_cast<CNullClient *>(pUser)->StartRescueScene(true);
+	};
+	for(const char *pCommand : {"null_rescue_scene", "rescue_scene"})
+		Console()->Register(pCommand, "", CFGFLAG_CLIENT, PlayRescue, this, "Play the captured rescue scene in a matching demo");
+	Console()->Register("null_rescue_scene_stop", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
+		static_cast<CNullClient *>(pUser)->StopRescueScene();
+	}, this, "Stop the rescue scene and restore demo playback");
 	Console()->Register("null_profile_save", "s[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
 		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", pSelf->SaveProfile(pResult->GetString(0)) ? "profile saved" : "could not save profile");
@@ -183,7 +225,7 @@ void CNullClient::OnConsoleInit()
 	Console()->Register("null_profile_folder", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) { static_cast<CNullClient *>(pUser)->OpenProfileFolder(); }, this, "Open the folder that holds the Null settings profiles");
 	Console()->Register("null_profile_list", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
-		for(const auto &Name : pSelf->Profiles()) pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", Name.c_str());
+		for(const auto &Name : pSelf->Profiles(true)) pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", Name.c_str());
 	}, this, "List the saved Null settings profiles");
 }
 
@@ -231,6 +273,13 @@ bool CNullClient::OnInput(const IInput::CEvent &Event)
 		{g_Config.m_NullBindFakeAim, &g_Config.m_NullFakeAim},
 		{g_Config.m_NullBindFlymode, &g_Config.m_NullFlymode},
 		{g_Config.m_NullBindVersionSpoof, &g_Config.m_NullVersionSpoof},
+		{g_Config.m_NullBindCounterHammer, &g_Config.m_NullCounterHammer},
+		{g_Config.m_NullBindQuickStop, &g_Config.m_NullQuickStop},
+		{g_Config.m_NullBindAutoHammerToggle, &g_Config.m_NullAutoHammer},
+		{g_Config.m_NullBindAutoGrenadeToggle, &g_Config.m_NullAutoGrenade},
+		{g_Config.m_NullBindAvoidRocket, &g_Config.m_NullGodmodeAvoidRocket},
+		{g_Config.m_NullBindDummyLaserUnfreeze, &g_Config.m_NullDummyLaserUnfreeze},
+		{g_Config.m_NullBindHookCounter, &g_Config.m_NullGodmodeHookCounter},
 	};
 	bool Consumed = false;
 	for(const auto &Bind : aToggles)

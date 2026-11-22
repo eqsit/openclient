@@ -5,7 +5,14 @@ namespace OpenKrx::NullClient
 {
 	struct CSettings
 	{
+		enum
+		{
+			MODE_LEGIT = 0,
+			MODE_GOD = 3,
+		};
 		int m_Enabled = 0;
+		int m_Mode = MODE_GOD;
+		int m_LegitHook = 0;
 		int m_Dummy = 0;
 		int m_Horizon = 40;
 		int m_React = 15;
@@ -32,6 +39,7 @@ namespace OpenKrx::NullClient
 		int m_Debug = 0;
 		int m_LetGo = 1;
 		int m_CutHold = 5;
+		int m_CutTicks = 0;
 		int m_CutWindow = 0;
 		int m_Travel = 300;
 		int m_HandBack = 0;
@@ -40,6 +48,7 @@ namespace OpenKrx::NullClient
 		int m_Grace = 3;
 		int m_VetoFire = 14;
 		int m_VetoTicks = 3;
+		int m_VetoDoom = 1;
 		int m_ReactSpeed = 30;
 		int m_ReactSpeedFast = 30;
 		int m_ReactShock = 100;
@@ -54,6 +63,10 @@ namespace OpenKrx::NullClient
 		int m_RocketNear = 220;
 		int m_RocketLookahead = 25;
 		int m_RocketAnswer = 1;
+		int m_RocketContact = 0;
+		int m_RocketContactMode = 1;
+		int m_RocketContactLookahead = 14;
+		int m_RocketContactCost = 1200;
 		int m_HammerCost = 1200;
 		int m_HammerRing = 1;
 		int m_Knockback = 1;
@@ -65,6 +78,7 @@ namespace OpenKrx::NullClient
 		int m_HookCounter = 0;
 		int m_HookCounterGap = 48;
 		int m_HookCounterPull = 300;
+		int m_HookCounterArc = 50;
 		int m_Weapons = 1;
 		int m_WeaponRadius = 1600;
 		int m_ShotPath = 1;
@@ -85,6 +99,7 @@ namespace OpenKrx::NullClient
 		int m_Coast = 10;
 		int m_HazardSpeed = 0;
 	};
+	void SyncAvoidModeSettings(bool RestoreFromProfile = false, bool RestorePreset = true);
 	CSettings SettingsFromConfig();
 }
 
