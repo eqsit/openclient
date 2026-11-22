@@ -59,6 +59,7 @@ namespace OpenKrx::NullClient
 		float m_CounterY = 0;
 		bool m_CounterBelow = false;
 		bool m_FreezeFatal = false;
+		bool m_GroundedFreezeFatal = false;
 		int m_Chain = 0;
 		int m_Coast = 0;
 		float m_ReleaseHookCost = 0;
@@ -105,6 +106,7 @@ namespace OpenKrx::NullClient
 		virtual bool Frozen() const = 0;
 		virtual bool DeepFrozen() const = 0;
 		virtual bool Grounded() const = 0;
+		virtual bool GroundedOnFreeze() const { return false; }
 		virtual vec2 Position() const = 0;
 		virtual vec2 Velocity() const = 0;
 		virtual bool HammerDanger() const = 0;
@@ -179,6 +181,7 @@ namespace OpenKrx::NullClient
 	CNetObj_PlayerInput MoveInput(const CMove &Move, const CNetObj_PlayerInput &Base, int Step, bool HandBack);
 	float InputDifference(const CNetObj_PlayerInput &Input, const CNetObj_PlayerInput &Reference, float JumpCost, float ReleaseHookCost);
 	CProbeResult Probe(IWorld &World, const CNetObj_PlayerInput &Input, int Ticks, bool FreezeFatal);
+	bool HookVeto(IWorld &World, const CNetObj_PlayerInput &Released, int Window, bool FreezeFatal);
 	std::vector<CMove> MovementCandidates(CCollision *pCollision, vec2 Position, float HookLength, int HookState, bool CanJump, int HookAngles, bool AllowHook, std::vector<vec2> *pHookPoints = nullptr);
 	void AddWeaponCandidates(std::vector<CMove> &vMoves, const std::vector<vec2> &vHookPoints, vec2 Position, bool Grenade, std::optional<vec2> HammerTarget, bool CanJump, int ActiveWeapon, int Reload);
 	CEvaluation Evaluate(IWorld &World, const CMove &Move, const CNetObj_PlayerInput &Base, const CWeights &Weights, int Ticks, float CostLimit = 0, CRescuePath *pPath = nullptr);

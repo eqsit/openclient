@@ -277,15 +277,15 @@ namespace OpenKrx::NullClient
 					Score += dot(Push, Out) * g_Config.m_NullSerialHaul * (Hooked ? 1.6f : 1.f) * (TargetFrozen ? 1.5f : 1.f);
 					if(!Hooked && !TargetFrozen && Ring == 0)
 						Score += dot(Unit(-Out + vec2(0, -1.1f)), Push) * 100.f;
-					if(Push.y > .4f)
+					if(!Hooked && !TargetFrozen && Push.y > .4f)
 						Score += Out.y < -.5f ? 90.f : -60.f;
+					if(Out.y < -.4f)
+						Score += g_Config.m_NullSerialAbove;
 				}
-				if(Out.y < -.4f)
-					Score += g_Config.m_NullSerialAbove;
 				const float SafeRange = g_Config.m_NullSerialSafeRange;
 				if(SafeRange > 0)
 				{
-					float Nearest = SafeRange;
+					float Nearest = std::numeric_limits<float>::infinity();
 					vec2 Near = Candidate;
 					for(float Y = -SafeRange; Y <= SafeRange; Y += 32)
 						for(float X = -SafeRange; X <= SafeRange; X += 32)
@@ -451,7 +451,7 @@ namespace OpenKrx::NullClient
 			Settings.m_Horizon = 32;
 			Settings.m_Adversarial = 0;
 			CSimulation Simulation;
-			if(Simulation.Initialize(Source, State.m_Id, Settings, Idle))
+			if(Simulation.Initialize(Source, State.m_Id, Settings, Idle, CPruneRadii{640.f, 1200.f, 800.f}))
 			{
 				const vec2 Origin = Simulation.Position();
 				const float HookLength = pSelf->GetTuning(pSelf->GetPureTuneZone())->m_HookLength;

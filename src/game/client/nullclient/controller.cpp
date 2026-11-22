@@ -146,18 +146,7 @@ namespace OpenKrx::NullClient
 		m_Output.m_VetoJump = !Safe(Probe(World, ProbeInput, JumpWindow, FreezeFatal), JumpWindow);
 		if(!Input.m_Hook && Settings.m_VetoHook > 0)
 		{
-			ProbeInput = Input;
-			ProbeInput.m_Hook = 1;
-			World.Reset();
-			m_Output.m_VetoHook = !Safe(Probe(World, ProbeInput, Settings.m_VetoHook, FreezeFatal), Settings.m_VetoHook);
-			if(m_Output.m_VetoHook && Settings.m_VetoHook > 1)
-			{
-				World.Reset();
-				bool Saved = World.Tick(ProbeInput) && !World.Dead() && (!FreezeFatal || !World.Frozen());
-				if(Saved)
-					Saved = Safe(Probe(World, Input, Settings.m_VetoHook - 1, FreezeFatal), Settings.m_VetoHook - 1);
-				m_Output.m_VetoHook = !Saved;
-			}
+			m_Output.m_VetoHook = HookVeto(World, Input, Settings.m_VetoHook, FreezeFatal);
 		}
 		m_Output.m_VetoFire = false;
 		World.Reset();
@@ -441,6 +430,9 @@ namespace OpenKrx::NullClient
 	{
 		if(m_Output.m_HasPlan && Input.m_Direction == m_LegitRaw.m_Direction && Input.m_Jump == m_LegitRaw.m_Jump && Input.m_Hook == m_LegitRaw.m_Hook)
 		{
+			const bool PullingAgainstMovement = (Input.m_Direction < 0 && Input.m_TargetX > 0) || (Input.m_Direction > 0 && Input.m_TargetX < 0);
+			if(Input.m_Hook && PullingAgainstMovement && m_Output.m_Plan.m_Direction != Input.m_Direction)
+				return Input;
 			Input.m_Direction = m_Output.m_Plan.m_Direction;
 			Input.m_Hook = m_Output.m_Plan.m_Hook;
 		}
@@ -613,6 +605,8 @@ namespace OpenKrx::NullClient
 			Weights.m_pPrevious = &m_Previous;
 			Weights.m_Continuity = Settings.m_Continuity;
 		}
+		Weights.m_FreezeFatal = Frame.m_Dummy;
+		Weights.m_GroundedFreezeFatal = FreezeCost;
 		Weights.m_FreezeCost = Frame.m_Dummy ? std::max(100, Settings.m_FreezeCost) : Settings.m_FreezeCost;
 		Weights.m_HammerCost = Settings.m_HammerDodge ? Settings.m_HammerCost : 0;
 		Weights.m_RocketCost = World.RocketThreatCount() > 0 ? Settings.m_RocketCost : 0;

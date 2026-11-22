@@ -101,6 +101,29 @@ namespace OpenKrx::NullClient
 		return Result;
 	}
 
+	bool HookVeto(IWorld &World, const CNetObj_PlayerInput &Released, int Window, bool FreezeFatal)
+	{
+		auto Held = Released;
+		Held.m_Hook = 1;
+		World.Reset();
+		const int Life = Probe(World, Held, Window, FreezeFatal).m_Life;
+		if(Life == Window || Window <= 1)
+			return Life != Window;
+		const int Longest = std::clamp(Life, 1, Window - 1);
+		const std::array<int, 3> Durations{Longest, Longest - 1, 1};
+		for(auto it = Durations.begin(); it != Durations.end(); ++it)
+		{
+			const int Hold = *it;
+			if(Hold <= 0 || std::find(Durations.begin(), it, Hold) != it)
+				continue;
+			World.Reset();
+			if(Probe(World, Held, Hold, FreezeFatal).m_Life == Hold &&
+				Probe(World, Released, Window - Hold, FreezeFatal).m_Life == Window - Hold)
+				return false;
+		}
+		return true;
+	}
+
 	std::vector<CMove> MovementCandidates(CCollision *pCollision, vec2 Position, float HookLength, int HookState, bool CanJump, int HookAngles, bool AllowHook, std::vector<vec2> *pHookPoints)
 	{
 		std::vector<CMove> vMoves;
@@ -249,6 +272,7 @@ namespace OpenKrx::NullClient
 		if(First.m_Hook != 0)
 			Cost += static_cast<float>(Weights.m_HookAge) * Weights.m_HookAgeCost;
 		int FrozenTicks = 0, HammerTicks = 0, RocketTicks = 0, RocketContactTicks = 0, ClearanceTicks = 0, WallTicks = 0;
+		int FreezeStart = -1;
 		bool DeepFrozen = false;
 		for(int Step = 0; Step < Ticks; ++Step)
 		{
@@ -271,15 +295,19 @@ namespace OpenKrx::NullClient
 			if(Frozen)
 			{
 				Result.m_SafeEnd = false;
-				if(Weights.m_FreezeFatal)
+				if(FreezeStart < 0)
+					FreezeStart = Step;
+				if(Weights.m_FreezeFatal || (Weights.m_GroundedFreezeFatal && World.GroundedOnFreeze()))
 				{
-					Result.m_FailureTick = Step;
+					Result.m_FailureTick = Weights.m_FreezeFatal ? Step : FreezeStart;
 					Result.m_Cost = Cost;
 					return Result;
 				}
 				++FrozenTicks;
 				DeepFrozen |= World.DeepFrozen();
 			}
+			else
+				FreezeStart = -1;
 			HammerTicks += Weights.m_HammerCost > 0 && World.HammerDanger();
 			RocketTicks += Weights.m_RocketCost > 0 && World.RocketDanger(Weights.m_RocketThrow, Weights.m_RocketSpread);
 			RocketContactTicks += Weights.m_RocketContactCost > 0 && World.RocketContactDanger();
@@ -318,7 +346,8 @@ namespace OpenKrx::NullClient
 		}
 		if(Weights.m_Travel > 0)
 			Cost = std::max(0.0f, distance(Position, Weights.m_Start) - 32.0f) * Weights.m_Travel + Cost;
-		if(Weights.m_Coast > 0 && Result.m_SafeEnd && (!EndGrounded || length(Velocity) >= 8.0f))
+		const bool FrozenCoast = Weights.m_GroundedFreezeFatal && FreezeStart >= 0;
+		if(Weights.m_Coast > 0 && (FrozenCoast || (Result.m_SafeEnd && (!EndGrounded || length(Velocity) >= 8.0f))))
 		{
 			auto Input = MoveInput(Move, Base, Ticks, Weights.m_HandBack);
 			Input.m_Direction = Input.m_Jump = Input.m_Hook = 0;
@@ -332,7 +361,18 @@ namespace OpenKrx::NullClient
 						pPath->m_vPoints.push_back(World.Position());
 					pPath->m_Endpoint = Dead ? ERescueEndpoint::DEATH : Frozen ? ERescueEndpoint::FREEZE : ERescueEndpoint::NONE;
 				}
-				if(Dead || Frozen)
+				if(FrozenCoast)
+				{
+					if(Dead || (Frozen && World.GroundedOnFreeze()))
+					{
+						Result.m_FailureTick = FreezeStart;
+						Result.m_Cost = Cost;
+						return Result;
+					}
+					if(!Frozen)
+						break;
+				}
+				else if(Dead || Frozen)
 				{
 					Result.m_SafeEnd = false;
 					break;

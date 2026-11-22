@@ -31,6 +31,13 @@ namespace OpenKrx::NullClient
 	// predicted input, through the actual direct-input handler in an isolated copy.
 	int WeaponOnDirectInput(const CGameWorld &Source, int ClientId, const CNetObj_PlayerInput &Input);
 
+	struct CPruneRadii
+	{
+		float m_General;
+		float m_Weapons;
+		float m_Players;
+	};
+
 	class CSimulation final : public IWorld
 	{
 		// These owners precede the worlds so their map/tuning remain alive
@@ -49,12 +56,13 @@ namespace OpenKrx::NullClient
 		std::vector<std::pair<int, bool>> m_vRocketThreats;
 		std::vector<std::unique_ptr<CSimulation>> m_vWorkerContexts;
 		float m_RocketNear = 0;
-		void Prune(const CSettings &Settings, bool Legit);
+		void Prune(CPruneRadii Radii);
 		void PrepareThreats(const CSettings &Settings);
 		std::unique_ptr<CSimulation> CloneForWorker() const;
 
 	public:
 		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, bool Legit = false);
+		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, CPruneRadii Radii);
 		std::unique_ptr<IWorld> Clone() const override;
 		void ForEachCandidate(int Count, const std::function<void(IWorld &, int)> &Evaluate) override;
 		void Reset() override;
@@ -64,6 +72,7 @@ namespace OpenKrx::NullClient
 		bool Frozen() const override;
 		bool DeepFrozen() const override;
 		bool Grounded() const override;
+		bool GroundedOnFreeze() const override;
 		vec2 Position() const override;
 		vec2 Velocity() const override;
 		bool HammerDanger() const override;

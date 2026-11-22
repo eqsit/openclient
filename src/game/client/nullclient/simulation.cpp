@@ -126,6 +126,14 @@ namespace OpenKrx::NullClient
 
 	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, bool Legit)
 	{
+		const float Radius = Legit ? 320.0f : std::min(static_cast<float>(Settings.m_SimRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 160.0f);
+		const float WeaponRadius = Legit ? 320.0f : Settings.m_Weapons ? std::min(static_cast<float>(Settings.m_WeaponRadius), static_cast<float>(Settings.m_Horizon) * 24.0f + 200.0f) : 0;
+		const float PlayerRadius = Legit ? 640.0f : std::min(static_cast<float>(Settings.m_PlayerRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 580.0f);
+		return Initialize(Source, ClientId, Settings, aIdle, CPruneRadii{Radius, WeaponRadius, PlayerRadius});
+	}
+
+	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, CPruneRadii Radii)
+	{
 		m_vWorkerContexts.clear();
 		m_pTotalSteps = std::make_shared<uint64_t>(0);
 		m_ClientId = ClientId;
@@ -150,7 +158,7 @@ namespace OpenKrx::NullClient
 			for(int Weapon = 0; Weapon < NUM_WEAPONS; ++Weapon)
 				if(pLocal->GetWeaponGot(Weapon) && pLocal->GetWeaponAmmo(Weapon) == 0)
 					pLocal->SetWeaponAmmo(Weapon, -1);
-		Prune(Settings, Legit);
+		Prune(Radii);
 		m_Adversarial = 0;
 		for(int Id = 0; Id < MAX_CLIENTS; ++Id)
 			if(Id != ClientId && m_Root.GetCharacterById(Id))
@@ -163,15 +171,12 @@ namespace OpenKrx::NullClient
 		return Valid();
 	}
 
-	void CSimulation::Prune(const CSettings &Settings, bool Legit)
+	void CSimulation::Prune(CPruneRadii Radii)
 	{
 		auto *pLocal = m_Root.GetCharacterById(m_ClientId);
 		if(!pLocal)
 			return;
 		const vec2 Origin = pLocal->GetPos();
-		const float Radius = Legit ? 320.0f : std::min(static_cast<float>(Settings.m_SimRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 160.0f);
-		const float WeaponRadius = Legit ? 320.0f : Settings.m_Weapons ? std::min(static_cast<float>(Settings.m_WeaponRadius), static_cast<float>(Settings.m_Horizon) * 24.0f + 200.0f) : 0;
-		const float PlayerRadius = Legit ? 640.0f : std::min(static_cast<float>(Settings.m_PlayerRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 580.0f);
 		for(int Type = 0; Type < CGameWorld::NUM_ENTTYPES; ++Type)
 			for(auto *pEntity = m_Root.FindFirst(Type); pEntity;)
 			{
@@ -186,7 +191,7 @@ namespace OpenKrx::NullClient
 						auto *pProjectile = static_cast<CProjectile *>(pEntity);
 						const auto Data = pProjectile->GetData();
 						const int Age = std::max(0, m_Root.GameTick() - Data.m_StartTick);
-						const float Range = std::max(Radius, WeaponRadius);
+						const float Range = std::max(Radii.m_General, Radii.m_Weapons);
 						Remove = (Data.m_Type == WEAPON_GUN && !Data.m_Explosive && !Data.m_Freeze) ||
 							distance(pProjectile->GetPos(static_cast<float>(Age) / m_Root.GameTickSpeed()), Origin) > Range;
 					}
@@ -194,8 +199,8 @@ namespace OpenKrx::NullClient
 						Remove = false;
 					else
 					{
-						const float Range = Type < 2 ? std::max(Radius, WeaponRadius) : Type == CGameWorld::ENTTYPE_CHARACTER ? std::max(Radius, PlayerRadius) :
-																			Radius;
+						const float Range = Type < 2 ? std::max(Radii.m_General, Radii.m_Weapons) : Type == CGameWorld::ENTTYPE_CHARACTER ? std::max(Radii.m_General, Radii.m_Players) :
+																			Radii.m_General;
 						const float Distance = distance(pEntity->GetPos(), Origin);
 						Remove = Distance > Range;
 						if(Type == CGameWorld::ENTTYPE_CHARACTER && Distance > 320.0f)
@@ -367,6 +372,14 @@ namespace OpenKrx::NullClient
 	{
 		auto *p = Character();
 		return p && p->IsGrounded();
+	}
+	bool CSimulation::GroundedOnFreeze() const
+	{
+		if(!Grounded())
+			return false;
+		const auto *pCollision = m_World.Collision();
+		const int Index = pCollision->GetPureMapIndex(Position());
+		return pCollision->GetTileIndex(Index) == TILE_FREEZE || pCollision->GetFrontTileIndex(Index) == TILE_FREEZE;
 	}
 	vec2 CSimulation::Position() const
 	{
