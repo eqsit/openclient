@@ -55,7 +55,6 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		int m_Column = 0;
 		bool m_Profiles = false;
 		bool m_Tas = false;
-		bool m_Available = true;
 	};
 #define S(Name, Label, Min, Max, Suffix) {&g_Config.m_NullGodmode##Name, Label, Min, Max, Suffix}
 #define B(Name, Label) S(Name, Label, 0, 1, "")
@@ -96,21 +95,10 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullAutoGrenadeSafe, "Block unsafe shots", 0, 1},
 			{&g_Config.m_NullBindAutoGrenade, "Hold key", 0, 2048, "", 0, {}, true}}, 1, 0},
 		{"Counter hammer", "Answer a nearby hammer attack with your hammer.", &g_Config.m_NullCounterHammer, false, false, {}, 1, 1},
-		{"Hook flicker", "Briefly release a hook that can reconnect.", &g_Config.m_NullHookFlicker, false, false, {
-			{&g_Config.m_NullHookFlickerDelay, "", 0, 2, "", 4, {"Slow", "Medium", "Fast"}}}, 1, 1, false, false, false},
-		{"Juke", "Vary air movement around an incoming hook.", &g_Config.m_NullJuke, false, false, {
-			{&g_Config.m_NullJukeMode, "", 0, 2, "", 4, {"After release", "While hooked", "Both"}},
-			{&g_Config.m_NullJukeTicks, "Time after release", 2, 100, " ticks"}}, 1, 1, false, false, false},
 		{"Quick stop", "Let go of the movement keys and stop dead instead of sliding.", &g_Config.m_NullQuickStop, false, false, {
 			{&g_Config.m_NullQuickStopGround, "Only on the ground, never in the air", 0, 1}}, 1, 1},
-		{"Hook cling", "Stay on a selected side of a hooked player.", &g_Config.m_NullHookCling, false, false, {
-			{&g_Config.m_NullHookClingUp, "Above", 0, 1}, {&g_Config.m_NullHookClingDown, "Below", 0, 1},
-			{&g_Config.m_NullHookClingLeft, "Left", 0, 1}, {&g_Config.m_NullHookClingRight, "Right", 0, 1}}, 1, 0, false, false, false},
 		{"Position hold", "Stops someone from moving you against your will.", &g_Config.m_NullGodmodeKnockback, false, false, {{&g_Config.m_NullGodmodeKnockbackMode, "", 0, 1, "", 2}, S(KnockbackGrip, "How strongly it pulls you back", 0, 2000, "%"), S(KnockbackHold, "Keep trying to return for", 1, 300, " ticks"), S(KnockbackClearance, "Keep the return path clear of freeze by", 0, 300, "")}, 1, 1},
 		{"Hook counter", "When hooked, moves you above or below the puller so they can't fling you.", &g_Config.m_NullGodmodeHookCounter, false, false, {S(HookCounterGap, "Aim past them by", 16, 400, ""), S(HookCounterPull, "How strongly it aims for that spot", 0, 300, "%")}, 1, 1},
-		{"Anchor hook", "Brace against a wall while another player pulls your tee.", &g_Config.m_NullAnchorHook, false, false, {
-			{&g_Config.m_NullAnchorHookTicks, "Hold the anchor for", 2, 50, " ticks"},
-			{&g_Config.m_NullAnchorHookRehook, "Repeat while being pulled", 0, 1}}, 1, 1, false, false, false},
 		{"Serial killer", "Takes control to hunt. Never die keeps you alive while it works.", &g_Config.m_NullSerialKiller, false, false, {
 			{&g_Config.m_NullSerialPick, "", 0, 3, "", 4, {"At crosshair", "Nearest", "War list", "Attack list"}},
 			{&g_Config.m_NullSerialAdvance, "Move on to the next target", 0, 1},
@@ -410,8 +398,6 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			return g_Config.m_NullAvoidAdvanced && g_Config.m_NullAvoidMode != 0;
 		if(Setting.m_pValue == &g_Config.m_NullAvoidAdvanced)
 			return g_Config.m_NullAvoidMode != 0;
-		if(Setting.m_pValue == &g_Config.m_NullJukeMode)
-			return g_Config.m_NullGodmodeHookCounter == 0;
 		return true;
 	};
 	for(size_t i = 0; i < std::size(aCards); ++i)
@@ -458,21 +444,21 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		DescriptionCursor.m_FontSize = 11;
 		DescriptionCursor.m_LineWidth = Description.w;
 		DescriptionCursor.m_MaxLines = 2;
-		TextRender()->TextEx(&DescriptionCursor, Localize(Card.m_Available ? Card.m_pDescription : "Unavailable in NullClient 4.1 Free."), -1);
+		TextRender()->TextEx(&DescriptionCursor, Localize(Card.m_pDescription), -1);
 		TextRender()->TextColor(TextColor);
 		if(Card.m_pEnabled)
 		{
 			CUIRect Switch;
 			Toggle.VSplitLeft(34, &Switch, &Toggle);
 			Switch.HMargin(15, &Switch);
-			const float On = Card.m_Available && *Card.m_pEnabled ? 1.0f : 0.0f;
+			const float On = *Card.m_pEnabled ? 1.0f : 0.0f;
 			const ColorRGBA Near = color_cast<ColorRGBA>(ColorHSLA(0x7fff96));
 			const ColorRGBA Far = color_cast<ColorRGBA>(ColorHSLA(0xcdffa0));
 			const ColorRGBA Accent(mix(Near.r, Far.r, .45f), mix(Near.g, Far.g, .45f), mix(Near.b, Far.b, .45f));
 			Switch.Draw(ColorRGBA(mix(1.0f, Accent.r, On), mix(1.0f, Accent.g, On), mix(1.0f, Accent.b, On), .13f + .72f * On), IGraphics::CORNER_ALL, Switch.h / 2);
 			CUIRect Knob{Switch.x + 2 + (Switch.w - Switch.h) * On, Switch.y + 2, Switch.h - 4, Switch.h - 4};
 			Knob.Draw(ColorRGBA(1, 1, 1, .45f + .55f * On), IGraphics::CORNER_ALL, Knob.h / 2);
-			if(Card.m_Available && Ui()->DoButtonLogic(Card.m_pEnabled, *Card.m_pEnabled, &Switch, BUTTONFLAG_LEFT))
+			if(Ui()->DoButtonLogic(Card.m_pEnabled, *Card.m_pEnabled, &Switch, BUTTONFLAG_LEFT))
 				*Card.m_pEnabled ^= 1;
 		}
 		CUIRect Reset;
@@ -519,7 +505,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			continue;
 		Body.HSplitTop(10, nullptr, &Body);
 		const bool WasEnabled = Ui()->Enabled();
-		Ui()->SetEnabled(WasEnabled && Card.m_Available && (!Card.m_pEnabled || *Card.m_pEnabled));
+		Ui()->SetEnabled(WasEnabled && (!Card.m_pEnabled || *Card.m_pEnabled));
 		if(Card.m_Profiles)
 		{
 			static char s_aProfileName[64] = "";
