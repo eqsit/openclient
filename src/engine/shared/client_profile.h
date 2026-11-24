@@ -12,6 +12,12 @@ inline const char *ClientName() { return g_NullStandalone ? "NullClient" : "Open
 // It selects the whole feature pipeline, including input, visuals and networking.
 inline bool KrxProfileActive() { return g_Config.m_OpenKrxAvoidProvider == 0; }
 inline bool NullProfileActive() { return g_Config.m_OpenKrxAvoidProvider == 1; }
+
+inline const char *SettingsFilename() { return g_NullStandalone ? CONFIG_FILE : OPENCLIENT_CONFIG_FILE; }
+inline int &ProfilePredictionMargin()
+{
+	return !g_NullStandalone && NullProfileActive() ? g_Config.m_NullPredictionMargin : g_Config.m_ClPredictionMargin;
+}
 }
 
 #endif

@@ -60,6 +60,7 @@ namespace OpenKrx
 		void OnShutdown() override { Stop(); }
 		void OnRender() override;
 		void UpdateScanCamera();
+		void EndScanCamera();
 		void Update();
 		void Stop();
 		bool Running() const { return m_Running.load(); }
@@ -81,7 +82,10 @@ namespace OpenKrx
 		int m_Id = -1;
 		bool m_PausedForScan = false;
 		vec2 m_ScanPosition = vec2(0, 0);
+		int m_ScanAimSlot = -1;
+		vec2 m_OriginalScanAim;
 		bool m_Failed = false;
+		void RestoreScanAim();
 		void Search(CSettings Settings, CFlowField Field);
 	};
 }

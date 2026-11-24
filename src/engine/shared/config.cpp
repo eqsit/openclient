@@ -257,7 +257,8 @@ void SStringConfigVariable::ResetToOld()
 }
 
 // ----------------------- Config Manager
-CConfigManager::CConfigManager()
+CConfigManager::CConfigManager(const char *pFilename) :
+	m_pFilename(pFilename ? pFilename : CONFIG_FILE)
 {
 	m_pConsole = nullptr;
 	m_pStorage = nullptr;
@@ -383,7 +384,7 @@ bool CConfigManager::Save()
 		return true;
 
 	char aConfigFileTmp[IO_MAX_PATH_LENGTH];
-	m_ConfigFile = m_pStorage->OpenFile(IStorage::FormatTmpPath(aConfigFileTmp, sizeof(aConfigFileTmp), CONFIG_FILE), IOFLAG_WRITE, IStorage::TYPE_SAVE);
+	m_ConfigFile = m_pStorage->OpenFile(IStorage::FormatTmpPath(aConfigFileTmp, sizeof(aConfigFileTmp), m_pFilename), IOFLAG_WRITE, IStorage::TYPE_SAVE);
 
 	if(!m_ConfigFile)
 	{
@@ -437,13 +438,13 @@ bool CConfigManager::Save()
 		return false;
 	}
 
-	if(!m_pStorage->RenameFile(aConfigFileTmp, CONFIG_FILE, IStorage::TYPE_SAVE))
+	if(!m_pStorage->RenameFile(aConfigFileTmp, m_pFilename, IStorage::TYPE_SAVE))
 	{
-		log_error("config", "ERROR: renaming %s to " CONFIG_FILE " failed", aConfigFileTmp);
+		log_error("config", "ERROR: renaming %s to %s failed", aConfigFileTmp, m_pFilename);
 		return false;
 	}
 
-	log_info("config", "saved to " CONFIG_FILE);
+	log_info("config", "saved to %s", m_pFilename);
 	return true;
 }
 
@@ -548,4 +549,4 @@ void CConfigManager::Con_ToggleStroke(IConsole::IResult *pResult, void *pUserDat
 	log_error("config", "Invalid command: '%s'.", pScriptName);
 }
 
-IConfigManager *CreateConfigManager() { return new CConfigManager; }
+IConfigManager *CreateConfigManager(const char *pFilename) { return new CConfigManager(pFilename); }

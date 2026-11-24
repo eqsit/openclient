@@ -299,7 +299,6 @@ void CControls::OnMessage(int Msg, void *pRawMsg)
 
 int CControls::SnapInput(int *pData)
 {
-	GameClient()->SyncFeatureProfile();
 	OpenKrx::NullClient::CScopedInputRestore NullInputRestore;
 	// 23e670 -> 2f7650: playback bypasses the live input/bot pipeline and
 	// always supplies a full input, including unchanged frames.

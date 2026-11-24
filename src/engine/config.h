@@ -29,6 +29,6 @@ public:
 	virtual void PossibleConfigVariables(const char *pStr, int FlagMask, POSSIBLECFGFUNC pfnCallback, void *pUserData) = 0;
 };
 
-extern IConfigManager *CreateConfigManager();
+extern IConfigManager *CreateConfigManager(const char *pFilename = nullptr);
 
 #endif

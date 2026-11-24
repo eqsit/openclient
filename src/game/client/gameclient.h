@@ -644,6 +644,7 @@ public:
 	void OnConnected() override;
 	void OnRender() override;
 	void OnUpdate() override;
+	void SetFeatureProfile(int Profile);
 	void SyncFeatureProfile();
 	bool FeatureComponentActive(const CComponent *pComponent) const;
 	int m_LastFeatureProfile = -1;
@@ -724,6 +725,7 @@ public:
 	int m_aLocalIds[NUM_DUMMIES];
 	CNetObj_PlayerInput m_DummyInput;
 	CNetObj_PlayerInput m_LastDummyPacket{};
+	bool m_DummyProfileReleasePending = false;
 	CNetObj_PlayerInput m_HammerInput;
 	unsigned int m_DummyFire;
 	bool m_ReceivedDDNetPlayer;

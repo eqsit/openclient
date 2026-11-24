@@ -12,9 +12,8 @@
 #include <dlfcn.h>
 #endif
 
-// Original 1192b0 selects these once after config/autoexec, before CLI args.
-// 11aa70 creates the core even when RPC display is disabled; 11a9a0/11ac50
-// gate activity updates using that startup snapshot. Callbacks are unconditional.
+// The application ID remains fixed for the process. Profile changes can
+// disable or re-enable activity on the same core.
 class CDiscord : public IDiscord
 {
 	IDiscordCore *m_pCore = nullptr;
@@ -22,6 +21,8 @@ class CDiscord : public IDiscord
 	IDiscordActivityManager *m_pActivityManager = nullptr;
 	bool m_Enabled = false;
 	bool m_Initialized = false;
+	bool m_Online = false;
+	std::string m_Map;
 
 public:
 	~CDiscord() override
@@ -63,6 +64,16 @@ public:
 		m_pActivityManager = m_pCore->get_activity_manager(m_pCore);
 		ClearGameInfo();
 	}
+	void SetEnabled(bool Enabled) override
+	{
+		if(m_Enabled == Enabled)
+			return;
+		m_Enabled = Enabled;
+		if(Enabled)
+			Activity(m_Online ? "Online" : "Offline", m_Map.c_str());
+		else if(m_pActivityManager)
+			m_pActivityManager->clear_activity(m_pActivityManager, nullptr, nullptr);
+	}
 	void Update() override
 	{
 		if(m_pCore)
@@ -80,8 +91,18 @@ public:
 		str_copy(Activity.state, pMap);
 		m_pActivityManager->update_activity(m_pActivityManager, &Activity, nullptr, nullptr);
 	}
-	void ClearGameInfo() override { Activity("Offline", ""); }
-	void SetGameInfo(const CServerInfo &ServerInfo, bool Registered) override { Activity("Online", ServerInfo.m_aMap); }
+	void ClearGameInfo() override
+	{
+		m_Online = false;
+		m_Map.clear();
+		Activity("Offline", "");
+	}
+	void SetGameInfo(const CServerInfo &ServerInfo, bool Registered) override
+	{
+		m_Online = true;
+		m_Map = ServerInfo.m_aMap;
+		Activity("Online", m_Map.c_str());
+	}
 	void UpdateServerInfo(const CServerInfo &) override {}
 	void UpdatePlayerCount(int) override {}
 };

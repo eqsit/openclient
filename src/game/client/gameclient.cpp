@@ -123,13 +123,17 @@ void CGameClient::OnConsoleInit()
 	m_pConsole->Register("openkrx_avoid_provider", "?i[profile]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CGameClient *>(pUser);
 		if(pResult->NumArguments() && !OpenKrx::g_NullStandalone)
-		{
-			g_Config.m_OpenKrxAvoidProvider = std::clamp(pResult->GetInteger(0), 0, 1);
-			pSelf->SyncFeatureProfile();
-		}
+			pSelf->SetFeatureProfile(pResult->GetInteger(0));
 		else
 			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "profile", OpenKrx::NullProfileActive() ? "NullClient" : "KRX");
 	}, this, "Legacy alias for openkrx_profile (0 KRX, 1 NullClient)");
+	m_pConsole->Chain("openkrx_profile", [](IConsole::IResult *pResult, void *pUser, IConsole::FCommandCallback pfnCallback, void *pCallbackUser) {
+		auto *pSelf = static_cast<CGameClient *>(pUser);
+		if(pResult->NumArguments() && !OpenKrx::g_NullStandalone)
+			pSelf->SetFeatureProfile(pResult->GetInteger(0));
+		else
+			pfnCallback(pResult, pCallbackUser);
+	}, this);
 	m_pConsole->Register("openkrx_avoid_dump", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) { static_cast<CGameClient *>(pUser)->m_Avoid.m_Trace.Dump(); }, this, "Save recent Avoid decisions to dumps/openkrx-avoid (requires openkrx_avoid_debug 1)");
 	m_pDemoPlayer = Kernel()->RequestInterface<IDemoPlayer>();
 	m_pServerBrowser = Kernel()->RequestInterface<IServerBrowser>();
@@ -492,6 +496,31 @@ bool CGameClient::FeatureComponentActive(const CComponent *pComponent) const
 	return true;
 }
 
+static CNetObj_PlayerInput ReleasedProfileInput(const CNetObj_PlayerInput &Previous)
+{
+	CNetObj_PlayerInput Input{};
+	const unsigned Fire = Previous.m_Fire;
+	Input.m_Fire = Fire + (Fire & 1U);
+	Input.m_NextWeapon = Previous.m_NextWeapon;
+	Input.m_PrevWeapon = Previous.m_PrevWeapon;
+	Input.m_PlayerFlags = Previous.m_PlayerFlags;
+	Input.m_TargetX = 1;
+	return Input;
+}
+
+void CGameClient::SetFeatureProfile(int Profile)
+{
+	Profile = std::clamp(Profile, 0, 1);
+	if(OpenKrx::g_NullStandalone || g_Config.m_OpenKrxAvoidProvider == Profile)
+		return;
+	// The running KRX search reads profile-dependent prediction settings.
+	if(m_LastFeatureProfile >= 0)
+		m_Fent.Stop();
+	g_Config.m_OpenKrxAvoidProvider = Profile;
+	if(m_LastFeatureProfile >= 0)
+		SyncFeatureProfile();
+}
+
 void CGameClient::SyncFeatureProfile()
 {
 	const int Profile = g_Config.m_OpenKrxAvoidProvider;
@@ -515,11 +544,37 @@ void CGameClient::SyncFeatureProfile()
 		m_KrxMiscPreTas.OnReset();
 		m_NullClient.OnReset();
 		m_Tas.LeaveNullTasProfile();
-		m_pDiscord->Initialize(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
+		m_pDiscord->SetEnabled(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc);
 		for(auto &Input : m_Controls.m_aKrxInput)
 			Input = {};
-		m_Fent.Stop();
+		m_Fent.EndScanCamera();
+		m_Fent.OnReset();
 		g_Config.m_KrxRecordReplay = g_Config.m_KrxLoadReplay = 0;
+
+		// Keep the protocol counters from the last transmitted packets. Reset
+		// held actions and weapon requests, and release the dummy even when
+		// it would normally skip sending an idle packet.
+		const int ActiveSlot = g_Config.m_ClDummy;
+		for(int Slot = 0; Slot < NUM_DUMMIES; ++Slot)
+		{
+			const bool Dummy = Slot != ActiveSlot;
+			CNetObj_PlayerInput Previous = Dummy ? m_LastDummyPacket : m_Controls.m_aLastData[Slot];
+			if(Client()->State() == IClient::STATE_ONLINE)
+			{
+				if(const int *pLastSent = Client()->GetInput(Client()->PredGameTick(ActiveSlot), Dummy))
+					mem_copy(&Previous, pLastSent, sizeof(Previous));
+			}
+			m_Controls.ResetInput(Slot);
+			m_Controls.m_aInputData[Slot] = m_Controls.m_aLastData[Slot] = ReleasedProfileInput(Previous);
+			m_Controls.m_aMouseOnAction[Slot] = false;
+			m_Controls.m_aMousePosOnAction[Slot] = vec2(0.0f, 0.0f);
+			if(Dummy)
+				m_LastDummyPacket = Previous;
+		}
+		m_Controls.m_LastSendTime = 0;
+		m_DummyInput = m_HammerInput = m_Controls.m_aInputData[!ActiveSlot];
+		m_DummyFire = 0;
+		m_DummyProfileReleasePending = m_aLocalIds[!ActiveSlot] >= 0;
 	}
 	m_LastFeatureProfile = Profile;
 }
@@ -608,6 +663,7 @@ void CGameClient::OnDummySwap()
 
 int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 {
+	SyncFeatureProfile();
 	if(!Dummy)
 	{
 		return m_Controls.SnapInput(pData);
@@ -620,6 +676,13 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 	const int Slot = !g_Config.m_ClDummy;
 	const int DummyId = m_aLocalIds[Slot];
 	const bool ValidDummy = DummyId >= 0 && DummyId < MAX_CLIENTS;
+	if(m_DummyProfileReleasePending && ValidDummy)
+	{
+		m_DummyProfileReleasePending = false;
+		m_LastDummyPacket = ReleasedProfileInput(m_LastDummyPacket);
+		mem_copy(pData, &m_LastDummyPacket, sizeof(m_LastDummyPacket));
+		return sizeof(m_LastDummyPacket);
+	}
 	const bool NullSelected = m_NullClient.Selected();
 	const bool AvoidHammer = NullSelected && ValidDummy && g_Config.m_ClDummyHammer && g_Config.m_NullGodmodeDummy;
 	const bool LaserReady = m_NullClient.DummyLaserReady(Slot);
@@ -818,6 +881,7 @@ void CGameClient::OnReset()
 	std::fill(std::begin(m_aLocalIds), std::end(m_aLocalIds), -1);
 	m_DummyInput = {};
 	m_LastDummyPacket = {};
+	m_DummyProfileReleasePending = false;
 	m_HammerInput = {};
 	m_DummyFire = 0;
 	m_ReceivedDDNetPlayer = false;
@@ -1054,6 +1118,7 @@ void CGameClient::OnRender()
 void CGameClient::OnDummyDisconnect()
 {
 	m_LastDummyPacket = {};
+	m_DummyProfileReleasePending = false;
 	m_aLocalIds[1] = -1;
 	m_aDDRaceMsgSent[1] = false;
 	m_aShowOthers[1] = SHOW_OTHERS_NOT_SET;

@@ -4,6 +4,7 @@
 #include <engine/client.h>
 #include <engine/console.h>
 #include <engine/graphics.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/config.h>
 
 #include <game/client/gameclient.h>
@@ -339,7 +340,9 @@ namespace OpenKrx
 		std::lock_guard Lock(m_Mutex);
 		m_vInputs.clear();
 		m_vPath.clear();
+		RestoreScanAim();
 		m_PausedForScan = false;
+		m_ScanPosition = vec2(0.0f, 0.0f);
 	}
 
 	void CFent::Search(CSettings Settings, CFlowField Field)
@@ -596,14 +599,32 @@ namespace OpenKrx
 		m_Worker = CWorkerTask::Submit(GameClient()->KrxEngine(), [this, Settings, Field] { Search(Settings, Field); });
 	}
 
+	void CFent::RestoreScanAim()
+	{
+		if(m_ScanAimSlot >= 0)
+		{
+			GameClient()->m_Controls.m_aMousePos[m_ScanAimSlot] = m_OriginalScanAim;
+			m_ScanAimSlot = -1;
+		}
+	}
+
+	void CFent::EndScanCamera()
+	{
+		RestoreScanAim();
+		if(m_PausedForScan && Client()->State() == IClient::STATE_ONLINE)
+			GameClient()->m_Chat.SendChat(0, "/pause");
+		m_PausedForScan = false;
+	}
+
 	void CFent::UpdateScanCamera()
 	{
+		if(!KrxProfileActive())
+			return;
+
 		std::lock_guard Lock(m_Mutex);
 		if(!g_Config.m_KrxFentSpectateScan || m_vPath.empty())
 		{
-			if(m_PausedForScan && Client()->State() == IClient::STATE_ONLINE)
-				GameClient()->m_Chat.SendChat(0, "/pause");
-			m_PausedForScan = false;
+			EndScanCamera();
 			return;
 		}
 		if(!m_PausedForScan)
@@ -616,8 +637,15 @@ namespace OpenKrx
 			const vec2 Position = m_vPath.back().m_Position;
 			if(Position != vec2(0, 0))
 			{
+				const int Slot = g_Config.m_ClDummy;
+				if(m_ScanAimSlot != Slot)
+				{
+					RestoreScanAim();
+					m_ScanAimSlot = Slot;
+					m_OriginalScanAim = GameClient()->m_Controls.m_aMousePos[Slot];
+				}
 				m_ScanPosition = mix(m_ScanPosition, Position, std::min(1.0f, Client()->RenderFrameTime() * 4.2999997f));
-				GameClient()->m_Controls.m_aMousePos[g_Config.m_ClDummy] = m_ScanPosition;
+				GameClient()->m_Controls.m_aMousePos[Slot] = m_ScanPosition;
 			}
 		}
 	}

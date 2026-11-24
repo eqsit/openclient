@@ -3585,7 +3585,7 @@ void CClient::Run()
 	if(!m_pConfigManager->Save())
 	{
 		char aError[128];
-		str_format(aError, sizeof(aError), Localize("Saving settings to '%s' failed"), CONFIG_FILE);
+		str_format(aError, sizeof(aError), Localize("Saving settings to '%s' failed"), OpenKrx::SettingsFilename());
 		m_vQuittingWarnings.emplace_back(Localize("Error saving settings"), aError);
 	}
 
@@ -5194,7 +5194,8 @@ int main(int argc, const char **argv)
 	IConsole *pConsole = CreateConsole(CFGFLAG_CLIENT).release();
 	pKernel->RegisterInterface(pConsole);
 
-	IConfigManager *pConfigManager = CreateConfigManager();
+	const char *pSettingsFilename = OpenKrx::SettingsFilename();
+	IConfigManager *pConfigManager = CreateConfigManager(pSettingsFilename);
 	pKernel->RegisterInterface(pConfigManager);
 
 	IEngineSound *pEngineSound = CreateEngineSound();
@@ -5244,19 +5245,26 @@ int main(int argc, const char **argv)
 	// init client's interfaces
 	pClient->InitInterfaces();
 
-	// execute config file
-	if(pStorage->FileExists(CONFIG_FILE, IStorage::TYPE_ALL))
+	// Import the legacy DDNet settings until OpenClient first saves its own file.
+	// Keep reading and writing the OpenClient file in the same storage location.
+	const bool UseLegacySettings = OpenKrx::g_NullStandalone || !pStorage->FileExists(pSettingsFilename, IStorage::TYPE_SAVE);
+	const char *pLoadFilename = UseLegacySettings ? CONFIG_FILE : pSettingsFilename;
+	const int SettingsStorage = UseLegacySettings ? IStorage::TYPE_ALL : IStorage::TYPE_SAVE;
+	if(pStorage->FileExists(pLoadFilename, SettingsStorage))
 	{
 		pConsole->SetUnknownCommandCallback(SaveUnknownCommandCallback, pClient);
-		if(!pConsole->ExecuteFile(CONFIG_FILE, IConsole::CLIENT_ID_UNSPECIFIED))
+		if(!pConsole->ExecuteFile(pLoadFilename, IConsole::CLIENT_ID_UNSPECIFIED, false, SettingsStorage))
 		{
-			const char *pError = "Failed to load config from '" CONFIG_FILE "'.";
-			log_error("client", "%s", pError);
-			pClient->ShowMessageBox({.m_pTitle = "Config File Error", .m_pMessage = pError});
+			char aError[256];
+			str_format(aError, sizeof(aError), "Failed to load config from '%s'.", pLoadFilename);
+			log_error("client", "%s", aError);
+			pClient->ShowMessageBox({.m_pTitle = "Config File Error", .m_pMessage = aError});
 			PerformAllCleanup();
 			return -1;
 		}
 		pConsole->SetUnknownCommandCallback(IConsole::EmptyUnknownCommandCallback, nullptr);
+		if(UseLegacySettings && !OpenKrx::g_NullStandalone)
+			g_Config.m_NullPredictionMargin = g_Config.m_ClPredictionMargin;
 	}
 
 	// execute autoexec file
@@ -5268,8 +5276,6 @@ int main(int argc, const char **argv)
 	{
 		pConsole->ExecuteFile(AUTOEXEC_FILE, IConsole::CLIENT_ID_UNSPECIFIED);
 	}
-
-	pDiscord->Initialize(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc != 0, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
 
 	if(g_Config.m_ClConfigVersion < 1)
 	{
@@ -5286,6 +5292,8 @@ int main(int argc, const char **argv)
 	pConsole->SetUnknownCommandCallback(UnknownArgumentCallback, pClient);
 	pConsole->ParseArguments(argc - 1, &argv[1]);
 	pConsole->SetUnknownCommandCallback(IConsole::EmptyUnknownCommandCallback, nullptr);
+
+	pDiscord->Initialize(OpenKrx::KrxProfileActive() && g_Config.m_KrxDiscordRpc != 0, g_Config.m_KrxDiscordRpcId, g_Config.m_KrxDiscordRpcCustom);
 
 	if(pSteam->GetConnectAddress())
 	{
@@ -5537,7 +5545,7 @@ int CClient::MaxLatencyTicks() const
 
 int CClient::PredictionMargin() const
 {
-	return m_ServerCapabilities.m_SyncWeaponInput ? g_Config.m_ClPredictionMargin : 10;
+	return m_ServerCapabilities.m_SyncWeaponInput ? OpenKrx::ProfilePredictionMargin() : 10;
 }
 
 IClient::EConnectivity CClient::UdpConnectivity(int NetType)

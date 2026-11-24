@@ -17,6 +17,7 @@
 static constexpr const char *DEFAULT_SAVED_RCON_USER = "local-server";
 
 #define CONFIG_FILE "settings_ddnet.cfg"
+#define OPENCLIENT_CONFIG_FILE "settings_openclient.cfg"
 #define AUTOEXEC_FILE "autoexec.cfg"
 #define AUTOEXEC_CLIENT_FILE "autoexec_client.cfg"
 #define AUTOEXEC_SERVER_FILE "autoexec_server.cfg"
@@ -242,6 +243,7 @@ class CConfigManager : public IConfigManager
 {
 	IConsole *m_pConsole;
 	class IStorage *m_pStorage;
+	const char *m_pFilename;
 
 	IOHANDLE m_ConfigFile;
 	bool m_Failed;
@@ -269,7 +271,7 @@ class CConfigManager : public IConfigManager
 	static void Con_ToggleStroke(IConsole::IResult *pResult, void *pUserData);
 
 public:
-	CConfigManager();
+	explicit CConfigManager(const char *pFilename);
 
 	void Init() override;
 	void Reset(const char *pScriptName) override;

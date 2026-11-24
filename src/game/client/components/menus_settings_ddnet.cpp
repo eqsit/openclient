@@ -8,6 +8,7 @@
 
 #include <engine/font_icons.h>
 #include <engine/graphics.h>
+#include <engine/shared/client_profile.h>
 #include <engine/shared/config.h>
 #include <engine/storage.h>
 #include <engine/textrender.h>
@@ -148,7 +149,8 @@ void CMenus::RenderSettingsDDNet(CUIRect MainView)
 		GameClient()->m_Camera.SetZoom(CCamera::ZoomStepsToValue(g_Config.m_ClDefaultZoom - 10), g_Config.m_ClSmoothZoomTime, true);
 
 	Right.HSplitTop(20.0f, &Button, &Right);
-	Ui()->DoScrollbarOption(&g_Config.m_ClPredictionMargin, &g_Config.m_ClPredictionMargin, &Button, Localize("Prediction margin"), 1, 300);
+	int &PredictionMargin = OpenKrx::ProfilePredictionMargin();
+	Ui()->DoScrollbarOption(&PredictionMargin, &PredictionMargin, &Button, Localize("Prediction margin"), 20, 300);
 
 	Right.HSplitTop(20.0f, &Button, &Right);
 	if(DoButton_CheckBox(&g_Config.m_ClPredictEvents, Localize("Predict events (experimental)"), g_Config.m_ClPredictEvents, &Button))
