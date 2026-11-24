@@ -42,6 +42,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		unsigned *m_pColor = nullptr;
 		char *m_pText = nullptr;
 		size_t m_TextSize = 0;
+		unsigned m_DefaultColor = 0;
 	};
 	struct CCard
 	{
@@ -98,7 +99,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		{"Quick stop", "Let go of the movement keys and stop dead instead of sliding.", &g_Config.m_NullQuickStop, false, false, {
 			{&g_Config.m_NullQuickStopGround, "Only on the ground, never in the air", 0, 1}}, 1, 1},
 		{"Position hold", "Stops someone from moving you against your will.", &g_Config.m_NullGodmodeKnockback, false, false, {{&g_Config.m_NullGodmodeKnockbackMode, "", 0, 1, "", 2}, S(KnockbackGrip, "How strongly it pulls you back", 0, 2000, "%"), S(KnockbackHold, "Keep trying to return for", 1, 300, " ticks"), S(KnockbackClearance, "Keep the return path clear of freeze by", 0, 300, "")}, 1, 1},
-		{"Hook counter", "When hooked, moves you above or below the puller so they can't fling you.", &g_Config.m_NullGodmodeHookCounter, false, false, {S(HookCounterGap, "Aim past them by", 16, 400, ""), S(HookCounterPull, "How strongly it aims for that spot", 0, 300, "%")}, 1, 1},
+		{"Hook counter", "When hooked, moves you above or below the puller so they can't fling you.", &g_Config.m_NullGodmodeHookCounter, false, false, {S(HookCounterGap, "Aim past them by", 16, 400, ""), S(HookCounterPull, "How strongly it aims for that spot", 0, 300, "%"), S(HookCounterArc, "Swing around them (pendulum)", 0, 100, "%")}, 1, 1},
 		{"Serial killer", "Takes control to hunt. Never die keeps you alive while it works.", &g_Config.m_NullSerialKiller, false, false, {
 			{&g_Config.m_NullSerialPick, "", 0, 3, "", 4, {"At crosshair", "Nearest", "War list", "Attack list"}},
 			{&g_Config.m_NullSerialAdvance, "Move on to the next target", 0, 1},
@@ -139,7 +140,6 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{nullptr, "Shared by all weapons", 0, 1, "", 6},
 			{&g_Config.m_NullAimbotSticky, "Stay on the current target", 0, 1},
 			{&g_Config.m_NullAimbotStickyMargin, "Switch only if another is better by", 0, 90, "%"},
-			{&g_Config.m_NullAimbotLineOfSight, "Ignore targets behind a wall", 0, 1},
 			{&g_Config.m_NullAimbotLead, "Lead moving targets", 0, 1},
 			{&g_Config.m_NullPingLead, "Ping compensation (ticks)", 0, 10},
 			{&g_Config.m_NullAimbotArc, "Lob grenades over walls", 0, 1},
@@ -168,10 +168,10 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullPathlinerEndMarker, "End of path", 0, 1}, {&g_Config.m_NullPathlinerLandingMarker, "Ground contact", 0, 1},
 			{&g_Config.m_NullPathlinerHookMarker, "Hook attach point", 0, 1}, {&g_Config.m_NullPathlinerDummy, "Also show the dummy's path", 0, 1}}, 3, 1},
 		{"Colors", "The line under the logo previews this palette.", nullptr, false, false, {
-			{nullptr, "Path color near the tee", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorNear},
-			{nullptr, "Path color far ahead", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorFar},
-			{nullptr, "Path color while frozen", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorFreeze},
-			{nullptr, "Kill marker color", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorDeath}}, 3, 1},
+			{nullptr, "Path color near the tee", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorNear, nullptr, 0, DefaultConfig::NullPathlinerColorNear},
+			{nullptr, "Path color far ahead", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorFar, nullptr, 0, DefaultConfig::NullPathlinerColorFar},
+			{nullptr, "Path color while frozen", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorFreeze, nullptr, 0, DefaultConfig::NullPathlinerColorFreeze},
+			{nullptr, "Kill marker color", 0, 1, "", 0, {}, false, &g_Config.m_NullPathlinerColorDeath, nullptr, 0, DefaultConfig::NullPathlinerColorDeath}}, 3, 1},
 		{"Automation", "Small actions performed for you, on top of your own input.", nullptr, false, true, {
 			{&g_Config.m_NullAutoFire, "Auto fire", 0, 1}, {&g_Config.m_NullAutoRehook, "Auto rehook", 0, 1},
 			{&g_Config.m_NullAutoRehookTicks, "Keep aiming at the lost target for", 1, 60, " ticks"}}, 4},
@@ -200,8 +200,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{&g_Config.m_NullFakeAimVisible, "Preview what others see", 0, 1}}, 4},
 		{"Other", "Miscellaneous options that change what this client sends.", nullptr, false, true, {
 			{&g_Config.m_NullKillOnFreeze, "Kill on freeze", 0, 1}, {&g_Config.m_NullKillOnDeepFreeze, "Kill on deep freeze", 0, 1},
-			{&g_Config.m_NullHideChatBubble, "Hide chat bubble", 0, 1}, {&g_Config.m_NullPlayInMenu, "Keep playing while the menu is open", 0, 1},
-			{&g_Config.m_NullMenuBackdrop, "Null backdrop behind the menus", 0, 1}}, 4, 1},
+			{&g_Config.m_NullHideChatBubble, "Hide chat bubble", 0, 1}, {&g_Config.m_NullPlayInMenu, "Keep playing while the menu is open", 0, 1}}, 4, 1},
 		{"Profiles", "Save all settings under a name; the file is yours to share.", nullptr, false, true, {}, 4, 1, true},
 		{"TAS", "Edit and play back practice runs.", &g_Config.m_NullTasEnabled, false, false, {
 			{&g_Config.m_NullTasTps, "Editor speed", 1, 50, " ticks/s"},
@@ -225,7 +224,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			S(Adversarial, "Assume other players are attacking", 0, 2, ""), S(HookAngles, "Surface scan resolution", 8, 128, "")}, 6},
 		{"Debug overlay", "Shows what Avoid Freeze and the aimbot are calculating and thinking, live. For developers.", &g_Config.m_NullGodmodeDebug, false, false, {
 			B(Trace, "Write the last 100 ticks to a file on death")}, 6},
-		{"Rescue visualizations", "Inspect sampled rescue paths.", &g_Config.m_NullGodmodeVisuals, false, false, {
+		{"Rescue simulation paths (for developers)", "Samples real rescue plans for video capture. Adds drawing overhead; does not run extra simulations.", &g_Config.m_NullGodmodeVisuals, false, false, {
 			B(VisualsSelected, "Show only the selected path"), S(VisualCount, "Visible paths", 1, 256, ""),
 			S(VisualHistory, "Recent calculations", 1, 8, ""), S(VisualAnimation, "Animation 0 instant, 1 reveal, 2 loop", 0, 2, ""),
 			S(VisualSpeed, "Playback speed", 25, 400, "%"), S(VisualDuration, "Visible duration", 250, 5000, " ms"),
@@ -312,49 +311,156 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		auto &Null = GameClient()->m_NullClient;
 		auto &Warlist = Null.Warlist();
 		static char s_aGroup[64] = "war", s_aMember[64] = "";
-		static CLineInput s_Group(s_aGroup,sizeof(s_aGroup)), s_Member(s_aMember,sizeof(s_aMember));
-		static CButtonContainer s_Add;
+		static CLineInput s_Group(s_aGroup, sizeof(s_aGroup)), s_Member(s_aMember, sizeof(s_aMember));
+		static CButtonContainer s_Add, s_CreateGroup;
+		static const char *s_pWarlistError = nullptr;
+		const auto Commit = [&](auto Edit) {
+			auto Previous = Warlist;
+			if(!Edit())
+				return false;
+			if(Null.SaveWarlist())
+				s_pWarlistError = nullptr;
+			else
+			{
+				Warlist = std::move(Previous);
+				s_pWarlistError = "Could not save the warlist";
+			}
+			return s_pWarlistError == nullptr;
+		};
 		CUIRect Row, Label, Button;
-		MainView.HSplitTop(24,&Row,&MainView); Row.VSplitLeft(100,&Label,&Row);
-		Ui()->DoLabel(&Label,Localize("Group"),13,TEXTALIGN_ML); Ui()->DoEditBox(&s_Group,&Row,13);
-		MainView.HSplitTop(4,nullptr,&MainView); MainView.HSplitTop(24,&Row,&MainView); Row.VSplitLeft(100,&Label,&Row);
-		Ui()->DoLabel(&Label,Localize("Name"),13,TEXTALIGN_ML); Row.VSplitRight(90,&Row,&Button);
-		Ui()->DoEditBox(&s_Member,&Row,13);
-		if(DoButton_Menu(&s_Add,Localize("Add"),0,&Button) && Warlist.Edit(s_aGroup,s_aMember,true)) Null.SaveWarlist();
-		static std::map<std::string,CButtonContainer> s_Remove;
-		std::string RemoveGroup, RemoveName;
+		MainView.HSplitTop(24, &Row, &MainView);
+		Row.VSplitLeft(100, &Label, &Row);
+		Row.VSplitRight(90, &Row, &Button);
+		Ui()->DoLabel(&Label, Localize("Group"), 13, TEXTALIGN_ML);
+		Ui()->DoEditBox(&s_Group, &Row, 13);
+		if(DoButton_Menu(&s_CreateGroup, Localize("Create group"), 0, &Button) && Commit([&] { return Warlist.AddGroup(s_aGroup); }))
+			s_Group.Set(Warlist.m_vGroups.back().m_Name.c_str());
+		MainView.HSplitTop(4, nullptr, &MainView);
+		MainView.HSplitTop(24, &Row, &MainView);
+		Row.VSplitLeft(100, &Label, &Row);
+		Row.VSplitRight(90, &Row, &Button);
+		Ui()->DoLabel(&Label, Localize("Name"), 13, TEXTALIGN_ML);
+		Ui()->DoEditBox(&s_Member, &Row, 13);
+		if(DoButton_Menu(&s_Add, Localize("Add"), 0, &Button))
+			Commit([&] { return Warlist.Edit(s_aGroup, s_aMember, true); });
+		struct CGroupControls
+		{
+			CButtonContainer m_Select, m_Remove;
+			unsigned m_Color = 0, m_LastSavedColor = 0;
+		};
+		static std::map<std::string, CGroupControls> s_GroupControls;
+		static std::map<std::string, CButtonContainer> s_RemoveMember;
+		std::string RemoveGroup, RemoveName, DeleteGroup, ColorGroup;
+		unsigned Color = 0;
 		for(const auto &Group : Warlist.m_vGroups)
 		{
-			MainView.HSplitTop(12,nullptr,&MainView); MainView.HSplitTop(24,&Row,&MainView);
-			if(Scroll.AddRect(Row)) Ui()->DoLabel(&Row,Group.m_Name.c_str(),15,TEXTALIGN_ML);
+			auto &Controls = s_GroupControls[Group.m_Name];
+			MainView.HSplitTop(12, nullptr, &MainView);
+			MainView.HSplitTop(24, &Row, &MainView);
+			if(Scroll.AddRect(Row))
+			{
+				CUIRect ColorBox;
+				Row.VSplitRight(24, &Row, &ColorBox);
+				if(!Group.m_Protected)
+				{
+					Row.VSplitRight(90, &Row, &Button);
+					if(DoButton_Menu(&Controls.m_Remove, Localize("Remove group"), 0, &Button))
+						DeleteGroup = Group.m_Name;
+				}
+				if(DoButton_Menu(&Controls.m_Select, Group.m_Name.c_str(), Warlist.Find(s_aGroup) == Warlist.Find(Group.m_Name), &Row))
+					s_Group.Set(Group.m_Name.c_str());
+				const unsigned Saved = color_cast<ColorHSLA>(Group.m_Color).Pack(false);
+				if(Controls.m_LastSavedColor != Saved)
+					Controls.m_Color = Controls.m_LastSavedColor = Saved;
+				DoButton_ColorPicker(&ColorBox, &Controls.m_Color, false);
+				if(Controls.m_Color != Saved)
+				{
+					Color = Controls.m_Color;
+					ColorGroup = Group.m_Name;
+				}
+			}
 			for(const auto &Name : Group.m_vMembers)
 			{
-				MainView.HSplitTop(23,&Row,&MainView); if(!Scroll.AddRect(Row)) continue;
-				Row.VSplitRight(90,&Row,&Button); Ui()->DoLabel(&Row,Name.c_str(),13,TEXTALIGN_ML);
-				if(DoButton_Menu(&s_Remove[Group.m_Name + "\n" + Name],Localize("Remove"),0,&Button)) { RemoveGroup = Group.m_Name; RemoveName = Name; }
+				MainView.HSplitTop(23, &Row, &MainView);
+				if(!Scroll.AddRect(Row))
+					continue;
+				Row.VSplitRight(90, &Row, &Button);
+				Ui()->DoLabel(&Row, Name.c_str(), 13, TEXTALIGN_ML);
+				if(DoButton_Menu(&s_RemoveMember[Group.m_Name + "\n" + Name], Localize("Remove"), 0, &Button))
+				{
+					RemoveGroup = Group.m_Name;
+					RemoveName = Name;
+				}
 			}
 		}
-		if(!RemoveName.empty() && Warlist.Edit(RemoveGroup,RemoveName,false)) Null.SaveWarlist();
+		if(!RemoveName.empty())
+			Commit([&] { return Warlist.Edit(RemoveGroup, RemoveName, false); });
+		if(!DeleteGroup.empty() && Commit([&] { return Warlist.RemoveGroup(DeleteGroup); }) && Warlist.Find(s_aGroup) < 0)
+			s_Group.Set("war");
+		if(!ColorGroup.empty())
+		{
+			Commit([&] {
+				const int Index = Warlist.Find(ColorGroup);
+				if(Index < 0)
+					return false;
+				Warlist.m_vGroups[Index].m_Color = color_cast<ColorRGBA>(ColorHSLA(Color, false));
+				return true;
+			});
+			if(s_pWarlistError)
+				s_GroupControls[ColorGroup].m_Color = s_GroupControls[ColorGroup].m_LastSavedColor;
+		}
+		const int SelectedGroup = Warlist.Find(s_aGroup);
+		if(Client()->State() == IClient::STATE_ONLINE && SelectedGroup >= 0)
+		{
+			MainView.HSplitTop(12, nullptr, &MainView);
+			MainView.HSplitTop(24, &Row, &MainView);
+			if(Scroll.AddRect(Row))
+				Ui()->DoLabel(&Row, Localize("Players"), 13, TEXTALIGN_ML);
+			static CButtonContainer s_aPlayers[MAX_CLIENTS];
+			for(int Id = 0; Id < MAX_CLIENTS; ++Id)
+			{
+				const auto &Player = GameClient()->m_aClients[Id];
+				if(Id == GameClient()->m_aLocalIds[0] || Id == GameClient()->m_aLocalIds[1] || !Player.m_Active || !Player.m_aName[0])
+					continue;
+				MainView.HSplitTop(24, &Row, &MainView);
+				const bool Member = Warlist.Contains(SelectedGroup, Player.m_aName);
+				if(Scroll.AddRect(Row) && DoButton_Menu(&s_aPlayers[Id], Player.m_aName, Member, &Row))
+					Commit([&] { return Warlist.Edit(s_aGroup, Player.m_aName, !Member); });
+			}
+		}
+		if(s_pWarlistError)
+		{
+			MainView.HSplitTop(24, &Row, &MainView);
+			if(Scroll.AddRect(Row))
+				Ui()->DoLabel(&Row, Localize(s_pWarlistError), 12, TEXTALIGN_ML);
+		}
 	}
 	if(s_Page == 5)
 	{
 		struct CBind { const char *m_pLabel; int *m_pKey; int m_Group; };
 		const CBind aBinds[] = {
-			{"Avoid Freeze", &g_Config.m_NullBindGodmode, 0}, {"Avoid Freeze (dummy)", &g_Config.m_NullBindGodmodeDummy, 0},
-			{"Dodging shots", &g_Config.m_NullBindDodging, 0}, {"Avoid hammers", &g_Config.m_NullBindHammerDodge, 1},
-			{"Auto hammer (hold)", &g_Config.m_NullBindAutoHammer, 1}, {"Auto grenade (hold)", &g_Config.m_NullBindAutoGrenade, 1},
-			{"Serial Killer", &g_Config.m_NullBindSerial, 1}, {"Serial Killer (dummy)", &g_Config.m_NullBindSerialDummy, 1},
-			{"Aimbot", &g_Config.m_NullBindAimbot, 2}, {"Aimbot hook", &g_Config.m_NullBindAimbotHook, 2},
-			{"Balance bot (hold)", &g_Config.m_NullBindBalanceBot, 1}, {"Fly Mode", &g_Config.m_NullBindFlymode, 3},
-			{"Fly Mode (hold)", &g_Config.m_NullBindFlyhold, 3}, {"Fake Aim", &g_Config.m_NullBindFakeAim, 4},
-			{"Version Spoof", &g_Config.m_NullBindVersionSpoof, 4},
-			{"Avoid rockets", &g_Config.m_NullBindAvoidRocket, 0},
-			{"Dummy laser auto unfreeze", &g_Config.m_NullBindDummyLaserUnfreeze, 0},
-			{"Auto hammer (toggle)", &g_Config.m_NullBindAutoHammerToggle, 1},
-			{"Auto grenade (toggle)", &g_Config.m_NullBindAutoGrenadeToggle, 1},
 			{"Counter hammer", &g_Config.m_NullBindCounterHammer, 1},
 			{"Quick stop", &g_Config.m_NullBindQuickStop, 1},
+			{"Auto hammer", &g_Config.m_NullBindAutoHammerToggle, 1},
+			{"Auto grenade", &g_Config.m_NullBindAutoGrenadeToggle, 1},
+			{"Avoid rockets", &g_Config.m_NullBindAvoidRocket, 0},
+			{"Dummy laser auto unfreeze", &g_Config.m_NullBindDummyLaserUnfreeze, 0},
 			{"Hook counter", &g_Config.m_NullBindHookCounter, 1},
+			{"Avoid Freeze", &g_Config.m_NullBindGodmode, 0},
+			{"Avoid Freeze (dummy)", &g_Config.m_NullBindGodmodeDummy, 0},
+			{"Dodging shots", &g_Config.m_NullBindDodging, 0},
+			{"Avoid hammers", &g_Config.m_NullBindHammerDodge, 0},
+			{"Auto hammer (hold)", &g_Config.m_NullBindAutoHammer, 1},
+			{"Auto grenade (hold)", &g_Config.m_NullBindAutoGrenade, 1},
+			{"Serial Killer", &g_Config.m_NullBindSerial, 1},
+			{"Serial Killer (dummy)", &g_Config.m_NullBindSerialDummy, 1},
+			{"Aimbot", &g_Config.m_NullBindAimbot, 2},
+			{"Aimbot hook", &g_Config.m_NullBindAimbotHook, 2},
+			{"Balance bot (hold)", &g_Config.m_NullBindBalanceBot, 1},
+			{"Fly Mode", &g_Config.m_NullBindFlymode, 3},
+			{"Fly Mode (hold)", &g_Config.m_NullBindFlyhold, 3},
+			{"Fake Aim", &g_Config.m_NullBindFakeAim, 4},
+			{"Version Spoof", &g_Config.m_NullBindVersionSpoof, 4},
 			{"TAS playback", &g_Config.m_NullBindTas, 4},
 			{"TAS editor menu", &g_Config.m_NullTasKeyMenu, 4},
 			{"TAS editor flow", &g_Config.m_NullTasKeyFlow, 4},
@@ -365,7 +471,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{"TAS editor boost", &g_Config.m_NullTasKeyBoost, 4},
 			{"TAS editor aim line", &g_Config.m_NullTasKeyLaser, 4}};
 		static CButtonContainer s_aBindKeys[std::size(aBinds)], s_aBindClear[std::size(aBinds)];
-		const char *apGroups[] = {"Survival", "Combat", "Aimbot", "Vision", "Misc"};
+		const char *apGroups[] = {"Survival", "Combat", "Aimbot", "Fly", "Misc"};
 		for(int Group = 0; Group < 5; ++Group)
 		{
 			auto &Column = Left.y <= Right.y ? Left : Right;
@@ -417,6 +523,9 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			Rows = 3 + std::clamp(static_cast<int>(GameClient()->m_NullClient.Profiles().size()), 1, 12);
 		if(Card.m_Tas && Open)
 			Rows += 4;
+		const bool Rescue = Card.m_pEnabled == &g_Config.m_NullGodmodeVisuals;
+		if(Rescue && Open)
+			Rows += 2;
 		CUIRect Panel, Body, Header, Title, Description, Toggle;
 		auto &Column = (s_Page == 2 || s_Page >= 6) ? MainView : Card.m_Column ? Right : Left;
 		Column.HSplitTop(63 + (Rows > 0 ? 10 + 22 * Rows : 0), &Panel, &Column);
@@ -463,7 +572,11 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 		}
 		CUIRect Reset;
 		Toggle.VSplitLeft(22, &Reset, &Toggle);
-		if(Icon(&s_aReset[i], FontIcon::ARROW_ROTATE_LEFT, Reset, .45f))
+		const bool ResetAvoid = Card.m_pEnabled == &g_Config.m_NullGodmode;
+		const bool ResetClicked = Icon(&s_aReset[i], FontIcon::ARROW_ROTATE_LEFT, Reset, .45f);
+		if(ResetClicked && ResetAvoid)
+			OpenKrx::NullClient::ResetSelectedAvoidMode();
+		else if(ResetClicked)
 		{
 			if(Card.m_pEnabled)
 				ResetValue(Card.m_pEnabled);
@@ -489,7 +602,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 #undef MACRO_CONFIG_STR
 			}
 		}
-		Ui()->DoToolTip(&s_aReset[i], &Reset, Localize("Reset this group to its defaults"));
+		Ui()->DoToolTip(&s_aReset[i], &Reset, ResetAvoid ? Localize("Reset the selected Avoid mode") : Localize("Reset this group to its defaults"));
 		if(!Card.m_AlwaysOpen)
 		{
 			const bool Expand = Icon(&s_aExpand[i], FontIcon::GEAR, Toggle, Open ? .95f : .5f);
@@ -527,7 +640,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{
 				CUIRect Button;
 				Row.VSplitLeft(Width, &Button, &Row);
-				if(DoButton_Menu(&s_aActions[Action], Localize(apActions[Action]), 0, &Button))
+				if(DoButton_Menu(&s_aActions[Action], Localize(apActions[Action]), 0, &Button) && (s_aProfileName[0] || Action == 3))
 				{
 					auto &Null = GameClient()->m_NullClient;
 					if(Action == 0) s_Result = Localize(Null.SaveProfile(s_aProfileName) ? "Profile saved" : "Could not save profile");
@@ -609,12 +722,12 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 				std::vector<const char *> vNames;
 				vNames.reserve(vFiles.size());
 				for(const auto &File : vFiles)
-					vNames.push_back(File.c_str());
+					vNames.push_back(File.m_Label.c_str());
 				Row.VSplitRight(52, &Row, &Button);
 				s_Files.m_SelectionPopupContext.m_pScrollRegion = &s_FileScroll;
 				s_Selected = Ui()->DoDropDown(&Row, std::clamp(s_Selected, 0, static_cast<int>(vFiles.size()) - 1), vNames.data(), vNames.size(), s_Files);
 				if(DoButton_Menu(&s_Load, Localize("Load"), 0, &Button))
-					Tas.LoadNullTas(vFiles[s_Selected].c_str());
+					Tas.LoadNullTas(vFiles[s_Selected].m_Name.c_str());
 			}
 			else
 				Ui()->DoLabel(&Row, Localize("No saved runs"), 12, TEXTALIGN_ML);
@@ -640,7 +753,7 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			{
 				static CButtonContainer s_aColorReset[4];
 				const size_t ColorIndex = &Setting - Card.m_Settings.begin();
-				DoLine_ColorPicker(&s_aColorReset[ColorIndex], 20, 13, 0, &Row, Localize(Setting.m_pLabel), Setting.m_pColor, ColorRGBA(1, 1, 1, 1), false);
+				DoLine_ColorPicker(&s_aColorReset[ColorIndex], 20, 13, 0, &Row, Localize(Setting.m_pLabel), Setting.m_pColor, color_cast<ColorRGBA>(ColorHSLA(Setting.m_DefaultColor)), false);
 			}
 			else if(Setting.m_pText)
 			{
@@ -724,6 +837,22 @@ void CMenus::RenderSettingsNullClient(CUIRect MainView)
 			}
 			else
 				Ui()->DoScrollbarOption(Setting.m_pValue, Setting.m_pValue, &Row, Localize(Setting.m_pLabel), Setting.m_Min, Setting.m_Max, &CUi::ms_LinearScrollbarScale, 0, Localize(Setting.m_pSuffix));
+		}
+		if(Rescue)
+		{
+			CUIRect Row;
+			Body.HSplitTop(22, &Row, &Body);
+			const bool Ready = GameClient()->m_NullClient.HasRescueCalculation();
+			if(Scroll.AddRect(Row))
+				Ui()->DoLabel(&Row, Ready ? Localize("Calculation ready: open this run's demo without closing the client.") : Localize("No calculation yet: enable Avoid and perform a rescue."), 11, TEXTALIGN_ML);
+			Body.HSplitTop(20, &Row, &Body);
+			static CButtonContainer s_Replay;
+			if(Scroll.AddRect(Row) && DoButton_Menu(&s_Replay, Localize("Replay calculation in demo"), 0, &Row))
+			{
+				Console()->ExecuteLine("rescue_scene", IConsole::CLIENT_ID_UNSPECIFIED);
+				if(Ready && Client()->State() == IClient::STATE_DEMOPLAYBACK)
+					SetActive(false);
+			}
 		}
 		Ui()->SetEnabled(WasEnabled);
 	}

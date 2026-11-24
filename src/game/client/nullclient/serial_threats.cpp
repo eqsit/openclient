@@ -29,15 +29,19 @@ namespace OpenKrx::NullClient
 	{
 		m_vThreats.clear();
 		m_pCollision = World.Collision();
-		m_Horizon = std::clamp(Horizon, 0, 24);
+		m_Horizon = std::clamp(Horizon, 0, MAX_HORIZON);
 		m_Range = Range;
 		m_Throw = Throw;
 		auto *pSelf = World.GetCharacterById(Own);
-		if(!pSelf)
+		if(!pSelf || !m_pCollision)
 			return;
 		const auto *pTune = pSelf->GetTuning(pSelf->GetPureTuneZone());
 		m_HookLength = pTune->m_HookLength;
-		const vec2 SelfPosition = pClient ? pClient->m_aClients[Own].m_RenderPos : pSelf->Core()->m_Pos;
+		// 0x140286f60:104-118 reads the predicted character position (+0x30);
+		// the snapshot/render position is only a fallback when the world has no
+		// predicted entity for that id.
+		const vec2 SelfPosition = pSelf->Core()->m_Pos;
+
 		for(int Id = 0; Id < MAX_CLIENTS; ++Id)
 		{
 			auto *p = World.GetCharacterById(Id);
@@ -47,7 +51,7 @@ namespace OpenKrx::NullClient
 				continue;
 			// 2487b0 uses rendered positions, predicted combat state/velocity, and
 			// snapshot velocity/weapon when a visible tee has no predicted entity.
-			const vec2 OtherPosition = pClient ? pClient->m_aClients[Id].m_RenderPos : p->Core()->m_Pos;
+			const vec2 OtherPosition = p ? p->Core()->m_Pos : (pClient ? pClient->m_aClients[Id].m_RenderPos : vec2(0, 0));
 			const float Distance = distance(OtherPosition, SelfPosition);
 			if(Distance > Range)
 				continue;
@@ -67,7 +71,7 @@ namespace OpenKrx::NullClient
 				const vec2 Next = Position + Velocity;
 				if(m_pCollision->IntersectLine(Position, Next, nullptr, nullptr))
 					break;
-				T.m_vFuture.push_back(Next);
+				T.m_aFuture[T.m_NumFuture++] = Next;
 				Position = Next;
 			}
 			m_vThreats.push_back(std::move(T));
@@ -102,11 +106,11 @@ namespace OpenKrx::NullClient
 				vec2 Attacker = T.m_Position;
 				int HitTick = D <= T.m_HammerRadius ? 0 : -1;
 				if(HitTick < 0)
-					for(size_t i = 0; i < T.m_vFuture.size(); ++i)
-						if(distance(T.m_vFuture[i], Position) <= T.m_HammerRadius)
+					for(int i = 0; i < T.m_NumFuture; ++i)
+						if(distance(T.m_aFuture[i], Position) <= T.m_HammerRadius)
 						{
 							HitTick = i + 1;
-							Attacker = T.m_vFuture[i];
+							Attacker = T.m_aFuture[i];
 							break;
 						}
 				if(HitTick < 0 && T.m_Target)

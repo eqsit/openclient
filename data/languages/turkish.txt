@@ -164,7 +164,7 @@ Graphics
 == Grafik
 
 Grenade
-== Bomba Atar
+== Bomba
 
 Hammer
 == Çekiç
@@ -176,7 +176,7 @@ High Detail
 == Yüksek Detay
 
 Hook
-== Kanca
+== Hook
 
 Invalid Demo
 == Geçersiz Demo
@@ -320,7 +320,7 @@ Server not full
 == Sunucu dolu değil
 
 Shotgun
-== Tüfek
+== Pompalı
 
 Show chat
 == Sohbeti göster
@@ -1339,7 +1339,7 @@ Are you sure that you want to reset the controls to their defaults?
 == Kontrolleri varsayılan değerlerine döndürmek istediğine emin misin?
 
 Cancel
-== İptal et
+== İptal
 
 Dummy
 == Dummy
@@ -1483,7 +1483,7 @@ When you cross the start line, show a ghost tee replicating the movements of you
 == Başlangıç çizgisini geçtiğinizde, en iyi sürenizin hareketlerini tekrarlayan bir hayalet tee göster
 
 Opacity
-== Opaklık
+== Saydamlık
 
 Adjust the opacity of entities belonging to other teams, such as tees and name plates
 == Teeler ve isim etiketleri gibi diğer takımlara ait varlıkların opaklığını ayarlayın
@@ -2686,7 +2686,7 @@ Virtual joystick which only aims and moves the mouse pointer relatively.
 == 
 
 Credits
-== 
+== Emeği geçenler
 
 Teleport to cursor
 == 
@@ -2723,3 +2723,1632 @@ not bound
 
 Show cursor
 == 
+
+Uploading map data to GPU
+== Harita verisi GPU'ya yükleniyor
+
+Refresh
+== Yenile
+
+With a grenade in hand, blast back whoever hammers you.
+== Elinizde grenade varsa size çekiç vuran kişiye patlayıcıyla karşılık verir.
+
+Reset all
+== Tümünü sıfırla
+
+Reset Null settings
+== Null ayarlarını sıfırla
+
+Reset every Null setting to its default value?
+== Tüm Null ayarları varsayılan değerlerine döndürülsün mü?
+
+path: %d ticks
+== yol: %d tick
+
+path: off
+== yol: kapalı
+
+god mode: on
+== god mode: açık
+
+god mode: off
+== god mode: kapalı
+
+fly mode: on
+== uçuş modu: açık
+
+fly mode: off
+== uçuş modu: kapalı
+
+Survival
+== Hayatta Kalma
+
+Combat
+== Savaş
+
+Aimbot
+== Aimbot
+
+Vision
+== Görüş
+
+Misc
+== Çeşitli
+
+Binds
+== Tuşlar
+
+Diagnostics
+== Teşhis
+
+Warlist
+== Savaş Listesi
+
+Reset this group to its defaults
+== Bu grubu varsayılanlarına döndür
+
+Collapse this group
+== Bu grubu daralt
+
+Expand this group
+== Bu grubu genişlet
+
+Activate when danger is within
+== Tehlike şu mesafeye girince devreye gir
+
+ ticks
+==  tick
+
+Return control once safer by
+== Şu kadar güvenli olunca kontrolü geri ver
+
+Watch your input for
+== Girdini şu kadar izle
+
+Wait for the last tick that can save you
+== Seni kurtarabilecek son tick'i bekle
+
+Minimum safety margin
+== En az güvenlik payı
+
+Penalty per frozen tick
+== Donmuş her tick için ceza
+
+Hook release
+== Hook bırakma
+
+Releases a hook that is dragging you into danger.
+== Seni tehlikeye sürükleyen hook'u bırakır.
+
+Hold the release for
+== Bırakmayı şu kadar sürdür
+
+Evaluate a release over
+== Bırakmayı şu süre üzerinden değerlendir
+
+Position hold
+== Konum koruma
+
+The spot it defends, and how far you can carry it with you.
+== Savunduğu nokta ve onu yanında ne kadar taşıyabileceğin.
+
+Hold position
+== Konumu koru
+
+Allowed drift radius
+== İzin verilen kayma yarıçapı
+
+Your keys move it at
+== Tuşların onu şu hızla taşır
+
+Maximum lead distance
+== En fazla ileri mesafe
+
+Reflexes
+== Refleksler
+
+How much earlier it reacts when something affects you.
+== Sana bir şey etki ettiğinde ne kadar erken tepki verir.
+
+React earlier at high speed
+== Yüksek hızda daha erken tepki ver
+
+React earlier when hit
+== Vurulduğunda daha erken tepki ver
+
+React earlier while hooked
+== Hook'landığında daha erken tepki ver
+
+Resist being dragged
+== Sürüklenmeye karşı koy
+
+Refuse a step off the edge within
+== Kenardan adım atmayı şu mesafede reddet
+
+Refuse a bad hook within
+== Kötü biten hook'u şu mesafede reddet
+
+Decision making
+== Karar verme
+
+How far ahead a rescue is judged, and how much your input counts.
+== Bir kurtuluşun ne kadar ileriden değerlendirildiği ve girdinin ağırlığı.
+
+Plan a rescue over
+== Kurtuluşu şu süre üzerinden planla
+
+Respect for your input
+== Girdine verilen önem
+
+Penalty for changing its decision
+== Kararını değiştirme cezası
+
+Penalty for ending a rescue at speed
+== Kurtuluşu hızlıyken bitirme cezası
+
+Penalty for being saved elsewhere
+== Başka yerde kurtarılma cezası
+
+Coast on after a rescue for
+== Kurtuluştan sonra şu kadar süzül
+
+Full-speed penalty near danger at
+== Tehlike yakınında tam hız cezası
+
+Reward returning control to you
+== Kontrolü sana geri vermeyi ödüllendir
+
+Fight harder in crowds
+== Kalabalıkta daha sıkı savaş
+
+Searches deeper and further for an escape when surrounded.
+== Etrafın sarıldığında çıkış için daha derin ve uzağa bakar.
+
+Simulate a rescue over
+== Kurtuluşu şu süre boyunca simüle et
+
+Search one move deeper from the best option
+== En iyi seçenekten bir hamle daha derine bak
+
+Action costs
+== Eylem maliyetleri
+
+Relative cost of each move; a costly one can still be chosen.
+== Her hamlenin göreli maliyeti; pahalı bir hamle yine de seçilebilir.
+
+Prefer the smallest action
+== En küçük hamleyi tercih et
+
+Prefer moving over hooking
+== Hook yerine yürümeyi tercih et
+
+Avoid hooking players
+== Oyunculara hook atmaktan kaçın
+
+Penalty for releasing a held hook
+== Tutulan bir hook'u bırakma cezası
+
+Penalty for using your air jump
+== Hava zıplamasını kullanma cezası
+
+Avoid ending up against a wall
+== Duvara yapışıp kalmaktan kaçın
+
+Search deeper when stuck, from
+== Sıkışınca daha derine bak, şundan
+
+Runs survival on the tee you are not controlling, using your settings.
+== Kontrol etmediğin tee'de hayatta kalmayı senin ayarlarınla çalıştırır.
+
+Dodging shots
+== Atışlardan kaçınma
+
+Airborne shots are simulated, so dodging is precise.
+== Havadaki atışlar simüle edilir, böylece kaçış isabetlidir.
+
+Watch for shots within
+== Şu mesafedeki atışları izle
+
+Only whoever is hooking you
+== Sadece seni hook'layan
+
+Anyone holding a hammer
+== Elinde çekiç olan herkes
+
+Detect it from
+== Şu mesafeden algıla
+
+How strongly it avoids that range
+== O menzilden ne kadar sıkı kaçınır
+
+Show the range
+== Menzili göster
+
+Only when idle
+== Sadece hareketsizken
+
+Also during a fight
+== Savaş sırasında da
+
+How strongly it pulls you back
+== Seni ne kadar sıkı geri çeker
+
+Keep trying to return for
+== Geri dönmeyi şu kadar dene
+
+Keep the return path clear of freeze by
+== Dönüş yolunu dondan şu kadar uzak tut
+
+Hook counter
+== Hook karşılığı
+
+Aim past them by
+== Onların şu kadar ötesine nişan al
+
+How strongly it aims for that spot
+== O noktaya ne kadar sıkı gider
+
+Serial killer
+== Seri Katil
+
+Takes control to hunt. Never die keeps you alive while it works.
+== Avlanmak için kontrolü alır. Çalışırken Asla Ölme seni hayatta tutar.
+
+At crosshair
+== Nişangâhta
+
+Nearest
+== En yakın
+
+War list
+== Savaş listesi
+
+Attack list
+== Saldırı listesi
+
+Same as main
+== Ana ile aynı
+
+Hunts on the tee you are not controlling, with its own target choice.
+== Kontrol etmediğin tee üzerinde, kendi hedef seçimiyle avlanır.
+
+Status HUD
+== Durum HUD'u
+
+A corner panel showing which Null features are active.
+== Hangi Null özelliklerinin aktif olduğunu köşede gösteren panel.
+
+Top left
+== Sol üst
+
+Top right
+== Sağ üst
+
+Bottom left
+== Sol alt
+
+Bottom right
+== Sağ alt
+
+Middle left
+== Orta sol
+
+Middle right
+== Orta sağ
+
+Only active
+== Sadece açık olanlar
+
+All, with marks
+== Tümü, işaretli
+
+Serial killer (dummy)
+== Seri katil (dummy)
+
+Warlist: type a name, e.g. !attack SomePlayer
+== Savaş listesi: bir isim yaz, örn. !attack BirOyuncu
+
+Warlist: '%s' added to attack
+== Savaş listesi: '%s' saldırıya eklendi
+
+Warlist: '%s' is already on attack
+== Savaş listesi: '%s' zaten saldırıda
+
+Warlist: '%s' removed from attack
+== Savaş listesi: '%s' saldırıdan çıkarıldı
+
+Warlist: '%s' was not on attack
+== Savaş listesi: '%s' saldırıda değildi
+
+Move on to the next target
+== Bir sonraki hedefe geç
+
+Chase targets within
+== Şu mesafedeki hedefleri kovala
+
+Lead the target by
+== Hedefin önüne şu kadar nişan al
+
+Give up after being stuck for
+== Şu kadar sıkışınca vazgeç
+
+Hold them with the hook
+== Onları hook ile tut
+
+Hammer at point-blank range
+== Yakın mesafede çekiçle vur
+
+Use the grenade in between
+== Arada bombayı kullan
+
+Never hammer a frozen player
+== Donmuş oyuncuya asla çekiç atma
+
+Push them toward the freeze
+== Onları dona doğru sür
+
+Prefer dragging over hitting by
+== Vurmak yerine sürüklemeyi şu kadar tercih et
+
+Carry a frozen player up to
+== Donmuş oyuncuyu şu kadar taşı
+
+Value its own footing by
+== Kendi zeminine şu kadar değer ver
+
+Value being right on top of them by
+== Tam üstlerinde olmaya şu kadar değer ver
+
+Value their possible retaliation by
+== Karşılık verebilmelerine şu kadar değer ver
+
+Count targets within
+== Şu mesafedeki hedefleri say
+
+Never target a friend
+== Asla bir arkadaşı hedef alma
+
+Highlight the target
+== Hedefi işaretle
+
+Serial killer on the dummy
+== Dummy'de seri katil
+
+Let the dummy hunt your own tee
+== Dummy'nin kendi tee'ni avlamasına izin ver
+
+Weapon defense
+== Silahla savunma
+
+Uses your own weapons to get you out of trouble.
+== Seni beladan çıkarmak için kendi silahlarını kullanır.
+
+Fire your grenade to save yourself
+== Kendini kurtarmak için bomba at
+
+Hammer back at point-blank range
+== Yakın mesafede çekiçle karşılık ver
+
+Switch to a better weapon to survive
+== Hayatta kalmak için daha iyi silaha geç
+
+Aim assist
+== Nişan yardımı
+
+Aims at a target for you, without moving your crosshair.
+== Nişangâhını oynatmadan senin için bir hedefe nişan alır.
+
+Stay on the current target
+== Mevcut hedefte kal
+
+Switch only if another is better by
+== Bir diğeri şu kadar daha iyiyse geç
+
+Nearest to crosshair
+== Nişangâha en yakın
+
+Nearest to you
+== Sana en yakın
+
+Field of view
+== Görüş açısı
+
+Don't show
+== Gösterme
+
+Always show
+== Her zaman göster
+
+Show only when held
+== Sadece eldeyken göster
+
+Aim for maximum knockback
+== Maksimum geri tepme için nişan al
+
+Only closer than
+== Sadece şundan yakınsa
+
+Bounce lasers off walls
+== Lazeri duvarlardan sektir
+
+Lob grenades over walls
+== Bombayı duvar aşırı at
+
+Lead moving targets
+== Hareketli hedeflere önden nişan al
+
+Aim lines
+== Nişan çizgileri
+
+Shows where a shot would go before it is fired.
+== Bir atışın atılmadan önce nereye gideceğini gösterir.
+
+Only my own tee
+== Sadece kendi tee'm
+
+Trace a fired shot for
+== Atılan atışı şu kadar izle
+
+Projectile lines
+== Mermi çizgileri
+
+Traces projectiles already in the air.
+== Halihazırda havada olan mermileri izler.
+
+Only my own projectiles
+== Sadece kendi mermilerim
+
+Projectile
+== Mermi
+
+Trace a projectile for
+== Bir mermiyi şu kadar izle
+
+Predicted path
+== Tahmini yol
+
+Shows where you are really heading, using the real physics.
+== Gerçek fizikle, gerçekte nereye gittiğini gösterir.
+
+Prediction length
+== Tahmin uzunluğu
+
+Line width
+== Çizgi kalınlığı
+
+Fade out toward the far end
+== Uzak uca doğru soldur
+
+Glow
+== Parıltı
+
+Moving light pulses
+== Hareketli ışık darbeleri
+
+Pulse speed
+== Darbe hızı
+
+Stop the path when frozen and still
+== Donup durunca yolu durdur
+
+Key moments along the path worth highlighting.
+== Yol üzerinde vurgulanmaya değer önemli anlar.
+
+Freeze entry point
+== Dona giriş noktası
+
+Kill tile hit
+== Öldürme karosu teması
+
+End of path
+== Yolun sonu
+
+Ground contact
+== Zemin teması
+
+Hook attach point
+== Hook tutunma noktası
+
+Also show the dummy's path
+== Dummy'nin yolunu da göster
+
+Colors
+== Renkler
+
+The line under the logo previews this palette.
+== Logonun altındaki çizgi bu paleti önizler.
+
+Path color near the tee
+== Tee'ye yakın yol rengi
+
+Path color far ahead
+== İleride yol rengi
+
+Path color while frozen
+== Donmuşken yol rengi
+
+Kill marker color
+== Öldürme işareti rengi
+
+Automation
+== Otomasyon
+
+Small actions performed for you, on top of your own input.
+== Girdinin üstüne, senin için yapılan küçük hamleler.
+
+Auto fire
+== Otomatik ateş
+
+Auto rehook
+== Otomatik yeniden hook
+
+Protections
+== Korumalar
+
+What this client reports about itself to a server.
+== Bu istemcinin sunucuya kendisi hakkında bildirdikleri.
+
+Randomize timeout code
+== Timeout kodunu rastgeleleştir
+
+Version spoofing
+== Sürüm sahteleme
+
+What version this build reports to a server.
+== Bu yapının sunucuya bildirdiği sürüm.
+
+Report as
+== Şu olarak bildir
+
+DDNet, no build hash
+== DDNet, yapı özeti olmadan
+
+Version number
+== Sürüm numarası
+
+Fake aim
+== Sahte nişan
+
+Reports a different aim direction than the one you use.
+== Sunucuya, kullandığından farklı bir nişan yönü bildirir.
+
+Robot
+== Robot
+
+Spin
+== Dönme
+
+Random
+== Rastgele
+
+Reverse
+== Ters
+
+Turn speed
+== Dönme hızı
+
+°/s
+== °/s
+
+Send on every tick it moves
+== Hareket ettiği her tick'te gönder
+
+Preview what others see
+== Başkalarının gördüğünü önizle
+
+Other
+== Diğer
+
+Miscellaneous options that change what this client sends.
+== Bu istemcinin gönderdiğini değiştiren çeşitli seçenekler.
+
+Kill on freeze
+== Donunca kendini öldür
+
+Kill on deep freeze
+== Derin donunca kendini öldür
+
+Hide chat bubble
+== Sohbet balonunu gizle
+
+Keep playing while the menu is open
+== Menü açıkken oynamaya devam et
+
+Fly mode
+== Uçuş modu
+
+You steer a marker and the tee is held on it.
+== Bir işareti yönetirsin, tee ona sabitlenir.
+
+Marker speed
+== İşaret hızı
+
+Lookahead
+== İleri bakış
+
+Check this far beyond each move
+== Her hamlenin şu kadar ötesini kontrol et
+
+Pathfinding
+== Rota bulma
+
+Routes around obstacles instead of into them.
+== Engellerin içinden değil, etrafından geçer.
+
+Show the route
+== Rotayı göster
+
+Keep the route out of freeze
+== Rotayı dondan uzak tut
+
+Recalculate every
+== Şu aralıkla yeniden hesapla
+
+How much of the map it scans
+== Haritanın ne kadarını tarar
+
+Larger is more thorough but slower.
+== Daha büyük daha kapsamlı ama daha yavaştır.
+
+Surface scan resolution
+== Yüzey tarama çözünürlüğü
+
+Simulated surroundings
+== Simüle edilen çevre
+
+Profiles
+== Profiller
+
+Save all settings under a name; the file is yours to share.
+== Tüm ayarları bir isim altında kaydet; dosya paylaşmak için senindir.
+
+Profile name
+== Profil adı
+
+my settings
+== ayarlarım
+
+Load
+== Yükle
+
+No profiles saved yet
+== Henüz kayıtlı profil yok
+
+Debug overlay
+== Hata ayıklama katmanı
+
+Write the last 100 ticks to a file on death
+== Öldüğünde son 100 tick'i dosyaya yaz
+
+Fight replay
+== Savaş tekrarı
+
+Records both tees, the projectiles and a snapshot of the tiles.
+== Her iki tee'yi, mermileri ve karoların anlık görüntüsünü kaydeder.
+
+Off
+== Kapalı
+
+When you finish
+== İşin bittiğinde
+
+And when you finish someone off
+== Ve birini bitirdiğinde
+
+But watch players within
+== Ama şu mesafedeki oyuncuları izle
+
+Assume other players are attacking
+== Diğer oyuncuların saldırdığını varsay
+
+Warlist: type a name, e.g. !war SomePlayer
+== Savaş listesi: bir isim yaz, örn. !war OyuncuAdı
+
+Warlist: '%s' added to war
+== Savaş listesi: '%s' savaşa eklendi
+
+Warlist: '%s' is already at war
+== Savaş listesi: '%s' zaten savaşta
+
+Warlist: '%s' removed from war
+== Savaş listesi: '%s' savaştan çıkarıldı
+
+Warlist: '%s' was not at war
+== Savaş listesi: '%s' savaşta değildi
+
+Draw the path your held input leads to
+== Basılı tuttuğun girdinin götürdüğü yolu çiz
+
+How far ahead the path is simulated, in ticks (50 ticks = 1 second)
+== Yolun ne kadar ileri simüle edildiği, tick (50 tick = 1 saniye)
+
+Width of the path line
+== Yol çizgisinin kalınlığı
+
+Opacity of the path line
+== Yol çizgisinin saydamlığı
+
+Make the path thinner and fainter further ahead
+== Yolu ileriye doğru inceltip soldur
+
+Draw a soft glow around the path
+== Yolun etrafına yumuşak bir parıltı çiz
+
+Animate light pulses moving along the path
+== Yol boyunca ilerleyen ışık darbeleri canlandır
+
+Speed of the light pulses along the path
+== Yol boyunca ışık darbelerinin hızı
+
+Stop the path once the tee rests in freeze
+== Tee donup durunca yolu durdur
+
+Also draw the path of the dummy
+== Dummy'nin yolunu da çiz
+
+Mark where the tee enters freeze
+== Tee'nin dona girdiği noktayı işaretle
+
+Mark where the tee would hit a kill tile
+== Tee'nin öldürme karosuna çarpacağı noktayı işaretle
+
+Mark the end of the predicted path
+== Tahmini yolun sonunu işaretle
+
+Mark where the tee touches ground
+== Tee'nin zemine değdiği yerleri işaretle
+
+Mark where the hook attaches
+== Hook'un tutunduğu yerleri işaretle
+
+Draw the Null backdrop behind the menus instead of the map
+== Menülerin arkasına harita yerine Null arka planını çiz
+
+Take over your input at the last tick that still avoids death
+== Ölümü hâlâ önleyen son tick'te girdini devral
+
+Run the same survival on the tee you are not controlling
+== Kontrol etmediğin tee'de aynı hayatta kalmayı çalıştır
+
+How far ahead your input is simulated to check if it kills you, in ticks
+== Girdinin seni öldürüp öldürmediğini görmek için ne kadar ileri simüle edildiği, tick
+
+How close to death god mode waits before taking over, in ticks
+== God mode'un devreye girmeden önce ölüme ne kadar yaklaşmayı beklediği, tick
+
+How far ahead a rescue is simulated, in ticks
+== Bir kurtuluşun ne kadar ileri simüle edildiği, tick
+
+Search deeper for an escape when surrounded (uses more CPU)
+== Etrafın sarıldığında çıkış için daha derin ara (daha çok CPU)
+
+How far a rescue is simulated during the deeper search, in ticks
+== Derin arama sırasında kurtuluşun ne kadar simüle edildiği, tick
+
+How many top moves are explored further during the deeper search
+== Derin arama sırasında kaç iyi hamlenin daha derine bakıldığı
+
+How much god mode favours the keys you are holding
+== God mode'un basılı tuttuğun tuşları ne kadar öncelediği
+
+How hard god mode keeps your ground, as a percentage of fly mode's hold
+== God mode'un zeminini ne kadar sıkı koruduğu (uçuş modu tutuşunun yüzdesi)
+
+How much safer things must look before god mode hands control back, in ticks
+== God mode'un kontrolü geri vermesi için ne kadar güvenli olması gerektiği, tick
+
+How fast your keys move the held spot, in units per second
+== Tuşlarının tutulan noktayı ne kadar hızlı taşıdığı, birim/saniye
+
+How far ahead of the tee the held spot may be dragged, in world units
+== Tutulan noktanın tee'nin ne kadar önüne çekilebileceği, birim
+
+Penalty for god mode changing its own plan, versus contradicting you
+== God mode'un kendi planını değiştirme cezası (seninle çelişmeye karşı)
+
+Free drift radius around the held spot, in world units
+== Tutulan nokta etrafındaki serbest kayma yarıçapı, birim
+
+Penalty for leftover speed at the end of a rescue
+== Bir kurtuluşun sonundaki artık hızın cezası
+
+How much a frozen tick is worth avoiding; 0 ignores freeze
+== Donmuş bir tick'ten kaçınmanın değeri; 0 donmayı yok sayar
+
+Ignore entities beyond this range; 0 simulates only your tee, in world units
+== Bu menzilin ötesindeki varlıkları yok say; 0 sadece kendi tee'ni simüle eder, birim
+
+How much of what other players could do is assumed (0-2)
+== Diğer oyuncuların yapabileceklerinin ne kadarının varsayıldığı (0-2)
+
+How far away another tee is kept in the simulation, in world units
+== Başka bir tee'nin simülasyonda ne kadar uzağa kadar tutulduğu, birim
+
+How many ticks earlier it reacts while a hook is attached to you
+== Sana hook takılıyken kaç tick daha erken tepki verdiği
+
+How finely surroundings are scanned for hookable surfaces
+== Çevrenin hook'lanabilir yüzeyler için ne kadar ince tarandığı
+
+Show a ring around the tee while god mode is steering
+== God mode yönlendirirken tee'nin etrafında bir halka göster
+
+Record the last 100 ticks of god mode's decisions and dump them on death
+== God mode kararlarının son 100 tick'ini kaydet ve ölünce döküm al
+
+Show what god mode is thinking above the tee
+== God mode'un ne düşündüğünü tee'nin üstünde göster
+
+Before planning, wait for the last tick where simply releasing the hook still saves you
+== Plan yapmadan önce, sadece hook'u bırakmanın seni hâlâ kurtaracağı son tick'i bekle
+
+How long a hook release keeps hold, in ticks
+== Bir hook bırakmasının ne kadar süre tutulacağı, tick
+
+How long a release is evaluated over; 0 uses the rescue window, in ticks
+== Bir bırakmanın ne kadar süre değerlendirildiği; 0 kurtuluş penceresini kullanır, tick
+
+Penalty per world unit between you and where a rescue leaves you
+== Seninle bir kurtuluşun seni bıraktığı yer arasındaki her birim için ceza
+
+Score a rescue as if your keys resume when it ends
+== Bir kurtuluşu, bittiğinde tuşların devreye girecekmiş gibi puanla
+
+Hand over only on the last tick that still has an escape
+== Sadece hâlâ bir çıkışı olan son tick'te devret
+
+How far ahead a hook you are about to throw is checked, in ticks; 0 off
+== Atmak üzere olduğun hook'un ne kadar ileri kontrol edildiği, tick; 0 kapalı
+
+How many ticks are played before re-checking whether a rescue is still possible
+== Bir kurtuluşun hâlâ mümkün olup olmadığı yeniden sorulmadan önce kaç tick oynandığı
+
+How far ahead a grenade you are about to fire is checked, in ticks; 0 off
+== Atmak üzere olduğun bombanın ne kadar ileri kontrol edildiği, tick; 0 kapalı
+
+How far ahead a step is checked so a tap cannot carry you over an edge, in ticks; 0 off
+== Bir dokunuşun seni kenardan geçirmemesi için adımın ne kadar ileri kontrol edildiği, tick; 0 kapalı
+
+How much your speed brings the reaction earlier, as a percentage of a tick per unit
+== Hızının tepkiyi ne kadar öne çektiği (birim başına tick yüzdesi)
+
+Extra reaction brought forward at high speed, scaling with speed squared
+== Yüksek hızda öne çekilen ek tepki (hızın karesiyle ölçeklenir)
+
+How much a sudden velocity change brings the reaction earlier
+== Ani bir hız değişiminin tepkiyi ne kadar öne çektiği
+
+Treat contact range (a hammer swing, a point-blank blast) as ground to avoid
+== Temas menzilini (çekiç vuruşu, yakın patlama) kaçınılacak zemin say
+
+How far ahead your input is checked for walking into a swing, in ticks
+== Girdinin bir vuruşa doğru yürüyüp yürümediğinin ne kadar ileri kontrol edildiği, tick
+
+While airborne, get above someone aiming a grenade at you
+== Havadayken sana bomba nişanlayan birinin üstüne çık
+
+How near someone with a grenade must be to be watched, in world units
+== Bombası olan birinin izlenmesi için ne kadar yakın olması gerektiği, birim
+
+Penalty for a tick where their grenade would land
+== Bombalarının düşeceği yerde geçirilen bir tick'in cezası
+
+How far a blast can move you, in world units
+== Bir patlamanın seni ne kadar hareket ettirebileceği, birim
+
+How wide a fan of directions counts as behind you, in degrees
+== Arkanda sayılan yön yelpazesinin genişliği, derece
+
+How near someone with a grenade must be to count, in world units
+== Bombası olan birinin sayılması için ne kadar yakın olması gerektiği, birim
+
+How far ahead someone walking a grenade at you is tracked, in ticks
+== Sana bomba yürüten birinin ne kadar ileri takip edildiği, tick
+
+Let it fire or hammer back at someone cornering you with a grenade
+== Seni bombayla köşeye sıkıştırana ateş veya çekiçle karşılık vermesine izin ver
+
+Penalty for a tick spent inside enemy hammer reach
+== Düşman çekiç menzilinde geçirilen bir tick'in cezası
+
+Draw a thin ring at the avoided hammer reach
+== Kaçınılan çekiç menzilinde ince bir halka çiz
+
+Keep the ground you are on when something moves you, not only when you would die
+== Bir şey seni hareket ettirdiğinde durduğun zemini koru, sadece ölürken değil
+
+Resist being moved mid-fight too, not only when idle (0/1)
+== Sadece boştayken değil, savaş sırasında da hareket ettirilmeye karşı koy (0/1)
+
+How hard it pulls you back to where you were shoved off, as a percentage of fly mode's hold
+== İtildiğin yere ne kadar sıkı geri çektiği (uçuş modu tutuşunun yüzdesi)
+
+How long it keeps trying to regain your ground after a shove, in ticks
+== İtildikten sonra zeminini geri almaya ne kadar süre çalıştığı, tick
+
+How much room the way back keeps from freeze, in world units; 0 off
+== Dönüş yolunun dondan ne kadar uzak duracağı, birim; 0 kapalı
+
+How much harder it holds your ground while being pulled or pushed, as a percentage of normal; 100 off
+== Çekilirken veya itilirken zeminini ne kadar daha sıkı tuttuğu (normalin yüzdesi); 100 kapalı
+
+When hooked, steer to the far side of the puller (Elite)
+== Hook'landığında çekenin uzak tarafına yönel (Elite)
+
+How far past the puller to aim, in world units
+== Çekenin ne kadar ötesine nişan alınacağı, birim
+
+How hard it goes for the far side of the puller, as a percentage of fly mode's hold
+== Çekenin uzak tarafına ne kadar sıkı gittiği (uçuş modu tutuşunun yüzdesi)
+
+See incoming grenades, bullets and lasers and dodge them
+== Gelen bombaları, mermileri ve lazerleri görüp kaçın
+
+How far away a shot is kept in the simulation, in world units
+== Bir atışın simülasyonda ne kadar uzağa kadar tutulduğu, birim
+
+Draw where the shells in the air are going and where each goes off
+== Havadaki mermilerin nereye gittiğini ve nerede patlayacağını çiz
+
+How far ahead a shell is drawn, in ticks (50 ticks = 1 second)
+== Bir merminin ne kadar ileri çizildiği, tick (50 tick = 1 saniye)
+
+Let it fire your grenade to save you when moving cannot
+== Hareket etmek yetmediğinde seni kurtarmak için bombanı atmasına izin ver
+
+Let it hammer back at someone on top of you
+== Üstündeki birine çekiçle karşılık vermesine izin ver
+
+Let it switch to a better weapon to save you
+== Seni kurtarmak için daha iyi bir silaha geçmesine izin ver
+
+Last resort: bounce a laser off a wall to unfreeze yourself
+== Son çare: kendini çözmek için lazeri duvardan sektir
+
+Penalty for spending your air jump in a rescue; 0 uses the built-in price
+== Bir kurtuluşta hava zıplamanı harcamanın cezası; 0 yerleşik değeri kullanır
+
+How many ticks of a rescue are followed before re-planning; 0 sends only first ticks
+== Bir kurtuluşun kaç tick'inin yeniden planlamadan önce izlendiği; 0 sadece ilk tick'leri gönderir
+
+Penalty per tick a rescue keeps a key held
+== Bir kurtuluşun bir tuşu basılı tuttuğu her tick için ceza
+
+Penalty for throwing a hook, so walking is preferred where it works
+== Hook atma cezası; yürümenin işe yaradığı yerde yürümeyi öncele
+
+Penalty per tick a rescue keeps holding its own hook
+== Bir kurtuluşun kendi hook'unu tuttuğu her tick için ceza
+
+Penalty for a tick with your sideways motion stopped by a wall
+== Yatay hareketinin bir duvarca durdurulduğu bir tick için ceza
+
+Penalty for ending a rescue with your hook stuck in another tee
+== Bir kurtuluşu hook'un başka bir tee'de takılı biterek geçirmenin cezası
+
+How many top moves get their follow-ups explored when none end safely; 0 off
+== Hiçbiri güvenli bitmediğinde kaç iyi hamlenin devamına bakıldığı; 0 kapalı
+
+How many ticks past a rescue you are coasted to see where its speed leads; 0 off
+== Bir kurtuluşun hızının nereye götürdüğünü görmek için kaç tick süzüldüğün; 0 kapalı
+
+Speed at which pointing into freeze costs full price, in tenths of a unit per tick; 0 always full
+== Dona doğru bakmanın tam ceza aldığı hız, birim/tick'in onda biri; 0 her zaman tam
+
+Draw where a shot would go if fired right now
+== Şu an ateşlense bir atışın nereye gideceğini çiz
+
+Only your own tee
+== Sadece kendi tee'n
+
+Draw the pistol
+== Tabancayı çiz
+
+Draw the shotgun
+== Pompalıyı çiz
+
+Draw the grenade, arc and all
+== Bombayı, yayıyla birlikte çiz
+
+Draw the laser, bounces and all
+== Lazeri, sekmeleriyle birlikte çiz
+
+Opacity of the aim lines
+== Nişan çizgilerinin saydamlığı
+
+How far ahead a thrown shot is drawn, in ticks (50 ticks = 1 second)
+== Atılan bir atışın ne kadar ileri çizildiği, tick (50 tick = 1 saniye)
+
+Only shells you fired
+== Sadece senin attığın mermiler
+
+Draw pistol bullets
+== Tabanca mermilerini çiz
+
+Draw shotgun bullets
+== Pompalı saçmalarını çiz
+
+Draw grenades
+== Bombaları çiz
+
+Opacity of the bullet lines
+== Mermi çizgilerinin saydamlığı
+
+Keep firing while the fire button is held, at the engine's reload rate
+== Ateş tuşu basılıyken motorun yeniden doldurma hızında ateş etmeye devam et
+
+Re-grab the moment your hook comes off, while the button is held
+== Buton basılıyken hook'un çözüldüğü an yeniden tut
+
+Make a new timeout code before each connection (you lose your tee on a drop)
+== Her bağlantıdan önce yeni bir timeout kodu üret (kopunca tee'ni kaybedersin)
+
+How long the hook keeps aiming at a target it lost, in ticks
+== Hook'un kaybettiği hedefe ne kadar süre nişan almaya devam edeceği, tick
+
+Kill yourself the moment you freeze
+== Donduğun an kendini öldür
+
+Kill yourself on deep freeze
+== Derin donunca kendini öldür
+
+Don't show the typing bubble, and keep moving while you type
+== Yazma balonunu gösterme ve yazarken hareket etmeye devam et
+
+Key that toggles Never die (0 = unbound)
+== Asla Ölme'yi açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles Never die for the dummy (0 = unbound)
+== Dummy için Asla Ölme'yi açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles Dodging shots (0 = unbound)
+== Atışlardan Kaçınma'yı açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles Hammer avoidance (0 = unbound)
+== Çekiç Menzilinden Kaçınma'yı açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles Stepping off the edge (0 = unbound)
+== Kenardan Adım Atma'yı açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles the Serial killer (0 = unbound)
+== Seri Katil'i açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles the Serial killer for the dummy (0 = unbound)
+== Dummy için Seri Katil'i açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles the Aimbot (0 = unbound)
+== Aimbot'u açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles Fake aim (0 = unbound)
+== Sahte Nişan'ı açıp kapatan tuş (0 = atanmamış)
+
+Key that toggles Fly mode (0 = unbound)
+== Uçuş Modu'nu açıp kapatan tuş (0 = atanmamış)
+
+Key that flies while held: hold it and move the mouse to fly, release to stop (0 = unbound)
+== Basılıyken uçuran tuş: basılı tutup fareyi oynat, bırakınca durur (0 = atanmamış)
+
+Key that toggles Version spoofing (0 = unbound)
+== Sürüm Sahteleme'yi açıp kapatan tuş (0 = atanmamış)
+
+Pick a target and hunt them down: walk to them, hook in, hammer and grenade
+== Bir hedef seç ve avla: ona yürü, hook at, çekiç ve bombayla işle
+
+Run the serial killer on the tee you are not controlling (enable Never die for it too)
+== Kontrol etmediğin tee'de seri katili çalıştır (onun için de Asla Ölme'yi aç)
+
+Let the serial killer hunt your own other tee (for testing alone)
+== Seri katilin kendi diğer tee'ni avlamasına izin ver (tek başına test için)
+
+Move on to the next victim once the current one is finished
+== Mevcut kurban bitince bir sonrakine geç
+
+How far away a victim may be and still be chased, in world units
+== Bir kurbanın ne kadar uzakta olup hâlâ kovalanabileceği, birim
+
+How far ahead of the victim it aims, in ticks of their speed; 0 aims at them
+== Kurbanın ne kadar önüne nişan alacağı, onların hızının tick'i; 0 üstlerine nişan alır
+
+Use the hook to close the distance, thrown along the clear route
+== Mesafeyi kapatmak için hook kullan, açık rota boyunca at
+
+Use the hammer at point-blank range
+== Yakın mesafede çekiç kullan
+
+Use the grenade, alternating with the hammer up close
+== Bombayı kullan, yakında çekiçle sırayla
+
+Never hammer a frozen player (a hammer unfreezes them); use the grenade instead
+== Donmuş bir oyuncuya asla çekiç atma (çekiç onları çözer); yerine bomba kullan
+
+Give up a target once frozen and stuck in freeze for this many ticks (50 = 1s); 0 never
+== Bir hedefi, donup bu kadar tick donmada kaldıktan sonra bırak (50 = 1s); 0 asla
+
+Stand on the side that throws them toward freeze
+== Onları dona doğru fırlatan tarafta dur
+
+How far from the victim to look for freeze to throw them into, in world units
+== Kurbanı içine atmak için ne kadar uzakta don aranacağı, birim
+
+How far it will carry a frozen player to find lasting freeze, in world units
+== Kalıcı don bulmak için donmuş bir oyuncuyu ne kadar taşıyacağı, birim
+
+How much it prefers hauling them toward freeze over landing hits
+== Vuruş yapmak yerine onları dona sürüklemeyi ne kadar öncelediği
+
+How far around a standing spot it looks for hazards to itself, in world units
+== Bir durma noktası etrafında kendine yönelik tehlikeleri ne kadar arayacağı, birim
+
+How much a standing spot's safety counts against how well it throws them
+== Bir durma noktasının güvenliğinin, onları ne kadar iyi fırlattığına karşı ağırlığı
+
+How much it wants to be right on top of them
+== Tam üstlerinde olmayı ne kadar istediği
+
+How much it weighs what the target could do to a spot before standing there
+== Bir noktada durmadan önce hedefin oraya ne yapabileceğini ne kadar tarttığı
+
+How far a target must be from a spot to be able to reach it, in world units
+== Bir hedefin bir noktaya ulaşabilmesi için ne kadar uzakta olması gerektiği, birim
+
+Never pick someone on your friends list
+== Arkadaş listendeki birini asla seçme
+
+How many ticks between route recalculations
+== Rota yeniden hesaplamaları arasındaki tick sayısı
+
+Write a report of how a fight ended to null_autopsy.txt: 0 off, 1 deaths, 2 also kills
+== Bir savaşın nasıl bittiğine dair raporu null_autopsy.txt'ye yaz: 0 kapalı, 1 ölümler, 2 öldürmeler de
+
+Ring the victim: solid while locked, faint while taking whoever is nearest
+== Kurbanı halkayla göster: kilitliyken belirgin, en yakını alırken soluk
+
+Point the aim at a target for you; stands down whenever god mode steers. Your crosshair never moves
+== Senin için bir hedefe nişan al; god mode yönlendirdiğinde devreden çıkar. Nişangâhın hiç oynamaz
+
+Aim the hook (separate from the weapons)
+== Hook'a nişan al (silahlardan ayrı)
+
+Aim the hammer
+== Çekiçle nişan al
+
+Aim the pistol
+== Tabancayla nişan al
+
+Aim the shotgun
+== Pompalıyla nişan al
+
+Aim the grenade
+== Bombayla nişan al
+
+Aim the laser
+== Lazerle nişan al
+
+How wide the field of view is around your aim, in degrees; 360 is a full circle
+== Nişanın etrafındaki görüş açısının genişliği, derece; 360 tam dairedir
+
+How far the aim reaches along your facing, in world units
+== Nişanın baktığın yön boyunca ne kadar uzağa ulaştığı, birim
+
+Field of view for the hook, in degrees
+== Hook için görüş açısı, derece
+
+Field of view for the hammer, in degrees
+== Çekiç için görüş açısı, derece
+
+Field of view for the pistol, in degrees
+== Tabanca için görüş açısı, derece
+
+Field of view for the shotgun, in degrees
+== Pompalı için görüş açısı, derece
+
+Field of view for the grenade, in degrees
+== Bomba için görüş açısı, derece
+
+Field of view for the laser, in degrees
+== Lazer için görüş açısı, derece
+
+Range for the hook, in world units
+== Hook menzili, birim
+
+Range for the hammer, in world units
+== Çekiç menzili, birim
+
+Range for the pistol, in world units
+== Tabanca menzili, birim
+
+Range for the shotgun, in world units
+== Pompalı menzili, birim
+
+Range for the grenade, in world units
+== Bomba menzili, birim
+
+Range for the laser, in world units
+== Lazer menzili, birim
+
+Which weapon the per-weapon aim settings edit
+== Silah-başına nişan ayarlarının hangi silahı düzenlediği
+
+Aim the pistol for maximum knockback up close
+== Yakında maksimum geri tepme için tabancayla nişan al
+
+Aim the shotgun for maximum knockback up close
+== Yakında maksimum geri tepme için pompalıyla nişan al
+
+Aim the grenade for maximum knockback up close
+== Yakında maksimum geri tepme için bombayla nişan al
+
+Aim the laser for maximum knockback up close
+== Yakında maksimum geri tepme için lazerle nişan al
+
+How close a target must be for the max-knockback aim, in world units
+== Maksimum geri tepme nişanı için hedefin ne kadar yakın olması gerektiği, birim
+
+Who the hook picks: 0 nearest the crosshair, 1 nearest you
+== Hook kimi seçer: 0 nişangâha en yakın, 1 sana en yakın
+
+Who the hammer picks: 0 nearest the crosshair, 1 nearest you
+== Çekiç kimi seçer: 0 nişangâha en yakın, 1 sana en yakın
+
+Who the pistol picks: 0 nearest the crosshair, 1 nearest you
+== Tabanca kimi seçer: 0 nişangâha en yakın, 1 sana en yakın
+
+Who the shotgun picks: 0 nearest the crosshair, 1 nearest you
+== Pompalı kimi seçer: 0 nişangâha en yakın, 1 sana en yakın
+
+Who the grenade picks: 0 nearest the crosshair, 1 nearest you
+== Bomba kimi seçer: 0 nişangâha en yakın, 1 sana en yakın
+
+Who the laser picks: 0 nearest the crosshair, 1 nearest you
+== Lazer kimi seçer: 0 nişangâha en yakın, 1 sana en yakın
+
+The hook's wedge: 0 off, 1 always, 2 only while hooking
+== Hook konisi: 0 kapalı, 1 her zaman, 2 sadece hook atarken
+
+The hammer's wedge: 0 off, 1 always, 2 only in hand
+== Çekiç konisi: 0 kapalı, 1 her zaman, 2 sadece eldeyken
+
+The pistol's wedge: 0 off, 1 always, 2 only in hand
+== Tabanca konisi: 0 kapalı, 1 her zaman, 2 sadece eldeyken
+
+The shotgun's wedge: 0 off, 1 always, 2 only in hand
+== Pompalı konisi: 0 kapalı, 1 her zaman, 2 sadece eldeyken
+
+The grenade's wedge: 0 off, 1 always, 2 only in hand
+== Bomba konisi: 0 kapalı, 1 her zaman, 2 sadece eldeyken
+
+The laser's wedge: 0 off, 1 always, 2 only in hand
+== Lazer konisi: 0 kapalı, 1 her zaman, 2 sadece eldeyken
+
+Opacity of the hook's wedge
+== Hook konisinin saydamlığı
+
+Opacity of the hammer's wedge
+== Çekiç konisinin saydamlığı
+
+Opacity of the pistol's wedge
+== Tabanca konisinin saydamlığı
+
+Opacity of the shotgun's wedge
+== Pompalı konisinin saydamlığı
+
+Opacity of the grenade's wedge
+== Bomba konisinin saydamlığı
+
+Opacity of the laser's wedge
+== Lazer konisinin saydamlığı
+
+Ignore anyone behind a wall
+== Duvar ardındaki herkesi yok say
+
+Draw the FOV wedge and mark whoever is picked
+== FOV konisini çiz ve seçileni işaretle
+
+Who wins when several are in range: 0 nearest the crosshair, 1 simply nearest
+== Menzilde birden fazla varsa kim kazanır: 0 nişangâha en yakın, 1 en yakın
+
+Let each weapon reach as far as it really does, not one shared range
+== Her silahın tek ortak menzil yerine gerçek menziline ulaşmasına izin ver
+
+Lob a grenade over a wall when the flat shot is blocked
+== Düz atış engellendiğinde bombayı duvar aşırı at
+
+Aim where the target will be, not where they are, for weapons with flight time
+== Uçuş süresi olan silahlar için hedefin olacağı yere nişan al, olduğu yere değil
+
+Stay on your current target instead of flicking to whoever is momentarily best
+== Anlık en iyiye atlamak yerine mevcut hedefinde kal
+
+How much better a rival must be to steal the aim, as a percent
+== Nişanı çalması için bir rakibin ne kadar daha iyi olması gerektiği, yüzde
+
+Aim a laser off a wall to reach someone behind it
+== Arkasındakine ulaşmak için lazeri duvardan sektirerek nişan al
+
+How many aim angles to try when searching for a wall bounce
+== Duvar sekmesi ararken kaç nişan açısının deneneceği
+
+Send a different DDNet version than this build's
+== Bu yapınınkinden farklı bir DDNet sürümü gönder
+
+The name sent with it; empty removes the build hash (the real tell)
+== Onunla gönderilen ad; boş bırakmak yapı özetini kaldırır (asıl belirti)
+
+The version number sent; a DDNet server gates features on it
+== Gönderilen sürüm numarası; DDNet sunucusu özellikleri buna göre açar
+
+Send a different aim than the one you use; stands down on ticks a hook or shot goes out. Your crosshair never moves
+== Kullandığından farklı bir nişan gönder; hook veya atış çıkan tick'lerde devreden çıkar. Nişangâhın hiç oynamaz
+
+What the sent aim does: Mouse your real aim, Robot only when real, Spin, Random, Reverse, Nearest
+== Gönderilen nişanın ne yaptığı: Fare gerçek nişanın, Robot sadece gerçekken, Dönme, Rastgele, Ters, En yakın
+
+How fast the turning modes turn, in degrees per second (per tick, not per frame)
+== Dönme modlarının ne kadar hızlı döndüğü, derece/saniye (frame değil tick başına)
+
+Send a packet whenever the fake aim moves (off by default)
+== Sahte nişan her hareket ettiğinde paket gönder (varsayılan kapalı)
+
+Render your own tee from the aim you send, so it looks as others see it
+== Kendi tee'ni gönderdiğin nişandan çiz, böylece başkalarının gördüğü gibi görünür
+
+Hold the tee on a marker you steer with WASD or by dragging with the left mouse
+== Tee'yi WASD ile veya sol fareyle sürükleyerek yönettiğin bir işaret üzerinde tut
+
+How fast WASD moves the marker, in world units per second
+== WASD'nin işareti ne kadar hızlı taşıdığı, birim/saniye
+
+How many ticks ahead each candidate move is simulated
+== Her aday hamlenin kaç tick ileri simüle edildiği
+
+How finely surroundings are scanned for surfaces to hold on to
+== Çevrenin tutunulacak yüzeyler için ne kadar ince tarandığı
+
+Report how long planning takes and how many ticks it simulates, to the console
+== Planlamanın ne kadar sürdüğünü ve kaç tick simüle ettiğini konsola bildir
+
+Ignore entities beyond this range; 0 leaves only your tee and the map, in world units
+== Bu menzilin ötesindeki varlıkları yok say; 0 sadece tee'ni ve haritayı bırakır, birim
+
+Route around walls when the marker cannot be reached in a straight line
+== İşarete düz çizgide ulaşılamayınca duvarların etrafından rota bul
+
+Cap on tiles the route search may examine before giving up
+== Rota aramasının vazgeçmeden inceleyebileceği karo üst sınırı
+
+Draw the route on screen
+== Rotayı ekranda çiz
+
+Ticks to keep simulating past a move, rejecting it if nothing survives (off by default)
+== Bir hamlenin ötesinde simülasyona devam edilecek tick (hiçbiri hayatta kalmazsa reddet; varsayılan kapalı)
+
+Ring around the tee
+== Tee'nin etrafındaki halka
+
+A ring around your tee while god mode is acting. Turn it off for a cleaner view.
+== God mode iş yaparken tee'nin etrafında bir halka. Daha temiz bir görünüm için kapat.
+
+Show the ring while it acts
+== İş yaparken halkayı göster
+
+React even earlier at very high speed
+== Çok yüksek hızda daha da erken tepki ver
+
+Check your own grenade before firing, within
+== Ateşlemeden önce kendi el bombanı şu kadar kontrol et
+
+Follow a rescue before re-planning for
+== Yeniden planlamadan önce kurtarmayı şu kadar takip et
+
+Route search effort (tiles)
+== Rota arama eforu (kare)
+
+Report planning time to the console
+== Planlama süresini konsola bildir
+
+Auto hammer
+== Otomatik çekiç
+
+With a hammer in hand, swing at whoever comes into its reach.
+== Elinde çekiç varken, menzile giren herkese vurur.
+
+Quick stop
+== Hızlı duruş
+
+Let go of the movement keys and stop dead instead of sliding.
+== Hareket tuşlarını bırak ve kaymak yerine anında dur.
+
+Only on the ground, never in the air
+== Sadece yerdeyken, havada asla
+
+Auto hammer (hold)
+== Otomatik çekiç (basılı tut)
+
+Aimbot hook
+== Aimbot kancası
+
+Touch
+== Temas
+
+Near
+== Yakın
+
+Max
+== Maks
+
+Hold key
+== Basılı tut tuşu
+
+Aim this weapon
+== Bu silahı nişanla
+
+On-screen range ring
+== Ekrandaki menzil halkası
+
+Ring opacity
+== Halka opaklığı
+
+Shared by all weapons
+== Tüm silahlarda ortak
+
+Fly
+== Uçuş
+
+Avoid hammers
+== Çekiçten kaçın
+
+Stays out of people's hammer range.
+== İnsanların hammer alanından kaçınır.
+
+Stops someone from moving you against your will.
+== Birisi seni hareket ettirmeye çalıştığında buna engel olur.
+
+When hooked, moves you above or below the puller so they can't fling you.
+== Hooklandığında seni çekenin altına veya üstüne alır, böylece seni fırlatamaz.
+
+Calculation depth
+== Hesaplama derinliği
+
+The base variables behind every calculation. Raising these can cause serious FPS drops.
+== Yapılan tüm hesaplamaların temel değişkenleridir. Bu ayarları arttırmak ciddi fps düşüşlerine yol açabilir.
+
+Shows what Avoid Freeze and the aimbot are calculating and thinking, live. For developers.
+== Avoid Freeze ve Aimbotun hesaplamalarını ve anlık olarak ne düşündüğünü gösterir (Geliştiriciler için).
+
+Switch back to your weapon afterwards
+== Sonrasında asıl silahına geri dön
+
+Stop
+== Durdur
+
+Stop recording
+== Kaydı durdur
+
+Open editor
+== Editörü aç
+
+Close editor
+== Editörü kapat
+
+With a grenade in hand, answer whoever HAMMERS you - throw a shell dead on them for maximum knockback
+== Elinde bomba varken sana HAMMER vurana karşılık ver - tam üstüne mermi atarak maksimum geri tepme uygula
+
+How many ticks after the hammer hit to throw the grenade (0 = at once)
+== Hammer vuruşundan kaç tick sonra bombayı atacağı (0 = hemen)
+
+How near the hammerer must be (in tiles) to count and be answered
+== Vuranın sayılıp karşılık görmesi için ne kadar yakın olması gerektiği (tile cinsinden)
+
+How hard a knock counts as a hammer hit (velocity jump); lower is more sensitive
+== Bir darbenin hammer vuruşu sayılması için ne kadar sert olması gerektiği (hız sıçraması); düşük = daha hassas
+
+While a hammer is in hand, swing it at whoever comes into its reach
+== Elinde hammer varken menziline gireni sallar
+
+How close a target must be to trigger the swing: 0 touch (true hit range), 1 near, 2 max
+== Sallamanın tetiklenmesi için hedefin ne kadar yakın olması gerektiği: 0 temas (gerçek vuruş menzili), 1 yakın, 2 maksimum
+
+Key held to auto-grenade; the key keeps its own bind (0 = unbound, always on)
+== Auto-grenade için basılı tutulan tuş; tuş kendi bind'ini korur (0 = atanmamış, her zaman açık)
+
+Key held to auto-hammer; the key keeps its own bind (0 = unbound, always on)
+== Auto-hammer için basılı tutulan tuş; tuş kendi bind'ini korur (0 = atanmamış, her zaman açık)
+
+After an auto-weapon switch, switch back to the weapon you were holding
+== Otomatik silah değişiminden sonra elindeki silaha geri döner
+
+Show a small panel of which Null features are active while you play
+== Oynarken hangi Null özelliklerinin açık olduğunu gösteren küçük bir panel gösterir
+
+Where the status panel sits: 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right, 4 middle-left, 5 middle-right
+== Durum panelinin konumu: 0 sol üst, 1 sağ üst, 2 sol alt, 3 sağ alt, 4 sol orta, 5 sağ orta
+
+Panel mode: 0 lists only the features that are on, adding and removing them as you toggle; 1 lists every feature with an on/off mark
+== Panel modu: 0 yalnızca açık olan özellikleri listeler, açıp kapattıkça ekler/çıkarır; 1 her özelliği açık/kapalı işaretiyle listeler
+
+Size of the status panel, in percent
+== Durum panelinin boyutu (yüzde)
+
+Kill your horizontal momentum the instant you let go of the movement keys
+== Hareket tuşlarını bıraktığın anda yatay momentumunu keser
+
+Only stop while on the ground, never in the air
+== Yalnızca yerdeyken durur, havadayken asla
+
+How the victim is chosen: 0 nearest the crosshair, 1 nearest you, 2 nearest on the war list, 3 nearest on the attack list
+== Kurbanın nasıl seçileceği: 0 nişangâha en yakın, 1 sana en yakın, 2 war listesindeki en yakın, 3 saldırı listesindeki en yakın
+
+How the dummy's victim is chosen: 0 nearest it, 1 nearest on the war list, 2 nearest on the attack list, 3 the same target as your main serial killer
+== Dummy'nin kurbanının nasıl seçileceği: 0 ona en yakın, 1 war listesindeki en yakın, 2 saldırı listesindeki en yakın, 3 ana serial killer'ınla aynı hedef
+
+Key held to balance-bot; drives a/d to line your X up with the nearest player (the key keeps its own bind)
+== Balance-bot için basılı tutulan tuş; a/d ile X konumunu en yakın oyuncuyla hizalar (tuş kendi bind'ini korur)
+
+Ping compensation (experimental): lead every target by up to this many ticks, scaled to your live ping, so aim and hooks connect through latency (0 = off)
+== Ping telafisi (deneysel): her hedefi, canlı pingine göre ölçeklenerek en fazla bu kadar tick önden alır; böylece nişan ve hook gecikmeye rağmen tutar (0 = kapalı)
+
+Balance bot (hold)
+== Balance bot (basılı tut)
+
+Ping compensation (ticks)
+== Ping telafisi (tick)
+
+Dummy laser auto unfreeze
+== Dummy lazerle otomatik çözülme
+
+Key held to throw an aimbot-aimed hook; the key keeps its own bind (0 = unbound)
+== Aimbot nişanlı hook atmak için basılı tutulan tuş; mevcut işlevini de korur. 0 atanmamış.
+
+Visible paths
+== Görünen yol sayısı
+
+Playback speed
+== Oynatma hızı
+
+Visible duration
+== Görünür kalma süresi
+
+Paused
+== Duraklatıldı
+
+Reset the selected Avoid mode
+== Seçili Avoid modunu sıfırla
+
+aimbot: god mode has the aim
+== aimbot: nişanı god mode kullanıyor
+
+aimbot: this weapon is not ticked
+== aimbot: bu silah tick'lenmiyor
+
+aimbot: the aim is in use by something unticked
+== aimbot: nişanı tick'lenmeyen bir şey kullanıyor
+
+aimbot: nobody  (%d seen, %d far, %d behind, %d walled, %d no shot)
+== aimbot: kimse yok  (%d görüldü, %d uzak, %d arkada, %d duvar ardı, %d atış yok)
+
+Hook preview
+== Hook önizleme
+
+Coast
+== Savrulma
+
+Reach
+== Menzil
+
+Rewind
+== Geri sarma
+
+Rescue simulation paths (for developers)
+== Kurtarma simülasyon yolları (geliştiriciler için)
+
+Samples real rescue plans for video capture. Adds drawing overhead; does not run extra simulations.
+== Video çekimi için gerçek kurtarma planlarını örnekler. Ek çizim yükü oluşturur; ek simülasyon çalıştırmaz.
+
+Calculation ready: open this run's demo without closing the client.
+== Hesap hazır: clienti kapatmadan bu koşunun demosunu aç.
+
+No calculation yet: enable Avoid and perform a rescue.
+== Henüz hesap yok: Avoid'i açıp bir kurtarma gerçekleştir.
+
+Replay calculation in demo
+== Hesaplamayı demoda tekrar oynat

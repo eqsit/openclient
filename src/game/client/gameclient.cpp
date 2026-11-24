@@ -78,6 +78,7 @@
 #include <generated/protocolglue.h>
 
 #include <game/client/projectile_data.h>
+#include <game/client/nullclient/input_restore.h>
 #include <game/localization.h>
 #include <game/mapitems.h>
 #include <game/teamscore.h>
@@ -592,6 +593,7 @@ void CGameClient::OnInput(const IInput::CEvent &Event)
 
 void CGameClient::OnDummySwap()
 {
+	m_LastDummyPacket = m_Controls.m_aLastData[!g_Config.m_ClDummy];
 	if(g_Config.m_ClDummyResetOnSwitch)
 	{
 		int PlayerOrDummy = (g_Config.m_ClDummyResetOnSwitch == 2) ? g_Config.m_ClDummy : (!g_Config.m_ClDummy);
@@ -615,28 +617,73 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 		return 0;
 	}
 
-	if(!g_Config.m_ClDummyHammer)
+	const int Slot = !g_Config.m_ClDummy;
+	const int DummyId = m_aLocalIds[Slot];
+	const bool ValidDummy = DummyId >= 0 && DummyId < MAX_CLIENTS;
+	const bool NullSelected = m_NullClient.Selected();
+	const bool AvoidHammer = NullSelected && ValidDummy && g_Config.m_ClDummyHammer && g_Config.m_NullGodmodeDummy;
+	const bool LaserReady = m_NullClient.DummyLaserReady(Slot);
+	if(!g_Config.m_ClDummyHammer || AvoidHammer || LaserReady)
 	{
-		if(m_DummyFire != 0)
+		if(m_DummyFire != 0 && !AvoidHammer)
 		{
-			m_DummyInput.m_Fire = (m_HammerInput.m_Fire + 1) & ~1;
+			m_DummyInput.m_Fire = (static_cast<unsigned>(m_HammerInput.m_Fire) + 1u) & ~1u;
 			m_DummyFire = 0;
 		}
 
+		OpenKrx::NullClient::CScopedInputRestore Restore;
+		if(NullSelected)
+		{
+			if(!g_Config.m_ClDummyCopyMoves && !g_Config.m_ClDummyControl)
+			{
+				const auto &Raw = m_Controls.m_aInputData[Slot];
+				m_DummyInput.m_Direction = (m_Controls.m_aInputDirectionRight[Slot] != 0) - (m_Controls.m_aInputDirectionLeft[Slot] != 0);
+				m_DummyInput.m_Jump = Raw.m_Jump;
+				m_DummyInput.m_Hook = Raw.m_Hook;
+				m_DummyInput.m_TargetX = Raw.m_TargetX;
+				m_DummyInput.m_TargetY = Raw.m_TargetY;
+				m_DummyInput.m_WantedWeapon = Raw.m_WantedWeapon;
+				if(g_Config.m_NullSerialKillerDummy)
+					m_DummyInput.m_Direction = m_DummyInput.m_Jump = m_DummyInput.m_Hook = 0;
+			}
+			Restore.Capture(m_DummyInput);
+		}
+		if(AvoidHammer && !LaserReady)
+		{
+			if(m_DummyFire++ % 25 == 0)
+				m_DummyInput.m_Fire = (static_cast<unsigned>(m_DummyInput.m_Fire) + 1u) | 1u;
+			else if(m_DummyInput.m_Fire & 1)
+				m_DummyInput.m_Fire = static_cast<unsigned>(m_DummyInput.m_Fire) + 1u;
+			const vec2 Aim = m_LocalCharacterPos - m_aClients[DummyId].m_Predicted.m_Pos;
+			m_DummyInput.m_TargetX = static_cast<int>(Aim.x);
+			m_DummyInput.m_TargetY = static_cast<int>(Aim.y);
+			m_DummyInput.m_WantedWeapon = WEAPON_HAMMER + 1;
+		}
 		const auto BeforeNull = m_DummyInput;
-		m_DummyInput = m_NullClient.Apply(m_DummyInput, !g_Config.m_ClDummy);
-		if(!Force && (!m_DummyInput.m_Direction && !m_DummyInput.m_Jump && !m_DummyInput.m_Hook) &&
-			mem_comp(&BeforeNull, &m_DummyInput, sizeof(m_DummyInput)) == 0 &&
-			!(g_Config.m_OpenKrxAvoidProvider == 1 && g_Config.m_NullGodmodeDummy))
+		bool LaserApplied = false;
+		m_DummyInput = m_NullClient.Apply(m_DummyInput, Slot, LaserReady || AvoidHammer, &LaserApplied);
+		if(AvoidHammer || (LaserApplied && g_Config.m_ClDummyHammer))
+			m_HammerInput = m_DummyInput;
+		const auto Moving = [](const CNetObj_PlayerInput &Input) {
+			return Input.m_Direction || Input.m_Jump || Input.m_Hook;
+		};
+		// A release must reach the server even when the active tee sent no input.
+		const bool ReleasePending = NullSelected &&
+			(Moving(m_LastDummyPacket) || m_DummyInput.m_Fire != m_LastDummyPacket.m_Fire);
+		if(!Force && !Moving(m_DummyInput) && !ReleasePending && !LaserApplied &&
+			mem_comp(&BeforeNull, &m_DummyInput, sizeof(m_DummyInput)) == 0)
 		{
 			return 0;
 		}
 
+		m_LastDummyPacket = m_DummyInput;
 		mem_copy(pData, &m_DummyInput, sizeof(m_DummyInput));
 		return sizeof(m_DummyInput);
 	}
 	else
 	{
+		if(!ValidDummy)
+			return 0;
 		if(m_DummyFire % 25 != 0)
 		{
 			m_DummyFire++;
@@ -644,18 +691,18 @@ int CGameClient::OnSnapInput(int *pData, bool Dummy, bool Force)
 		}
 		m_DummyFire++;
 
-		m_HammerInput.m_Fire = (m_HammerInput.m_Fire + 1) | 1;
+		m_HammerInput.m_Fire = (static_cast<unsigned>(m_HammerInput.m_Fire) + 1u) | 1u;
 		m_HammerInput.m_WantedWeapon = WEAPON_HAMMER + 1;
 		if(!g_Config.m_ClDummyRestoreWeapon)
 		{
 			m_DummyInput.m_WantedWeapon = WEAPON_HAMMER + 1;
 		}
 
-		const vec2 Dir = m_LocalCharacterPos - m_aClients[m_aLocalIds[!g_Config.m_ClDummy]].m_Predicted.m_Pos;
+		const vec2 Dir = m_LocalCharacterPos - m_aClients[DummyId].m_Predicted.m_Pos;
 		m_HammerInput.m_TargetX = (int)Dir.x;
 		m_HammerInput.m_TargetY = (int)Dir.y;
-		m_HammerInput = m_NullClient.Apply(m_HammerInput, !g_Config.m_ClDummy);
 
+		m_LastDummyPacket = m_HammerInput;
 		mem_copy(pData, &m_HammerInput, sizeof(m_HammerInput));
 		return sizeof(m_HammerInput);
 	}
@@ -770,6 +817,7 @@ void CGameClient::OnReset()
 	std::fill(std::begin(m_aNextChangeInfo), std::end(m_aNextChangeInfo), -1);
 	std::fill(std::begin(m_aLocalIds), std::end(m_aLocalIds), -1);
 	m_DummyInput = {};
+	m_LastDummyPacket = {};
 	m_HammerInput = {};
 	m_DummyFire = 0;
 	m_ReceivedDDNetPlayer = false;
@@ -1005,6 +1053,7 @@ void CGameClient::OnRender()
 
 void CGameClient::OnDummyDisconnect()
 {
+	m_LastDummyPacket = {};
 	m_aLocalIds[1] = -1;
 	m_aDDRaceMsgSent[1] = false;
 	m_aShowOthers[1] = SHOW_OTHERS_NOT_SET;

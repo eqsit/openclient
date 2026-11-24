@@ -16,7 +16,8 @@ namespace OpenKrx::NullClient
 	{
 		struct CState
 		{
-			int m_Id = -1, m_Target = -1, m_LastTick = -1, m_Stuck = 0, m_LastRouteTick = -1000, m_Release = 0, m_LastWeapon = -1;
+			int m_LastUpdateTick = -1;
+			int m_Id = -1, m_Target = -1, m_LastTick = -1, m_Stuck = 0, m_LastRouteTick = -1000, m_Release = 0, m_LastWeapon = -1, m_LastJump = 0;
 			bool m_Locked = false, m_HasPlan = false, m_HaveVelocity = false;
 			vec2 m_Velocity = vec2(0, 0), m_RouteGoal = vec2(0, 0), m_Hazard = vec2(0, 0);
 			bool m_HasHazard = false, m_HazardFrozen = false, m_HaveStand = false;
@@ -40,7 +41,9 @@ namespace OpenKrx::NullClient
 		static std::optional<vec2> FindHookAnchor(CCollision *pCollision, vec2 Position, vec2 Delta, float HookLength);
 		int Target(int Slot) const { return m_aStates[Slot].m_Target; }
 		bool Locked(int Slot) const { return m_aStates[Slot].m_Locked; }
-		CNetObj_PlayerInput Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot, bool Consume = true);
+		const CNetObj_PlayerInput *Plan(int Slot) const { return HasPlan(Slot) ? &m_aStates[Slot].m_Plan : nullptr; }
+		bool HasPlan(int Slot) const { return m_aStates[Slot].m_HasPlan; }
+		CNetObj_PlayerInput Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot) const;
 	};
 }
 #endif

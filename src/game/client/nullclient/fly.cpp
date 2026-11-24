@@ -15,7 +15,7 @@ bool CFly::OnInput(CGameClient *pClient, const IInput::CEvent &Event)
 	if(g_Config.m_NullBindFlyhold && Event.m_Key == g_Config.m_NullBindFlyhold)
 	{
 		m_Hold = (Event.m_Flags & IInput::FLAG_PRESS) != 0;
-		// 1401fc670 arms both held flight and mouse steering.
+		// 0x140223c05 arms both held flight and mouse steering.
 		m_Drag = m_Hold;
 		return true;
 	}
@@ -30,7 +30,7 @@ bool CFly::OnInput(CGameClient *pClient, const IInput::CEvent &Event)
 }
 bool CFly::OnCursorMove(CGameClient *pClient, float X, float Y)
 {
-	if(!Active() || !(m_Drag || m_Hold) || !m_ValidMarker) return false;
+	if(!Active() || !m_Drag || !m_ValidMarker) return false;
 	m_Marker += vec2(X, Y) * pClient->m_Camera.m_Zoom;
 	return true;
 }
@@ -42,7 +42,7 @@ void CFly::Update(CGameClient *pClient)
 		std::fill(std::begin(m_aDirections), std::end(m_aDirections), false);
 		return;
 	}
-	if(pClient->Client()->State() != IClient::STATE_ONLINE || pClient->m_Snap.m_SpecInfo.m_Active) { m_HasPlan = false; return; }
+	if(pClient->Client()->State() != IClient::STATE_ONLINE || !pClient->Predict()) { m_HasPlan = false; return; }
 	const int Slot = g_Config.m_ClDummy, Id = pClient->m_aLocalIds[Slot];
 	auto *pCharacter = pClient->KrxPredictedWorld().GetCharacterById(Id);
 	if(!pCharacter) { m_HasPlan = false; return; }
@@ -88,7 +88,7 @@ void CFly::Update(CGameClient *pClient)
 	CWeights Weights;
 	Weights.m_Anchor = m_Goal; Weights.m_Hold = 1;
 	Weights.m_pReservedFlyPath = m_Route.Valid() ? &m_Route : nullptr;
-	auto Raw = pClient->m_Controls.m_aInputData[Slot];
+	const auto Raw = pClient->m_NullClient.SimulationInput(Slot);
 	const int64_t Start = time_get_impl();
 	const uint64_t StepsBefore = World.TotalSteps();
 	const auto Selection = m_Planner.Select(World, Raw, Weights, g_Config.m_NullFlymodeHorizon);

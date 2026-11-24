@@ -2723,3 +2723,6 @@ Moved ingame
 
 https://wiki.ddnet.org/wiki/Mapping
 == 
+
+Uploading map data to GPU
+== Pálya feltöltése a GPU-ra

@@ -68,6 +68,12 @@ namespace OpenKrx::NullClient
 		};
 		using CAvoidValues = std::array<int, std::size(s_aAvoidOptions)>;
 
+		void ApplyAvoidDefaults(int Mode)
+		{
+			for(const auto &Option : s_aAvoidOptions)
+				g_Config.*Option.m_pValue = Option.m_aDefaults[Mode - 1];
+		}
+
 		CAvoidValues ReadAvoidValues()
 		{
 			CAvoidValues aValues;
@@ -99,43 +105,103 @@ namespace OpenKrx::NullClient
 			}
 			return true;
 		}
-	}
 
-	void SyncAvoidModeSettings(bool RestoreFromProfile, bool RestorePreset)
-	{
-		static int s_PreviousMode = -1;
-		static CAvoidValues s_aPreviousValues{};
-		static std::string s_PreviousPreset;
-		const int Mode = std::clamp(g_Config.m_NullAvoidMode, 0, 3);
-		if(Mode == 0)
+		// 0x140219910 keeps three independent banks. Each field has its own capacity,
+		// so every write is bounded by the destination and not by a sibling field (A9-014).
+		struct CAvoidBank
 		{
-			s_PreviousMode = 0;
-			return;
+			char *m_pText;
+			int m_Size;
+		};
+
+		CAvoidBank AvoidBank(int Mode)
+		{
+			if(Mode == 1)
+				return {g_Config.m_NullAvoidBoostSettings, (int)sizeof(g_Config.m_NullAvoidBoostSettings)};
+			if(Mode == 2)
+				return {g_Config.m_NullAvoidOverdriveSettings, (int)sizeof(g_Config.m_NullAvoidOverdriveSettings)};
+			return {g_Config.m_NullAvoidGodSettings, (int)sizeof(g_Config.m_NullAvoidGodSettings)};
 		}
-		char *pPreset = Mode == 1 ? g_Config.m_NullAvoidBoostSettings : Mode == 2 ? g_Config.m_NullAvoidOverdriveSettings : g_Config.m_NullAvoidGodSettings;
-		const bool Reload = RestoreFromProfile || Mode != s_PreviousMode || pPreset != s_PreviousPreset;
-		if(Reload && RestorePreset)
+
+		void StoreAvoidValues(const CAvoidBank &Bank, const CAvoidValues &aValues)
 		{
-			CAvoidValues aPreset;
-			const bool Loaded = ParseAvoidValues(pPreset, Mode, aPreset);
-			if(Loaded || (Mode != 3 || (s_PreviousMode >= 0 && !RestoreFromProfile)))
-				for(size_t Index = 0; Index < aPreset.size(); ++Index)
-					g_Config.*s_aAvoidOptions[Index].m_pValue = Loaded ? aPreset[Index] : s_aAvoidOptions[Index].m_aDefaults[Mode - 1];
-		}
-		const CAvoidValues aCurrent = ReadAvoidValues();
-		if(Reload || aCurrent != s_aPreviousValues)
-		{
-			s_PreviousPreset = "1:";
-			for(size_t Index = 0; Index < aCurrent.size(); ++Index)
+			std::string Text = "1:";
+			for(size_t Index = 0; Index < aValues.size(); ++Index)
 			{
 				if(Index != 0)
-					s_PreviousPreset += ',';
-				s_PreviousPreset += std::to_string(aCurrent[Index]);
+					Text += ',';
+				Text += std::to_string(aValues[Index]);
 			}
-			str_copy(pPreset, s_PreviousPreset.c_str(), sizeof(g_Config.m_NullAvoidGodSettings));
-			s_PreviousMode = Mode;
-			s_aPreviousValues = aCurrent;
+			str_copy(Bank.m_pText, Text.c_str(), Bank.m_Size);
 		}
+	}
+
+	// 0x140219ea0 detects external preset edits as well as mode changes.
+	void SyncAvoidModeSettings(bool KeepCurrentValues)
+	{
+		static int s_PreviousMode = -1;
+		static std::array<CAvoidValues, 4> s_aValues;
+		static std::array<std::string, 4> s_aPreviousBanks;
+		const int Mode = std::clamp(g_Config.m_NullAvoidMode, 0, 3);
+		bool Reload = s_PreviousMode < 0;
+		for(int Index = 1; Index <= 3; ++Index)
+			Reload |= s_aPreviousBanks[Index] != AvoidBank(Index).m_pText;
+		bool WriteBanks = Reload;
+		if(Reload)
+		{
+			for(int Index = 1; Index <= 3; ++Index)
+			{
+				const char *pText = AvoidBank(Index).m_pText;
+				auto &Values = s_aValues[Index];
+				if(!*pText && Index == 3 && Mode == 3)
+					Values = ReadAvoidValues();
+				else if(!ParseAvoidValues(pText, Index, Values))
+					for(size_t Field = 0; Field < Values.size(); ++Field)
+						Values[Field] = s_aAvoidOptions[Field].m_aDefaults[Index - 1];
+			}
+		}
+		const int EditedMode = KeepCurrentValues ? Mode : s_PreviousMode;
+		if(EditedMode > 0 && (!Reload || KeepCurrentValues))
+		{
+			const auto Values = ReadAvoidValues();
+			if(s_aValues[EditedMode] != Values)
+			{
+				s_aValues[EditedMode] = Values;
+				WriteBanks = true;
+			}
+		}
+		if(Mode > 0 && (Reload || Mode != s_PreviousMode))
+			for(size_t Field = 0; Field < s_aValues[Mode].size(); ++Field)
+				g_Config.*s_aAvoidOptions[Field].m_pValue = s_aValues[Mode][Field];
+		if(WriteBanks)
+			for(int Index = 1; Index <= 3; ++Index)
+			{
+				const CAvoidBank Bank = AvoidBank(Index);
+				StoreAvoidValues(Bank, s_aValues[Index]);
+				s_aPreviousBanks[Index] = Bank.m_pText;
+			}
+		s_PreviousMode = Mode;
+	}
+
+	void ResetSelectedAvoidMode()
+	{
+		SyncAvoidModeSettings();
+		const int Mode = std::clamp(g_Config.m_NullAvoidMode, 0, 3);
+		if(Mode == 0)
+			g_Config.m_NullAvoidLegitHook = 0;
+		else
+		{
+			ApplyAvoidDefaults(Mode);
+			StoreAvoidValues(AvoidBank(Mode), ReadAvoidValues());
+		}
+		SyncAvoidModeSettings(true);
+	}
+
+	bool IsAvoidModeOption(int CConfig::*pValue)
+	{
+		return std::any_of(std::begin(s_aAvoidOptions), std::end(s_aAvoidOptions), [pValue](const auto &Option) {
+			return Option.m_pValue == pValue;
+		});
 	}
 	CSettings SettingsFromConfig()
 	{

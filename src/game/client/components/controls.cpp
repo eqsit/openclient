@@ -25,6 +25,16 @@
 
 #include <algorithm>
 
+// TAS uses full 32-bit counters. Copy deltas modulo 2^32 across wraparound.
+static void CopyInputCounters(CNetObj_PlayerInput &Dummy, const CNetObj_PlayerInput &Current,
+	const CNetObj_PlayerInput &Previous, bool CopyFire)
+{
+	if(CopyFire)
+		Dummy.m_Fire = static_cast<unsigned>(Dummy.m_Fire) + Current.m_Fire - Previous.m_Fire;
+	Dummy.m_NextWeapon = static_cast<unsigned>(Dummy.m_NextWeapon) + Current.m_NextWeapon - Previous.m_NextWeapon;
+	Dummy.m_PrevWeapon = static_cast<unsigned>(Dummy.m_PrevWeapon) + Current.m_PrevWeapon - Previous.m_PrevWeapon;
+}
+
 static OpenKrx::CAimbotSettings CurrentKrxAimbotSettings()
 {
 	OpenKrx::CAimbotSettings S;
@@ -76,9 +86,8 @@ void CControls::ResetInput(int Dummy)
 	m_ManualJumpConsumed = false;
 	m_aLastData[Dummy].m_Direction = 0;
 	// simulate releasing the fire button
-	if((m_aLastData[Dummy].m_Fire & 1) != 0)
-		m_aLastData[Dummy].m_Fire++;
-	m_aLastData[Dummy].m_Fire &= INPUT_STATE_MASK;
+	const unsigned Fire = m_aLastData[Dummy].m_Fire;
+	m_aLastData[Dummy].m_Fire = (Fire + (Fire & 1U)) & INPUT_STATE_MASK;
 	m_aLastData[Dummy].m_Jump = 0;
 	m_aInputData[Dummy] = m_aLastData[Dummy];
 
@@ -133,13 +142,14 @@ void CControls::ConKeyInputCounter(IConsole::IResult *pResult, void *pUserData)
 
 	int *pVariable = pState->m_apVariables[g_Config.m_ClDummy];
 	const int Stroke = pResult->GetInteger(0);
-	if(((*pVariable) & 1) != Stroke)
+	unsigned Counter = *pVariable;
+	if(static_cast<int>(Counter & 1U) != Stroke)
 	{
-		(*pVariable)++;
+		++Counter;
 		if(Stroke != 0 && pState->m_IsMouseAction && g_Config.m_ClSubTickAiming && pState->m_pControls->GameClient()->m_Binds.m_HandlingNewBind)
 			pState->m_pControls->m_aMouseOnAction[g_Config.m_ClDummy] = true;
 	}
-	*pVariable &= INPUT_STATE_MASK;
+	*pVariable = Counter & INPUT_STATE_MASK;
 }
 
 struct CInputSet
@@ -350,7 +360,7 @@ int CControls::SnapInput(int *pData)
 		break;
 	}
 
-	if(GameClient()->m_Tas.NullEditorActive() || GameClient()->m_Tas.NullPlaybackActive())
+	if(GameClient()->m_Tas.NullTasInputActive())
 	{
 		const int Slot = g_Config.m_ClDummy;
 		auto &Input = m_aInputData[Slot];
@@ -366,6 +376,22 @@ int CControls::SnapInput(int *pData)
 			Input.m_Fire = Packet.m_Fire;
 			Input.m_NextWeapon = Packet.m_NextWeapon;
 			Input.m_PrevWeapon = Packet.m_PrevWeapon;
+			// 0x140231010 feeds the same playback packet into the dummy copy;
+			// returning here left the inactive tee stuck on its last non-TAS
+			// input when cl_dummy_copy_moves is enabled.
+			if(g_Config.m_ClDummyCopyMoves &&
+				(!GameClient()->m_Snap.m_SpecInfo.m_Active || GameClient()->m_Snap.m_SpecInfo.m_SpectatorId < 0))
+			{
+				auto *pDummy = &GameClient()->m_DummyInput;
+				pDummy->m_Direction = Packet.m_Direction;
+				pDummy->m_Hook = Packet.m_Hook;
+				pDummy->m_Jump = Packet.m_Jump;
+				pDummy->m_PlayerFlags = Packet.m_PlayerFlags;
+				pDummy->m_TargetX = Packet.m_TargetX;
+				pDummy->m_TargetY = Packet.m_TargetY;
+				pDummy->m_WantedWeapon = Packet.m_WantedWeapon;
+				CopyInputCounters(*pDummy, Packet, m_aLastData[Slot], !g_Config.m_ClDummyControl);
+			}
 			m_aLastData[Slot] = Packet;
 			m_LastSendTime = time_get();
 			mem_copy(pData, &Packet, sizeof(Packet));
@@ -438,11 +464,7 @@ int CControls::SnapInput(int *pData)
 				pDummyInput->m_TargetY = m_aInputData[g_Config.m_ClDummy].m_TargetY;
 				pDummyInput->m_WantedWeapon = m_aInputData[g_Config.m_ClDummy].m_WantedWeapon;
 
-				if(!g_Config.m_ClDummyControl)
-					pDummyInput->m_Fire += m_aInputData[g_Config.m_ClDummy].m_Fire - m_aLastData[g_Config.m_ClDummy].m_Fire;
-
-				pDummyInput->m_NextWeapon += m_aInputData[g_Config.m_ClDummy].m_NextWeapon - m_aLastData[g_Config.m_ClDummy].m_NextWeapon;
-				pDummyInput->m_PrevWeapon += m_aInputData[g_Config.m_ClDummy].m_PrevWeapon - m_aLastData[g_Config.m_ClDummy].m_PrevWeapon;
+				CopyInputCounters(*pDummyInput, m_aInputData[g_Config.m_ClDummy], m_aLastData[g_Config.m_ClDummy], !g_Config.m_ClDummyControl);
 			}
 
 			m_aInputData[!g_Config.m_ClDummy] = *pDummyInput;
@@ -456,7 +478,7 @@ int CControls::SnapInput(int *pData)
 			if(g_Config.m_ClDummyFire)
 				pDummyInput->m_Fire = g_Config.m_ClDummyFire;
 			else if((pDummyInput->m_Fire & 1) != 0)
-				pDummyInput->m_Fire++;
+				pDummyInput->m_Fire = static_cast<unsigned>(pDummyInput->m_Fire) + 1U;
 
 			pDummyInput->m_Hook = g_Config.m_ClDummyHook;
 			m_aInputData[!g_Config.m_ClDummy] = *pDummyInput;

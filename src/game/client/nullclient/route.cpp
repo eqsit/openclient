@@ -90,8 +90,11 @@ bool CRoute::NearSurface(int X, int Y)
 				{
 					if(Dx == 0 && Dy == 0) continue;
 					const int Tx = X + Radius * Dx, Ty = Y + Radius * Dy;
-					if(Tx >= 0 && Ty >= 0 && Tx < m_Width && Ty < m_Height && m_pCollision->GetCollisionAt(Tx * 32 + 16, Ty * 32 + 16))
-						return Value = 1;
+					if(Tx >= 0 && Ty >= 0 && Tx < m_Width && Ty < m_Height && m_pCollision->IsSolid(Tx * 32 + 16, Ty * 32 + 16))
+					{
+						Value = 1;
+						return true;
+					}
 				}
 	}
 	return Value != 0;
@@ -101,33 +104,40 @@ bool CRoute::Build(CCollision *pCollision, vec2 Start, vec2 End, int NodeLimit, 
 	Clear();
 	if(!pCollision) return false;
 	const int Width = pCollision->GetWidth(), Height = pCollision->GetHeight();
+	if(Width <= 0 || Height <= 0 || Width > std::numeric_limits<int>::max() / Height) return false;
 	if(m_pCollision != pCollision || Width != m_Width || Height != m_Height || AvoidFreeze != m_AvoidFreeze)
 	{
 		m_pCollision = pCollision; m_Width = Width; m_Height = Height; m_AvoidFreeze = AvoidFreeze;
+		m_vCells.assign(Width * Height, {});
+		m_Search = 0;
 		m_vWalkable.assign(Width * Height, -1); m_vNearSurface.assign(Width * Height, -1);
+	}
+	if(++m_Search == 0)
+	{
+		std::fill(m_vCells.begin(), m_vCells.end(), CCell{});
+		m_Search = 1;
 	}
 	const int Sx = round_to_int(Start.x) / 32, Sy = round_to_int(Start.y) / 32;
 	const int Ex = round_to_int(End.x) / 32, Ey = round_to_int(End.y) / 32;
 	if(!Walkable(Sx, Sy) || !Walkable(Ex, Ey)) return false;
 	const int First = Sy * Width + Sx, Last = Ey * Width + Ex;
-	std::vector<float> Costs(Width * Height, std::numeric_limits<float>::max());
-	std::vector<int> Parents(Width * Height, -1);
-	std::vector<bool> Closed(Width * Height, false);
 	const auto Heuristic = [&](int X, int Y) {
 		const float Dx = std::abs(static_cast<float>(X - Ex)), Dy = std::abs(static_cast<float>(Y - Ey));
 		return (std::min(Dx, Dy) * .414f + std::max(Dx, Dy)) * .6f;
 	};
 	std::vector<CNode> Heap;
-	Costs[First] = 0; Push(Heap, {First, Heuristic(Sx, Sy)});
+	m_vCells[First] = {0.f, -1, m_Search, 0};
+	Push(Heap, {First, Heuristic(Sx, Sy)});
 	int Expanded = 0;
 	while(!Heap.empty())
 	{
 		const int Index = Pop(Heap).m_Index;
-		if(Closed[Index]) continue;
-		Closed[Index] = true;
+		auto &Cell = m_vCells[Index];
+		if(Cell.m_Closed == m_Search) continue;
+		Cell.m_Closed = m_Search;
 		if(Index == Last)
 		{
-			for(int At = Last; At >= 0; At = Parents[At]) m_vPoints.emplace_back((At % Width) * 32.f + 16, (At / Width) * 32.f + 16);
+			for(int At = Last; At >= 0; At = m_vCells[At].m_Parent) m_vPoints.emplace_back((At % Width) * 32.f + 16, (At / Width) * 32.f + 16);
 			std::reverse(m_vPoints.begin(), m_vPoints.end());
 			float Progress = 0;
 			for(size_t i = 0; i < m_vPoints.size(); ++i)
@@ -148,12 +158,15 @@ bool CRoute::Build(CCollision *pCollision, vec2 Start, vec2 End, int NodeLimit, 
 				float Step = Dx && Dy ? 1.414f : 1.f;
 				if(Dy > 0) Step *= .6f;
 				else if(Dy < 0) Step *= NearSurface(Nx, Ny) ? 3.f : 9.f;
-				else if(Ny + 1 >= Height || !pCollision->GetCollisionAt(Nx * 32 + 16, (Ny + 1) * 32 + 16)) Step *= NearSurface(Nx, Ny) ? .7f : 1.5f;
+				else if(Ny + 1 >= Height || !pCollision->IsSolid(Nx * 32 + 16, (Ny + 1) * 32 + 16)) Step *= NearSurface(Nx, Ny) ? .7f : 1.5f;
 				const int Next = Ny * Width + Nx;
-				const float Cost = Costs[Index] + Step;
-				if(Cost < Costs[Next])
+				const float Cost = Cell.m_Cost + Step;
+				auto &Neighbor = m_vCells[Next];
+				if(Neighbor.m_Visited != m_Search || Cost < Neighbor.m_Cost)
 				{
-					Costs[Next] = Cost; Parents[Next] = Index;
+					Neighbor.m_Cost = Cost;
+					Neighbor.m_Parent = Index;
+					Neighbor.m_Visited = m_Search;
 					Push(Heap, {Next, Heuristic(Nx, Ny) + Cost});
 				}
 			}

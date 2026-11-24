@@ -103,12 +103,17 @@ namespace OpenKrx::NullClient
 
 	bool HookVeto(IWorld &World, const CNetObj_PlayerInput &Released, int Window, bool FreezeFatal)
 	{
+		if(Window <= 0)
+			return false;
 		auto Held = Released;
 		Held.m_Hook = 1;
 		World.Reset();
 		const int Life = Probe(World, Held, Window, FreezeFatal).m_Life;
-		if(Life == Window || Window <= 1)
-			return Life != Window;
+		if(Life == Window)
+			return false;
+		// 0x140207d9f sets the veto before testing for room to hold then release.
+		if(Window == 1)
+			return true;
 		const int Longest = std::clamp(Life, 1, Window - 1);
 		const std::array<int, 3> Durations{Longest, Longest - 1, 1};
 		for(auto it = Durations.begin(); it != Durations.end(); ++it)
@@ -147,7 +152,7 @@ namespace OpenKrx::NullClient
 		if(pHookPoints)
 			*pHookPoints = vPoints;
 		const bool ExistingHook = HookState == 4 || HookState == 5;
-		// Original constant table 1403ffd98; order affects stable equal-cost choices.
+		// Original constant table 0x1404520a8; order affects equal-cost choices.
 		for(int Duration : {1, 3, 5, 8, 0})
 			for(int Direction = -1; Direction <= 1; ++Direction)
 				for(int Jump = 0; Jump <= static_cast<int>(CanJump); ++Jump)
@@ -315,7 +320,7 @@ namespace OpenKrx::NullClient
 			WallTicks += World.WallStopped();
 			const float Distance = std::max(0.0f, distance(World.Position(), Weights.m_Anchor) - Weights.m_HoldSlack);
 			Cost += Distance * ((static_cast<float>(Step + 1) / static_cast<float>(Ticks)) * 0.75f + 0.25f) * Weights.m_Hold;
-			if(CostLimit > 0 && Cost >= CostLimit)
+			if(!Weights.m_pReservedFlyPath && CostLimit > 0 && Cost >= CostLimit)
 			{
 				Result.m_Pruned = true;
 				Result.m_Cost = Cost;
@@ -521,7 +526,9 @@ namespace OpenKrx::NullClient
 					(pManual->m_Hook == 0 || (Input.m_Hook != 0 && Input.m_TargetX == pManual->m_TargetX && Input.m_TargetY == pManual->m_TargetY))))
 				vOrder.push_back(static_cast<int>(Index));
 		}
+		// 0x140276d90 preserves equal-key order in its insertion sort and merge.
 		std::stable_sort(vOrder.begin(), vOrder.end(), [&](int Left, int Right) { return vKeys[Left] < vKeys[Right]; });
+
 		// Null initializes all entries before applying the held-input filter.
 		m_vEvaluations.assign(m_vMoves.size(), CEvaluation{});
 		// Each worker owns its candidate slot. Rendering only sees the reduced
@@ -587,10 +594,17 @@ namespace OpenKrx::NullClient
 				vPaths[Index].m_Safe = m_vEvaluations[Index].m_FailureTick < 0 && m_vEvaluations[Index].m_SafeEnd;
 			std::erase_if(vPaths, [](const auto &Path) { return Path.m_vPoints.size() < 2; });
 			constexpr size_t MAX_PATHS = 256;
-			const size_t Stride = std::max<size_t>(1, (vPaths.size() + MAX_PATHS - 2) / (MAX_PATHS - 1));
-			for(size_t Index = 0; Index < vPaths.size(); ++Index)
-				if(Index % Stride == 0 || vPaths[Index].m_Selected)
-					pvPaths->push_back(std::move(vPaths[Index]));
+			const size_t Samples = std::min(vPaths.size(), MAX_PATHS);
+			const auto Selected = std::find_if(vPaths.begin(), vPaths.end(), [](const auto &Path) { return Path.m_Selected; });
+			bool IncludedSelected = false;
+			for(size_t Sample = 0; Sample < Samples; ++Sample)
+			{
+				auto &Path = vPaths[Sample * vPaths.size() / Samples];
+				IncludedSelected |= Path.m_Selected;
+				pvPaths->push_back(std::move(Path));
+			}
+			if(!IncludedSelected && Selected != vPaths.end())
+				pvPaths->push_back(std::move(*Selected));
 		}
 		const auto &Move = m_vMoves[Best];
 		Selection.m_Input = MoveInput(Move, Base, 0, Weights.m_HandBack);

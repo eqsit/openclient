@@ -52,14 +52,14 @@ namespace OpenKrx
 			&CNetObj_PlayerInput::m_PrevWeapon,
 		};
 
+		// The original builds "tas/<name>.tas" from the raw name and only rejects the
+		// three path separators (0x233080:59-63, 0x22fff0:97); no suffix stripping.
 		std::string NullTasPath(const char *pName)
 		{
-			if(!pName)
+			if(!pName || !*pName)
 				return {};
 			std::string_view Name(pName);
-			if(Name.ends_with(".tas"))
-				Name.remove_suffix(4);
-			if(Name.empty() || Name.size() >= 64 || Name.front() == '.' || Name.find_first_of("/\\:") != std::string_view::npos || Name.find("..") != std::string_view::npos)
+			if(Name.find_first_of("/\\:") != std::string_view::npos)
 				return {};
 			return "tas/" + std::string(Name) + ".tas";
 		}
@@ -82,13 +82,14 @@ namespace OpenKrx
 
 		struct CNullTasFile
 		{
-			std::vector<CReplayFrame> m_vFrames;
+			std::vector<CNullTasFrame> m_vFrames;
 			std::string m_Map;
 			vec2 m_Start = vec2(0, 0);
+			int m_StartTick = -1, m_FinishTick = -1;
 			bool m_AllWeapons = false;
 		};
 
-		bool ReadNullTas(IOHANDLE File, CNullTasFile &Tas)
+		bool ReadNullTas(IOHANDLE File, CNullTasFile &Tas, std::string *pListLabel = nullptr)
 		{
 			const int64_t Length = io_length(File);
 			char aMagic[4];
@@ -102,29 +103,70 @@ namespace OpenKrx
 			if(Version >= 2)
 			{
 				int MapLength, AllWeapons;
-				if(!ReadNullInt(File, MapLength) || MapLength < 0 || MapLength >= MAX_MAP_LENGTH)
+				// The original file browser only accepts runs with a 1..127 byte map name
+				// (0x231bb0:217), which is the only reachable load path.
+				if(!ReadNullInt(File, MapLength) || MapLength < 1 || MapLength >= MAX_MAP_LENGTH)
 					return false;
 				Tas.m_Map.resize(MapLength);
-				if(io_read(File, Tas.m_Map.data(), MapLength) != static_cast<unsigned>(MapLength) || Tas.m_Map.find('\0') != std::string::npos ||
+				if(io_read(File, Tas.m_Map.data(), MapLength) != static_cast<unsigned>(MapLength) ||
 					!ReadNullInt(File, AllWeapons))
 					return false;
+				// The original NUL-terminates the field and never inspects its contents
+				// (0x22fff0:442-444), so an embedded NUL truncates the map name.
+				if(const auto Nul = Tas.m_Map.find('\0'); Nul != std::string::npos)
+					Tas.m_Map.resize(Nul);
 				Tas.m_AllWeapons = AllWeapons != 0;
 				HeaderBytes += 2 * sizeof(uint32_t) + MapLength;
 			}
 			if(Version >= 3)
 			{
-				int StartTick, FinishTick;
-				if(!ReadNullInt(File, StartTick) || !ReadNullInt(File, FinishTick))
+				if(!ReadNullInt(File, Tas.m_StartTick) || !ReadNullInt(File, Tas.m_FinishTick))
 					return false;
 				HeaderBytes += 2 * sizeof(uint32_t);
 			}
 			if(!ReadNullInt(File, Count) || Count < 0 || static_cast<size_t>(Count) > MAX_NULL_TAS_FRAMES ||
 				Length < HeaderBytes + static_cast<int64_t>(Count) * NULL_TAS_FRAME_BYTES)
 				return false;
+			if(pListLabel)
+			{
+				unsigned Weapons = 0;
+				// The browser needs only wanted weapon from each 48-byte disk frame.
+				constexpr int FRAMES_PER_READ = 128;
+				std::array<unsigned char, FRAMES_PER_READ * NULL_TAS_FRAME_BYTES> aBuffer;
+				for(int Read = 0; Read < Count;)
+				{
+					const int Batch = std::min(Count - Read, FRAMES_PER_READ);
+					const size_t Bytes = Batch * NULL_TAS_FRAME_BYTES;
+					if(io_read(File, aBuffer.data(), Bytes) != Bytes)
+						return false;
+					for(int Index = 0; Index < Batch; ++Index)
+					{
+						const unsigned Weapon = bytes_be_to_uint(aBuffer.data() + Index * NULL_TAS_FRAME_BYTES + 7 * sizeof(uint32_t));
+						if(Weapon >= 1 && Weapon <= NUM_WEAPONS)
+							Weapons |= 1U << (Weapon - 1);
+					}
+					Read += Batch;
+				}
+				char aTime[80];
+				str_format(aTime, sizeof(aTime), "%.2f s", Count / 50.0);
+				if(!Tas.m_Map.empty())
+					*pListLabel += "  |  " + Tas.m_Map;
+				*pListLabel += "  |  " + std::string(aTime);
+				if(Tas.m_FinishTick >= 0)
+				{
+					str_format(aTime, sizeof(aTime), "  |  finish %.2f s", (static_cast<double>(Tas.m_FinishTick) - std::max(0, Tas.m_StartTick)) / 50.0);
+					*pListLabel += aTime;
+				}
+				const char *apWeapons[] = {"Hammer", "Gun", "Shotgun", "Grenade", "Laser", "Ninja"};
+				for(int Weapon = 0; Weapon < NUM_WEAPONS; ++Weapon)
+					if(Weapons & (1U << Weapon))
+						*pListLabel += "  " + std::string(apWeapons[Weapon]);
+				return true;
+			}
 			Tas.m_vFrames.reserve(Count);
 			for(int Index = 0; Index < Count; ++Index)
 			{
-				CReplayFrame Frame{};
+				CNullTasFrame Frame{};
 				for(auto Member : aInputMembers)
 					if(!ReadNullInt(File, Frame.m_Input.*Member))
 						return false;
@@ -142,10 +184,10 @@ namespace OpenKrx
 			return Collision.GetTileIndex(Index) == Type || Collision.GetFrontTileIndex(Index) == Type;
 		}
 
-		bool WriteNullTas(IOHANDLE File, const std::vector<CReplayFrame> &vFrames, std::string_view Map, vec2 Start, bool AllWeapons, const CCollision &Collision)
+		void FindNullTasRaceTicks(const std::vector<CNullTasFrame> &vFrames, const CCollision &Collision, int &StartTick, int &FinishTick)
 		{
-			int StartTick = -1;
-			int FinishTick = -1;
+			StartTick = -1;
+			FinishTick = -1;
 			for(size_t Tick = 0; Tick < vFrames.size(); ++Tick)
 			{
 				const vec2 Pos = vFrames[Tick].m_Position;
@@ -157,6 +199,10 @@ namespace OpenKrx
 					break;
 				}
 			}
+		}
+
+		bool WriteNullTas(IOHANDLE File, const std::vector<CNullTasFrame> &vFrames, std::string_view Map, vec2 Start, bool AllWeapons, int StartTick, int FinishTick)
+		{
 			if(io_write(File, NULL_TAS_MAGIC, 4) != 4 || !WriteNullInt(File, NULL_TAS_FORMAT_VERSION) ||
 				!WriteNullInt(File, round_to_int(Start.x)) || !WriteNullInt(File, round_to_int(Start.y)) ||
 				!WriteNullInt(File, static_cast<int>(Map.size())) || io_write(File, Map.data(), Map.size()) != Map.size() ||
@@ -188,7 +234,7 @@ namespace OpenKrx
 		{
 			auto Packet = Raw;
 			Packet.m_Direction = Packet.m_Jump = Packet.m_Hook = Packet.m_WantedWeapon = 0;
-			Packet.m_Fire = (Last.m_Fire + (Last.m_Fire & 1)) & INPUT_STATE_MASK;
+			Packet.m_Fire = (static_cast<unsigned>(Last.m_Fire) + (Last.m_Fire & 1)) & INPUT_STATE_MASK;
 			Packet.m_NextWeapon = Last.m_NextWeapon;
 			Packet.m_PrevWeapon = Last.m_PrevWeapon;
 			return Packet;
@@ -207,13 +253,19 @@ namespace OpenKrx
 
 	bool CKrxTas::NullEditorActive() const
 	{
-		return NullTasAvailable() && m_NullTas.m_Editor && m_NullTas.m_pWorld &&
-			m_NullTas.m_Slot == g_Config.m_ClDummy && m_NullTas.m_ClientId == GameClient()->m_aLocalIds[g_Config.m_ClDummy];
+		// The original stores no tee slot: the sandbox follows whichever dummy is active
+		// (0x140231010:68-71, 0x14022f900:62-63), so only the slot marker is checked here.
+		return NullTasAvailable() && m_NullTas.m_Editor && m_NullTas.m_pWorld && m_NullTas.m_Slot == g_Config.m_ClDummy;
 	}
 
 	bool CKrxTas::NullPlaybackActive() const
 	{
-		return NullTasAvailable() && m_NullTas.m_Playback && m_NullTas.m_Slot == g_Config.m_ClDummy;
+		return NullTasAvailable() && m_NullTas.m_Playback;
+	}
+
+	bool CKrxTas::NullTasInputActive() const
+	{
+		return NullTasAvailable() && (m_NullTas.m_Editor || m_NullTas.m_Playback);
 	}
 
 	void CKrxTas::NullTasMessage(const char *pMessage)
@@ -235,13 +287,14 @@ namespace OpenKrx
 
 	void CKrxTas::ResetNullTas()
 	{
+		auto &Tas = m_NullTas;
+		if(Tas.m_pCollision)
+			FindNullTasRaceTicks(Tas.m_vFrames, *Tas.m_pCollision, Tas.m_StartTick, Tas.m_FinishTick);
+		const size_t Tick = Tas.m_Tick;
 		LeaveNullTasProfile();
 		ResetNullTasWorlds();
-		m_NullTas.m_vFrames.clear();
-		m_NullTas.m_Map.clear();
-		m_NullTas.m_Name.clear();
-		m_NullTas.m_Status.clear();
-		m_NullTas.m_Dirty = false;
+		Tas.m_Tick = Tick;
+		Tas.m_Status.clear();
 	}
 
 	void CKrxTas::LeaveNullTasProfile()
@@ -260,6 +313,7 @@ namespace OpenKrx
 		if(!NullTasAvailable())
 			return false;
 		auto &Tas = m_NullTas;
+		const bool WasEditor = Tas.m_Editor;
 		const int Slot = g_Config.m_ClDummy;
 		const int Id = GameClient()->m_aLocalIds[Slot];
 		CGameWorld &Source = GameClient()->m_GameWorld;
@@ -279,6 +333,16 @@ namespace OpenKrx
 			NullTasMessage("Start a new run or load a saved run.");
 			return false;
 		}
+		// "New run" first forces an autosave of the dirty run and aborts on failure
+		// (0x140232010:354-366).
+		if(NewRun && !Tas.m_vFrames.empty() && Tas.m_Dirty)
+		{
+			if(!WriteNullTas("autosave", true))
+			{
+				NullTasMessage("Could not save the current run before starting a new one.");
+				return false;
+			}
+		}
 		if(NewRun || !Tas.m_pWorld || Id != Tas.m_ClientId || Slot != Tas.m_Slot)
 		{
 			const size_t Tick = NewRun ? 0 : Tas.m_Tick;
@@ -297,16 +361,12 @@ namespace OpenKrx
 			Tas.m_pWorld->RebindCollision(Tas.m_pCollision.get());
 			Tas.m_pWorld->RebindTuning(Tas.m_aTuning.data());
 			Tas.m_pWorld->m_PredictedEvents.clear();
-			for(int Player = 0; Player < MAX_CLIENTS; ++Player)
-				if(Player != Id)
-					if(auto *pCharacter = Tas.m_pWorld->GetCharacterById(Player))
-						Tas.m_pWorld->RemoveCharacter(pCharacter);
 			auto *pCharacter = Tas.m_pWorld->GetCharacterById(Id);
 			if(NewRun)
 			{
 				Tas.m_vFrames.clear();
 				Tas.m_Start = pCharacter->Core()->m_Pos;
-				Tas.m_Map = pMap;
+				Tas.m_StartTick = Tas.m_FinishTick = -1;
 				Tas.m_Name.clear();
 				Tas.m_Dirty = false;
 				Tas.m_Autosaved = false;
@@ -322,6 +382,7 @@ namespace OpenKrx
 				pCharacter->SetCore(Core);
 				pCharacter->m_Pos = pCharacter->m_PrevPos = Tas.m_Start;
 			}
+			Tas.m_Map = pMap;
 			for(int Weapon = WEAPON_HAMMER; Weapon <= WEAPON_LASER; ++Weapon)
 			{
 				Tas.m_aInitialWeaponGot[Weapon] = pCharacter->GetWeaponGot(Weapon);
@@ -337,7 +398,18 @@ namespace OpenKrx
 			Tas.m_pPreviousWorld->CopyWorldIsolated(Tas.m_pWorld.get());
 			Tas.m_ClientId = Id;
 			Tas.m_Slot = Slot;
+			// The sandbox was just rebuilt, so replay it: SeekNullTas returns
+			// early when the requested tick equals the current one.
+			Tas.m_Tick = static_cast<size_t>(-1);
 			SeekNullTas(Tick);
+			// Continuing a run takes the wanted weapon of the last restored frame; the
+			// character's active weapon is only the fallback (0x22a520:37-50,126-134).
+			if(!NewRun && !WasEditor && Tas.m_Tick > 0 && Tas.m_Tick <= Tas.m_vFrames.size())
+			{
+				const int Wanted = Tas.m_vFrames[Tas.m_Tick - 1].m_Input.m_WantedWeapon - 1;
+				if(Wanted >= 0 && Wanted <= WEAPON_LASER)
+					Tas.m_Weapon = Wanted;
+			}
 		}
 		Tas.m_LastStep = Tas.m_LastAutosave = time_get_nanoseconds().count();
 		Tas.m_Editor = true;
@@ -345,6 +417,8 @@ namespace OpenKrx
 		Tas.m_Seek = Tas.m_Coast = Tas.m_FireState = 0;
 		Tas.m_StepTime = 0;
 		Tas.m_LastBoost = Tas.m_LastPreview = 0;
+		GameClient()->m_Chat.SendChatQueued("/showall 1");
+		GameClient()->m_Menus.SetActive(false);
 		NullTasMessage("Editor active.");
 		return true;
 	}
@@ -353,9 +427,13 @@ namespace OpenKrx
 	{
 		if(!m_NullTas.m_Editor)
 			return;
-		if(m_NullTas.m_Dirty && !m_NullTas.m_Autosaved)
-			WriteNullTas("autosave", true);
+		if(m_NullTas.m_Dirty && !m_NullTas.m_Autosaved && !m_NullTas.m_vFrames.empty() && !WriteNullTas("autosave", true))
+		{
+			NullTasMessage("Could not save the current run before closing the editor.");
+			return;
+		}
 		LeaveNullTasProfile();
+		GameClient()->m_Menus.SetActive(false);
 		NullTasMessage("Editor closed.");
 	}
 
@@ -371,7 +449,7 @@ namespace OpenKrx
 		}
 	}
 
-	void CKrxTas::SeekNullTas(size_t Tick)
+	void CKrxTas::SeekNullTas(size_t Tick, bool UpdatePositions)
 	{
 		auto &Tas = m_NullTas;
 		Tick = std::min(Tick, Tas.m_vFrames.size());
@@ -381,7 +459,12 @@ namespace OpenKrx
 		Tas.m_pWorld->CopyWorldIsolated(Checkpoint == 0 ? Tas.m_pInitialWorld.get() : Tas.m_vCheckpoints[Checkpoint - 1].get());
 		for(size_t Index = Checkpoint * NULL_TAS_CHECKPOINT_INTERVAL; Index < Tick; ++Index)
 		{
+			if(UpdatePositions)
+				if(const auto *pCharacter = Tas.m_pWorld->GetCharacterById(Tas.m_ClientId))
+					Tas.m_vFrames[Index].m_Position = pCharacter->Core()->m_Pos;
 			StepNullTasWorld(*Tas.m_pWorld, Tas.m_ClientId, Tas.m_vFrames[Index].m_Input);
+			if(const auto *pCharacter = Tas.m_pWorld->GetCharacterById(Tas.m_ClientId))
+				Tas.m_vFrames[Index].m_Frozen = NullTasFrozen(*pCharacter);
 			if((Index + 1) % NULL_TAS_CHECKPOINT_INTERVAL == 0)
 			{
 				auto pCheckpoint = std::make_unique<CGameWorld>();
@@ -410,6 +493,14 @@ namespace OpenKrx
 				Tas.m_Weapon = Weapon;
 				Tas.m_LastPreview = 0;
 				Tas.m_LastBoost = 0;
+				// A weapon switch advances the fire counter when it is mid-press and drops
+				// the released state (0x230a50:86-90).
+				if(Tas.m_EditorInput.m_Fire & 1)
+				{
+					++Tas.m_EditorInput.m_Fire;
+					if(Tas.m_FireState == 2)
+						Tas.m_FireState = 0;
+				}
 			}
 	}
 
@@ -477,13 +568,6 @@ namespace OpenKrx
 		const auto Now = time_get_nanoseconds().count();
 		const int64_t Elapsed = std::clamp<int64_t>(Now - Tas.m_LastStep, 0, NANOSECONDS);
 		Tas.m_LastStep = Now;
-		if(GameClient()->m_Menus.IsActive() || GameClient()->m_Chat.IsActive() || GameClient()->m_GameConsole.IsActive() ||
-			!(Raw.m_PlayerFlags & PLAYERFLAG_PLAYING))
-		{
-			Tas.m_StepTime = 0;
-			Tas.m_Flowing = false;
-			return;
-		}
 		if(Tas.m_AllWeapons != (g_Config.m_NullTasAllWeapons != 0))
 		{
 			Tas.m_AllWeapons = g_Config.m_NullTasAllWeapons != 0;
@@ -501,9 +585,17 @@ namespace OpenKrx
 			Tas.m_vCheckpoints.clear();
 			const size_t Tick = Tas.m_Tick;
 			Tas.m_Tick = static_cast<size_t>(-1);
+			SeekNullTas(Tas.m_vFrames.size(), true);
 			SeekNullTas(Tick);
 			Tas.m_Autosaved = false;
 			Tas.m_Dirty = !Tas.m_vFrames.empty();
+		}
+		if(GameClient()->m_Menus.IsActive() || GameClient()->m_Chat.IsActive() || GameClient()->m_GameConsole.IsActive() ||
+			!(Raw.m_PlayerFlags & PLAYERFLAG_PLAYING))
+		{
+			Tas.m_StepTime = 0;
+			Tas.m_Flowing = false;
+			return;
 		}
 		if(Tas.m_Seek != 0)
 		{
@@ -582,9 +674,12 @@ namespace OpenKrx
 				Tas.m_vCheckpoints.push_back(std::move(pCheckpoint));
 			}
 			pCharacter = Tas.m_pWorld->GetCharacterById(Tas.m_ClientId);
+			Tas.m_vFrames.back().m_Frozen = pCharacter && NullTasFrozen(*pCharacter);
+			if(!Driving && Tas.m_Coast == 0)
+				break;
 			if(g_Config.m_NullTasFreezeRewind && pCharacter && NullTasFrozen(*pCharacter))
 			{
-				const size_t Rewind = g_Config.m_NullTasFreezeRewindTicks;
+				const size_t Rewind = static_cast<size_t>(std::max(1, g_Config.m_NullTasFreezeRewindTicks));
 				SeekNullTas(Tas.m_Tick - std::min(Tas.m_Tick, Rewind));
 				Tas.m_Coast = 0;
 				Tas.m_StepTime = 0;
@@ -617,7 +712,7 @@ namespace OpenKrx
 		if(KeyMatches(Key, g_Config.m_NullTasKeyMenu))
 		{
 			if(Pressed)
-				GameClient()->m_Menus.SetActive(!GameClient()->m_Menus.IsActive());
+				GameClient()->m_Menus.ToggleNullTasPanel();
 			return true;
 		}
 		if(GameClient()->m_Menus.IsActive())
@@ -692,13 +787,11 @@ namespace OpenKrx
 	void CKrxTas::UpdateNullPlayback(const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Last, CNetObj_PlayerInput &Packet)
 	{
 		auto &Tas = m_NullTas;
-		const int Tick = Client()->PredGameTick(g_Config.m_ClDummy);
-		if(Tas.m_LastPlaybackTick == Tick)
-		{
-			Packet = Tas.m_PlaybackInput;
-			Packet.m_PlayerFlags = Raw.m_PlayerFlags;
-			return;
-		}
+		const int Slot = g_Config.m_ClDummy;
+		const int Tick = Client()->PredGameTick(Slot);
+		const bool SwitchedSlot = Tas.m_Slot != Slot;
+		const bool NewTick = Tas.m_LastPlaybackTick != Tick;
+		Tas.m_Slot = Slot;
 		Tas.m_LastPlaybackTick = Tick;
 		if(!Tas.m_PlaybackAligned)
 		{
@@ -717,10 +810,19 @@ namespace OpenKrx
 		}
 		if(Tas.m_PlaybackTick >= Tas.m_vFrames.size())
 		{
-			if(!g_Config.m_NullTasAutoReplay)
+			if(!g_Config.m_NullTasAutoReplay || Tas.m_vFrames.empty())
 			{
 				Tas.m_Playback = false;
-				Packet = ReleasedInput(Raw, Last);
+				// The original only clears the mode and keeps the previous TAS packet in
+				// the persistent input, so the last frame is repeated once (0x140231010:196-203).
+				Packet = Tas.m_PlaybackInput;
+				Packet.m_PlayerFlags = Raw.m_PlayerFlags;
+				if(SwitchedSlot)
+				{
+					Packet.m_Fire = Last.m_Fire;
+					Packet.m_NextWeapon = Last.m_NextWeapon;
+					Packet.m_PrevWeapon = Last.m_PrevWeapon;
+				}
 				NullTasMessage("Playback finished.");
 				return;
 			}
@@ -732,19 +834,30 @@ namespace OpenKrx
 		Packet.m_Fire = Last.m_Fire;
 		Packet.m_NextWeapon = Last.m_NextWeapon;
 		Packet.m_PrevWeapon = Last.m_PrevWeapon;
-		if(Tas.m_PlaybackTick > 0)
+		// Every request applies the current frame. Only a new tick consumes its counters.
+		if(NewTick && Tas.m_PlaybackTick > 0)
 		{
 			const auto &Previous = Tas.m_vFrames[Tas.m_PlaybackTick - 1].m_Input;
 			for(auto Member : {&CNetObj_PlayerInput::m_Fire, &CNetObj_PlayerInput::m_NextWeapon, &CNetObj_PlayerInput::m_PrevWeapon})
-				Packet.*Member = (static_cast<unsigned>(Last.*Member) + static_cast<unsigned>(Input.*Member) - static_cast<unsigned>(Previous.*Member)) & INPUT_STATE_MASK;
+				Packet.*Member = static_cast<unsigned>(Last.*Member) + static_cast<unsigned>(Input.*Member) - static_cast<unsigned>(Previous.*Member);
 		}
-		++Tas.m_PlaybackTick;
+		if(NewTick)
+			++Tas.m_PlaybackTick;
 		Tas.m_PlaybackInput = Packet;
 	}
 
 	bool CKrxTas::ProcessNullTasInput(const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Last, CNetObj_PlayerInput &Packet)
 	{
-		if(m_NullTas.m_Editor && !NullEditorActive())
+		auto &Tas = m_NullTas;
+		if(Tas.m_Editor && Tas.m_Slot != g_Config.m_ClDummy)
+		{
+			// The new slot can receive input before its character snapshot arrives.
+			Packet = ReleasedInput(Raw, Last);
+			const int Id = GameClient()->m_aLocalIds[g_Config.m_ClDummy];
+			if(GameClient()->m_Snap.m_SpecInfo.m_Active || !GameClient()->m_GameWorld.GetCharacterById(Id) || !StartNullEditor(false))
+				return true;
+		}
+		if(Tas.m_Editor && !NullEditorActive())
 			LeaveNullTasProfile();
 		if(m_NullTas.m_Playback && !NullPlaybackActive())
 			LeaveNullTasProfile();
@@ -826,18 +939,42 @@ namespace OpenKrx
 		Graphics()->MapScreen(Graphics()->MapScreenToWorld(Camera.m_Center.x, Camera.m_Center.y, 100, 100, 100, 0, 0, Graphics()->ScreenAspect(), Camera.m_Zoom));
 		if(g_Config.m_NullTasDrawPath && SameMap && !Tas.m_vFrames.empty())
 		{
-			const size_t Step = std::max<size_t>(1, Tas.m_vFrames.size() / 2500);
-			vec2 Previous = Tas.m_vFrames.front().m_Position;
-			for(size_t Tick = Step; Tick < Tas.m_vFrames.size(); Tick += Step)
+			Graphics()->TextureClear();
+			Graphics()->QuadsBegin();
+			for(size_t Tick = 1; Tick < Tas.m_vFrames.size(); ++Tick)
 			{
-				const vec2 Position = Tas.m_vFrames[Tick].m_Position;
-				Line(Previous, Position, ColorRGBA(.32f, .82f, 1.0f, .75f), 2.0f);
-				Previous = Position;
+				const vec2 Start = Tas.m_vFrames[Tick - 1].m_Position;
+				const auto &Frame = Tas.m_vFrames[Tick];
+				const vec2 Delta = Frame.m_Position - Start;
+				const float Len = length(Delta);
+				if(Len < .001f)
+					continue;
+				const vec2 Width = vec2(-Delta.y, Delta.x) * (1.3f / Len);
+				const bool Dim = Editor ? Tick > Tas.m_Tick : Tas.m_Playback && Tick <= Tas.m_PlaybackTick;
+				const ColorRGBA Color = Frame.m_Frozen ? ColorRGBA(.25f, .45f, 1, Dim ? .28f : .75f) : ColorRGBA(.4f, .75f, 1, Dim ? .1f : .28f);
+				Graphics()->SetColor(Color);
+				const IGraphics::CFreeformItem Quad(Start + Width, Frame.m_Position + Width, Start - Width, Frame.m_Position - Width);
+				Graphics()->QuadsDrawFreeform(&Quad, 1);
 			}
-			Line(Previous, Tas.m_vFrames.back().m_Position, ColorRGBA(.32f, .82f, 1.0f, .75f), 2.0f);
-			Circle(Tas.m_Start, 12.0f, ColorRGBA(.32f, .82f, 1.0f, .8f));
-			if(Editor && g_Config.m_NullTasEndRing)
-				Circle(Tas.m_vFrames.back().m_Position, 12.0f, ColorRGBA(1.0f, .52f, .2f, .8f));
+			auto Marker = [&](vec2 Position, float Radius, ColorRGBA Color) {
+				Graphics()->SetColor(Color);
+				vec2 Last(1, 0);
+				for(int Segment = 1; Segment <= 24; ++Segment)
+				{
+					const vec2 Next = direction(2.f * pi * Segment / 24.f);
+					const IGraphics::CFreeformItem Quad(Position + Last * (Radius - 1.5f), Position + Next * (Radius - 1.5f),
+						Position + Last * (Radius + 1.5f), Position + Next * (Radius + 1.5f));
+					Graphics()->QuadsDrawFreeform(&Quad, 1);
+					Last = Next;
+				}
+			};
+			Marker(Tas.m_Start, 20.f, ColorRGBA(.4f, 1, .55f, .9f));
+			if(g_Config.m_NullTasEndRing)
+				Marker(Tas.m_vFrames.back().m_Position, 16.f, ColorRGBA(1, .55f, .35f, .9f));
+			const auto Frozen = std::find_if(Tas.m_vFrames.begin(), Tas.m_vFrames.end(), [](const CNullTasFrame &Frame) { return Frame.m_Frozen; });
+			if(Frozen != Tas.m_vFrames.end())
+				Marker(Frozen->m_Position, 14.f, ColorRGBA(.55f, .8f, 1, .9f));
+			Graphics()->QuadsEnd();
 		}
 		if(Editor)
 		{
@@ -858,6 +995,27 @@ namespace OpenKrx
 					Line(Tas.m_avPreview[Kind][Index - 1], Tas.m_avPreview[Kind][Index], aPreviewColors[Kind], 1.0f);
 			if(!Tas.m_avPreview[3].empty())
 				Circle(Tas.m_avPreview[3].front(), 5.0f, aPreviewColors[2]);
+			const auto Shells = NullClient::DetailedProjectilePaths(*Tas.m_pWorld);
+			if(!Shells.empty())
+			{
+				Graphics()->TextureClear();
+				Graphics()->QuadsBegin();
+				for(const auto &Shell : Shells)
+				{
+					Graphics()->SetColor(NullClient::ProjectileColor(Shell.m_Weapon).WithAlpha(.8f));
+					for(size_t I = 1; I < Shell.m_vPoints.size(); ++I)
+					{
+						const vec2 A = Shell.m_vPoints[I - 1], B = Shell.m_vPoints[I], Delta = B - A;
+						const float Length = length(Delta);
+						if(Length < .001f)
+							continue;
+						const vec2 Normal = vec2(-Delta.y, Delta.x) * (1.2f / Length);
+						const IGraphics::CFreeformItem Quad(A + Normal, B + Normal, A - Normal, B - Normal);
+						Graphics()->QuadsDrawFreeform(&Quad, 1);
+					}
+				}
+				Graphics()->QuadsEnd();
+			}
 			auto *pCharacter = Tas.m_pWorld->GetCharacterById(Tas.m_ClientId);
 			if(pCharacter && (g_Config.m_NullTasWeaponLaser || KeyHeld(*Input(), g_Config.m_NullTasKeyLaser)))
 			{
@@ -904,13 +1062,28 @@ namespace OpenKrx
 	{
 		auto &vFiles = m_NullTas.m_vFiles;
 		vFiles.clear();
+		std::vector<std::string> vNames;
 		Storage()->ListDirectory(IStorage::TYPE_ALL, "tas", [](const char *pName, int IsDir, int, void *pUser) {
-			if(!IsDir && str_endswith(pName, ".tas") && !NullTasPath(pName).empty())
-				static_cast<std::vector<std::string> *>(pUser)->emplace_back(pName);
+			if(!IsDir && str_endswith(pName, ".tas"))
+				static_cast<std::vector<std::string> *>(pUser)->emplace_back(pName, std::strlen(pName) - 4);
 			return 0;
-		}, &vFiles);
-		std::sort(vFiles.begin(), vFiles.end());
-		vFiles.erase(std::unique(vFiles.begin(), vFiles.end()), vFiles.end());
+		}, &vNames);
+		std::sort(vNames.begin(), vNames.end());
+		vNames.erase(std::unique(vNames.begin(), vNames.end()), vNames.end());
+		for(const auto &Name : vNames)
+		{
+			const auto Path = NullTasPath(Name.c_str());
+			if(Path.empty())
+				continue;
+			if(IOHANDLE File = Storage()->OpenFile(Path.c_str(), IOFLAG_READ, IStorage::TYPE_ALL))
+			{
+				CNullTasFile Run;
+				std::string Label = Name;
+				if(ReadNullTas(File, Run, &Label))
+					vFiles.push_back({Name, std::move(Label)});
+				io_close(File);
+			}
+		}
 	}
 
 	bool CKrxTas::WriteNullTas(const char *pName, bool Autosave)
@@ -918,17 +1091,22 @@ namespace OpenKrx
 		auto &Tas = m_NullTas;
 		const auto Path = NullTasPath(pName);
 		const auto *pMap = GameClient()->Map();
-		const std::string_view CurrentMap = pMap->FullName();
-		if(Path.empty() || Tas.m_vFrames.empty() || (!Autosave && Path == "tas/autosave.tas") ||
-			CurrentMap.size() >= MAX_MAP_LENGTH || !pMap->IsLoaded() ||
-			(!Tas.m_Map.empty() && Tas.m_Map != CurrentMap))
+		const std::string_view CurrentMap = pMap->IsLoaded() ? pMap->FullName() : "";
+		const std::string_view RunMap = Tas.m_Map.empty() ? CurrentMap : std::string_view(Tas.m_Map);
+		if(Path.empty() || Tas.m_vFrames.empty() || (!Autosave && Path == "tas/autosave.tas") || RunMap.empty() || RunMap.size() >= MAX_MAP_LENGTH)
 			return false;
+		int StartTick = Tas.m_StartTick;
+		int FinishTick = Tas.m_FinishTick;
+		if(Tas.m_pCollision)
+			FindNullTasRaceTicks(Tas.m_vFrames, *Tas.m_pCollision, StartTick, FinishTick);
+		else if(RunMap == CurrentMap)
+			FindNullTasRaceTicks(Tas.m_vFrames, *Collision(), StartTick, FinishTick);
 		Storage()->CreateFolder("tas", IStorage::TYPE_SAVE);
 		const auto Temporary = Path + ".tmp";
 		IOHANDLE File = Storage()->OpenFile(Temporary.c_str(), IOFLAG_WRITE, IStorage::TYPE_SAVE);
 		if(!File)
 			return false;
-		const bool Wrote = ::OpenKrx::WriteNullTas(File, Tas.m_vFrames, CurrentMap, Tas.m_Start, Tas.m_AllWeapons, *Collision());
+		const bool Wrote = ::OpenKrx::WriteNullTas(File, Tas.m_vFrames, RunMap, Tas.m_Start, Tas.m_AllWeapons, StartTick, FinishTick);
 		const bool Closed = io_close(File) == 0;
 		if(!Wrote || !Closed || !Storage()->RenameFile(Temporary.c_str(), Path.c_str(), IStorage::TYPE_SAVE))
 		{
@@ -959,7 +1137,8 @@ namespace OpenKrx
 	{
 		if(!NullProfileActive())
 			return false;
-		const auto Path = NullTasPath(pName);
+		const std::string Name = pName ? pName : "";
+		const auto Path = NullTasPath(Name.c_str());
 		IOHANDLE File = Path.empty() ? nullptr : Storage()->OpenFile(Path.c_str(), IOFLAG_READ, IStorage::TYPE_ALL);
 		CNullTasFile Run;
 		bool Loaded = false;
@@ -978,15 +1157,36 @@ namespace OpenKrx
 			NullTasMessage("This run belongs to a different map.");
 			return false;
 		}
-		const bool Continue = NullEditorActive();
+		const bool Continue = NullEditorActive() && !Run.m_vFrames.empty() && !GameClient()->m_Snap.m_SpecInfo.m_Active &&
+			GameClient()->m_GameWorld.GetCharacterById(GameClient()->m_aLocalIds[g_Config.m_ClDummy]);
+		if(m_NullTas.m_Dirty && !m_NullTas.m_Autosaved && !m_NullTas.m_vFrames.empty())
+		{
+			std::string Recovery = "autosave";
+			if(Path == "tas/autosave.tas")
+			{
+				Recovery = "autosave-before-load";
+				for(unsigned Index = 1; Storage()->FileExists(NullTasPath(Recovery.c_str()).c_str(), IStorage::TYPE_SAVE); ++Index)
+					Recovery = "autosave-before-load-" + std::to_string(Index);
+			}
+			if(!WriteNullTas(Recovery.c_str(), true))
+			{
+				NullTasMessage("Could not save the current run before loading another one.");
+				return false;
+			}
+		}
 		LeaveNullTasProfile();
 		ResetNullTasWorlds();
 		auto &Tas = m_NullTas;
 		Tas.m_vFrames = std::move(Run.m_vFrames);
 		Tas.m_Map = std::move(Run.m_Map);
+		Tas.m_StartTick = Run.m_StartTick;
+		Tas.m_FinishTick = Run.m_FinishTick;
 		Tas.m_Start = Run.m_Start;
 		Tas.m_AllWeapons = Run.m_AllWeapons;
-		Tas.m_Name = pName;
+		Tas.m_Name = Name;
+		// A loaded run opens at its last frame, like the original (0x22a080:196-212,
+		// 0x22a520:109-120, 0x232010:371-376); the next step then appends, not truncates.
+		Tas.m_Tick = Tas.m_vFrames.size();
 		Tas.m_Dirty = Path == "tas/autosave.tas";
 		Tas.m_Autosaved = Tas.m_Dirty;
 		g_Config.m_NullTasAllWeapons = Run.m_AllWeapons;

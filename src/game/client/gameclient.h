@@ -723,6 +723,7 @@ public:
 
 	int m_aLocalIds[NUM_DUMMIES];
 	CNetObj_PlayerInput m_DummyInput;
+	CNetObj_PlayerInput m_LastDummyPacket{};
 	CNetObj_PlayerInput m_HammerInput;
 	unsigned int m_DummyFire;
 	bool m_ReceivedDDNetPlayer;

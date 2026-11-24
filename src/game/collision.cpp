@@ -50,10 +50,59 @@ CCollision::~CCollision()
 	Unload();
 }
 
+struct CCollision::CChangeJournal
+{
+	struct CTileEntry
+	{
+		int m_Index;
+		CTile m_Tile;
+	};
+	std::vector<CTileEntry> m_vTiles;
+
+	CChangeJournal()
+	{
+		// Laser probes touch a handful of cells per tick; keep the journal
+		// allocation-free in the common case.
+		m_vTiles.reserve(256);
+	}
+};
+
+void CCollision::EnableChangeJournal()
+{
+	dbg_assert(!m_pChangeJournal, "change journal already enabled");
+	if(!m_pChangeJournal)
+		m_pChangeJournal = std::make_shared<CChangeJournal>();
+	m_pChangeJournal->m_vTiles.clear();
+}
+
+bool CCollision::HasChangeJournal() const
+{
+	return m_pChangeJournal != nullptr;
+}
+
+int CCollision::JournalTileMark() const
+{
+	return m_pChangeJournal ? static_cast<int>(m_pChangeJournal->m_vTiles.size()) : 0;
+}
+
+void CCollision::RewindJournalTo(int TileMark)
+{
+	if(!m_pChangeJournal)
+		return;
+	const int Tiles = std::clamp(TileMark, 0, static_cast<int>(m_pChangeJournal->m_vTiles.size()));
+	// Reverse order so a cell written several times returns to the value it had
+	// at the mark.
+	for(int Index = static_cast<int>(m_pChangeJournal->m_vTiles.size()) - 1; Index >= Tiles; --Index)
+		m_pTiles[m_pChangeJournal->m_vTiles[Index].m_Index] = m_pChangeJournal->m_vTiles[Index].m_Tile;
+	m_pChangeJournal->m_vTiles.resize(Tiles);
+}
+
 std::unique_ptr<CCollision> CCollision::CreateIsolatedCopy() const
 {
 	auto pCopy = std::make_unique<CCollision>();
 	*pCopy = *this;
+	// A copy never inherits journal state; callers enable their own.
+	pCopy->m_pChangeJournal.reset();
 	pCopy->m_pDoor = nullptr;
 	const size_t Count = (size_t)m_Width * m_Height;
 	if(m_pTiles && Count)
@@ -98,29 +147,40 @@ void CCollision::Init(class CLayers *pLayers)
 
 	if(m_pLayers->TeleLayer())
 	{
-		m_pTele = static_cast<CTeleTile *>(m_pLayers->Map()->GetData(m_pLayers->TeleLayer()->m_Tele));
+		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->TeleLayer()->m_Tele);
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CTeleTile))
+			m_pTele = static_cast<CTeleTile *>(m_pLayers->Map()->GetData(m_pLayers->TeleLayer()->m_Tele));
 	}
 
 	if(m_pLayers->SpeedupLayer())
 	{
-		m_pSpeedup = static_cast<CSpeedupTile *>(m_pLayers->Map()->GetData(m_pLayers->SpeedupLayer()->m_Speedup));
+		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->SpeedupLayer()->m_Speedup);
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CSpeedupTile))
+			m_pSpeedup = static_cast<CSpeedupTile *>(m_pLayers->Map()->GetData(m_pLayers->SpeedupLayer()->m_Speedup));
 	}
 
 	if(m_pLayers->SwitchLayer())
 	{
-		m_pSwitch = static_cast<CSwitchTile *>(m_pLayers->Map()->GetData(m_pLayers->SwitchLayer()->m_Switch));
+		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->SwitchLayer()->m_Switch);
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CSwitchTile))
+			m_pSwitch = static_cast<CSwitchTile *>(m_pLayers->Map()->GetData(m_pLayers->SwitchLayer()->m_Switch));
+
 		m_pDoor = new CDoorTile[m_Width * m_Height];
 		mem_zero(m_pDoor, (size_t)m_Width * m_Height * sizeof(CDoorTile));
 	}
 
 	if(m_pLayers->TuneLayer())
 	{
-		m_pTune = static_cast<CTuneTile *>(m_pLayers->Map()->GetData(m_pLayers->TuneLayer()->m_Tune));
+		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->TuneLayer()->m_Tune);
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CTuneTile))
+			m_pTune = static_cast<CTuneTile *>(m_pLayers->Map()->GetData(m_pLayers->TuneLayer()->m_Tune));
 	}
 
 	if(m_pLayers->FrontLayer())
 	{
-		m_pFront = static_cast<CTile *>(m_pLayers->Map()->GetData(m_pLayers->FrontLayer()->m_Front));
+		unsigned int Size = m_pLayers->Map()->GetDataSize(m_pLayers->FrontLayer()->m_Front);
+		if(Size >= (size_t)m_Width * m_Height * sizeof(CTile))
+			m_pFront = static_cast<CTile *>(m_pLayers->Map()->GetData(m_pLayers->FrontLayer()->m_Front));
 	}
 
 	if(m_pSwitch)
@@ -204,6 +264,11 @@ void CCollision::Unload()
 	m_pTune = nullptr;
 	delete[] m_pDoor;
 	m_pDoor = nullptr;
+
+	// The journal holds cells of the arrays that were just detached.
+	m_pChangeJournal.reset();
+	// Cached copies must resync the door layer after a map reload.
+	m_DoorVersion++;
 }
 
 void CCollision::FillAntibot(CAntibotMapData *pMapData) const
@@ -703,7 +768,9 @@ int CCollision::IsTeleport(int Index) const
 
 int CCollision::IsEvilTeleport(int Index) const
 {
-	if(Index < 0 || !m_pTele)
+	if(Index < 0)
+		return 0;
+	if(!m_pTele)
 		return 0;
 
 	if(m_pTele[Index].m_Type == TILE_TELEINEVIL)
@@ -728,7 +795,10 @@ bool CCollision::IsCheckEvilTeleport(int Index) const
 
 int CCollision::IsTeleCheckpoint(int Index) const
 {
-	if(Index < 0 || !m_pTele)
+	if(Index < 0)
+		return 0;
+
+	if(!m_pTele)
 		return 0;
 
 	if(m_pTele[Index].m_Type == TILE_TELECHECK)
@@ -1118,7 +1188,10 @@ void CCollision::SetCollisionAt(float x, float y, int Index)
 	int Nx = std::clamp(round_to_int(x) / 32, 0, m_Width - 1);
 	int Ny = std::clamp(round_to_int(y) / 32, 0, m_Height - 1);
 
-	m_pTiles[Ny * m_Width + Nx].m_Index = Index;
+	const int TileIndex = Ny * m_Width + Nx;
+	if(m_pChangeJournal)
+		m_pChangeJournal->m_vTiles.push_back({TileIndex, m_pTiles[TileIndex]});
+	m_pTiles[TileIndex].m_Index = Index;
 }
 
 void CCollision::SetDoorCollisionAt(float x, float y, unsigned char Type, unsigned char Flags, unsigned char Number)
@@ -1128,9 +1201,23 @@ void CCollision::SetDoorCollisionAt(float x, float y, unsigned char Type, unsign
 	int Nx = std::clamp(round_to_int(x) / 32, 0, m_Width - 1);
 	int Ny = std::clamp(round_to_int(y) / 32, 0, m_Height - 1);
 
-	m_pDoor[Ny * m_Width + Nx].m_Index = Type;
-	m_pDoor[Ny * m_Width + Nx].m_Flags = Flags;
-	m_pDoor[Ny * m_Width + Nx].m_Number = Number;
+	const int TileIndex = Ny * m_Width + Nx;
+	if(m_pDoor[TileIndex].m_Index != Type || m_pDoor[TileIndex].m_Flags != Flags || m_pDoor[TileIndex].m_Number != Number)
+	{
+		m_pDoor[TileIndex].m_Index = Type;
+		m_pDoor[TileIndex].m_Flags = Flags;
+		m_pDoor[TileIndex].m_Number = Number;
+		m_DoorVersion++;
+	}
+}
+
+bool CCollision::CopyDoorsFrom(const CCollision &Other)
+{
+	if(!m_pDoor || !Other.m_pDoor || m_Width != Other.m_Width || m_Height != Other.m_Height)
+		return false;
+	mem_copy(m_pDoor, Other.m_pDoor, (size_t)m_Width * m_Height * sizeof(CDoorTile));
+	m_DoorVersion = Other.m_DoorVersion;
+	return true;
 }
 
 void CCollision::GetDoorTile(int Index, CDoorTile *pDoorTile) const

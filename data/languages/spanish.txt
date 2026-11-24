@@ -110,7 +110,7 @@ Dynamic Camera
 == Cámara dinámica
 
 Emoticon
-== Emoticón
+== Emoticon
 
 Error
 == Error
@@ -134,7 +134,7 @@ Folder
 == Carpeta
 
 Force vote
-== Forzar voto
+== Forzar
 
 Free-View
 == Vista libre
@@ -155,7 +155,7 @@ Game paused
 == Juego en Pausa
 
 Game type
-== Modo de juego
+== Modo
 
 Game types:
 == Tipos de juego:
@@ -458,7 +458,7 @@ News
 == Noticias
 
 Join game
-== Unirse al juego
+== Unirse
 
 FSAA samples
 == Muestras FSAA
@@ -2723,3 +2723,6 @@ not bound
 
 Show cursor
 == Mostrar cursor
+
+Uploading map data to GPU
+== Cargando datos del mapa a la GPU

@@ -164,7 +164,7 @@ Graphics
 == Графика
 
 Grenade
-== Гранатомёт
+== Граната
 
 Hammer
 == Молот
@@ -479,7 +479,7 @@ Show votes window after voting
 == Показывать голосование после выбора
 
 Reset
-== Сброс
+== Сбросить
 
 Search
 == Поиск
@@ -911,7 +911,7 @@ Speed
 == Скорость
 
 Markers
-== Маркеры
+== Метки
 
 Skip the main menu
 == Пропускать главное меню
@@ -1232,7 +1232,7 @@ When you cross the start line, show a ghost tee replicating the movements of you
 == Показывать тень, повторяющую лучшее прохождение, при пересечении стартовой линии
 
 Opacity
-== Прозр.
+== Прозрачность
 
 Adjust the opacity of entities belonging to other teams, such as tees and name plates
 == Регулирует прозрачность объектов другой команды, такие как Tee и имена.
@@ -2738,6 +2738,27 @@ Activate when danger is within
 
 Aim past them by
 == Целиться за них на
+
+Swing around them (pendulum)
+== Раскачиваться вокруг них (маятник)
+
+Reset the selected Avoid mode
+== Сбросить выбранный режим Avoid
+
+Replay rescue calculation
+== Воспроизвести расчёт спасения
+
+Create group
+== Создать группу
+
+Remove group
+== Удалить группу
+
+Select a player
+== Выбрать игрока
+
+Could not save the warlist
+== Не удалось сохранить список Warlist
 
 Airborne shots are simulated, so dodging is precise.
 == Летящие выстрелы просчитываются, поэтому уклонение точное.
@@ -4694,3 +4715,48 @@ Balance bot (hold)
 
 Ping compensation (ticks)
 == Компенсация пинга (тики)
+
+Refresh
+== Обновить
+
+With a grenade in hand, blast back whoever hammers you.
+== С гранатомётом в руках отвечает взрывом тому, кто ударил вас молотом.
+
+Uploading map data to GPU
+== Загрузка данных о карте в GPU
+
+Off
+== Выкл.
+
+Key held to throw an aimbot-aimed hook; the key keeps its own bind (0 = unbound)
+== Удерживаемая клавиша крюка с прицеливанием аимбота; сохраняет прежнее действие. 0 — не назначена.
+
+Dummy laser auto unfreeze
+== Авторазморозка лазером дамми
+
+Visible paths
+== Количество видимых траекторий
+
+Playback speed
+== Скорость воспроизведения
+
+Visible duration
+== Время отображения
+
+Paused
+== Приостановлено
+
+Rescue simulation paths (for developers)
+== Траектории расчёта спасения (для разработчиков)
+
+Samples real rescue plans for video capture. Adds drawing overhead; does not run extra simulations.
+== Показывает выборку реальных планов спасения для видеозаписи. Добавляет нагрузку отрисовки, без дополнительных симуляций.
+
+Calculation ready: open this run's demo without closing the client.
+== Расчёт готов: откройте демо этого забега, не закрывая клиент.
+
+No calculation yet: enable Avoid and perform a rescue.
+== Расчёта пока нет: включите Avoid и выполните спасение.
+
+Replay calculation in demo
+== Повторить расчёт в демо

@@ -564,6 +564,15 @@ void CMenus::RenderDemoPlayer(CUIRect MainView)
 		PositionToSeek = 0.0f;
 	}
 	Ui()->DoToolTip(&s_ResetButton, &Button, Localize("Stop the current demo"));
+	if(GameClient()->m_NullClient.Selected())
+	{
+		ButtonBar.VSplitLeft(Margins, nullptr, &ButtonBar);
+		ButtonBar.VSplitLeft(ButtonbarHeight, &Button, &ButtonBar);
+		static CButtonContainer s_ReplayRescue;
+		if(Ui()->DoButton_FontIcon(&s_ReplayRescue, FontIcon::ARROW_ROTATE_LEFT, false, &Button, BUTTONFLAG_LEFT))
+			Console()->ExecuteLine("null_rescue_scene", IConsole::CLIENT_ID_UNSPECIFIED);
+		Ui()->DoToolTip(&s_ReplayRescue, &Button, Localize("Replay rescue calculation"));
+	}
 
 	// skip time back
 	ButtonBar.VSplitLeft(Margins + 10.0f, nullptr, &ButtonBar);

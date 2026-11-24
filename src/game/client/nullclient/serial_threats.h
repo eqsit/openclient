@@ -16,12 +16,14 @@ namespace OpenKrx::NullClient
 	// Original 2487b0/247c30: geometric retaliation field, shared by all 36 stand probes.
 	class CSerialThreats
 	{
+		static constexpr int MAX_HORIZON = 24;
 		struct CThreat
 		{
 			vec2 m_Position;
 			float m_HammerRadius;
 			bool m_Hammer, m_Grenade, m_HookingUs, m_Target, m_OtherHook;
-			std::vector<vec2> m_vFuture;
+			std::array<vec2, MAX_HORIZON> m_aFuture;
+			int m_NumFuture = 0;
 		};
 		CCollision *m_pCollision = nullptr;
 		std::vector<CThreat> m_vThreats;

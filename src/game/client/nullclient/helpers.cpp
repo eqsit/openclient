@@ -45,7 +45,7 @@ bool SafeGrenade(const CGameWorld &Source, int Id, vec2 Direction)
 	Settings.m_Weapons = true;
 	Settings.m_Adversarial = 0;
 	CSimulation Simulation;
-	if(!Simulation.Initialize(Source, Id, Settings, {}))
+	if(!Simulation.Initialize(Source, Id, Settings, {}, CPruneRadii{4000.0f, 0.0f, 4000.0f}))
 		return true;
 
 	auto *pCharacter = Simulation.Character();
@@ -53,7 +53,7 @@ bool SafeGrenade(const CGameWorld &Source, int Id, vec2 Direction)
 	pCharacter->SetWeaponAmmo(WEAPON_GRENADE, -1);
 	pCharacter->SetWeapon(WEAPON_GRENADE);
 	CNetObj_PlayerInput Input{};
-	Input.m_PlayerFlags = PLAYERFLAG_PLAYING;
+	// 0x140224d40:828-840 leaves m_PlayerFlags untouched in the synthetic input.
 	Input.m_WantedWeapon = WEAPON_GRENADE + 1;
 	Input.m_TargetX = static_cast<int>(Direction.x * 200.0f);
 	Input.m_TargetY = static_cast<int>(Direction.y * 200.0f);
@@ -180,7 +180,7 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 		if(TargetX)
 			Input.m_Direction = std::abs(*TargetX - pCore->m_Pos.x) <= 10.0f ? 0 : *TargetX > pCore->m_Pos.x ? 1 : -1;
 	}
-	// 140212250: choose braking only when it beats the natural friction.
+	// Quick Stop runs in the active Controls path (0x140122bd0 -> 0x140224d40).
 	if(g_Config.m_NullQuickStop && !AvoidChanged && Input.m_Direction == 0 && !Frozen && !pCore->m_DeepFrozen && std::abs(pCore->m_Vel.x) > 1.0f)
 	{
 		const bool Grounded = pCharacter->IsGrounded();
@@ -293,9 +293,12 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 			State.m_GrenadeDelay = State.m_GrenadeTarget = -1;
 		}
 	}
-	// 1402131d0 / 140212c60: fake aim never replaces a real hook or shot.
-	const int PreviousFire = State.m_FakeFire;
+	// 140226d30:200-228: the real aim is never replaced while the tick carries a
+	// fresh hook, a shot from a weapon with a reload timer, or another module's change.
+	const bool PreviousHook = State.m_FakeHook != 0;
+	const bool NewShot = CountInput(State.m_FakeFire, Input.m_Fire).m_Presses > 0;
 	State.m_FakeFire = Input.m_Fire;
+	State.m_FakeHook = Input.m_Hook;
 	State.m_HasFakeAim = false;
 	if(g_Config.m_NullFakeAim)
 	{
@@ -308,7 +311,17 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 			State.m_FakeTick = Tick;
 		}
 		const vec2 Real(Input.m_TargetX, Input.m_TargetY);
-		if(AvoidFire || Input.m_Hook || Input.m_Fire != PreviousFire || (Input.m_Fire & 1))
+		// round-half-away-from-zero, then a component-wise inf/NaN mask (0x7f800000).
+		const auto RoundAim = [](float Value) { return static_cast<int>(Value <= 0.0f ? Value - 0.5f : Value + 0.5f); };
+		// 0x140226d30 tests (state & ~4) != 0, i.e. everything except idle and flying.
+		const bool HookBlocks = Input.m_Hook && !(PreviousHook && (pCore->m_HookState & ~HOOK_FLYING) != 0);
+		// bVar19 (shotgun/grenade/laser, or a gun needing it) OR a weapon switch this tick,
+		// together with a loaded weapon, blocks the substitution.
+		const bool ShotWeapon = (Weapon >= WEAPON_SHOTGUN && Weapon <= WEAPON_LASER) ||
+			(Weapon == WEAPON_GUN && pCore->m_Jetpack) || pCharacter->m_FrozenLastTick ||
+			Input.m_WantedWeapon > 0 || Input.m_NextWeapon != 0 || Input.m_PrevWeapon != 0;
+		const bool ShotBlocks = (Input.m_Fire & 1) && ShotWeapon && pCharacter->DiagnosticReloadTimer() < 2;
+		if(AvoidFire || HookBlocks || NewShot || ShotBlocks)
 		{
 			if(length(Real) > 0.001f)
 				State.m_RealAim = normalize(Real);
@@ -339,20 +352,39 @@ CNetObj_PlayerInput CHelpers::Apply(CGameClient *pClient, CNetObj_PlayerInput In
 				}
 			}
 			const float Radius = length(Real) < 1.0f ? 140.0f : length(Real);
-			Input.m_TargetX = static_cast<int>(Aim.x * Radius);
-			Input.m_TargetY = static_cast<int>(Aim.y * Radius);
-			State.m_SentAim = Aim;
+			// 0x140226d30:250-288: send the rounded vector, never (0,0), and (1,0) on inf/NaN.
+			const float AimX = Aim.x * Radius;
+			const float AimY = Aim.y * Radius;
+			if(!std::isfinite(AimX) || !std::isfinite(AimY))
+			{
+				Input.m_TargetX = 1;
+				Input.m_TargetY = 0;
+			}
+			else
+			{
+				Input.m_TargetX = RoundAim(AimX);
+				Input.m_TargetY = RoundAim(AimY);
+				if(!Input.m_TargetX && !Input.m_TargetY)
+				{
+					if(std::abs(AimX) < std::abs(AimY))
+						Input.m_TargetY = AimY < 0.0f ? -1 : 1;
+					else
+						Input.m_TargetX = AimX < 0.0f ? -1 : 1;
+				}
+			}
+			State.m_SentAim = length(vec2(Input.m_TargetX, Input.m_TargetY)) > 0.001f ?
+				normalize(vec2(Input.m_TargetX, Input.m_TargetY)) : Aim;
 			State.m_HasFakeAim = true;
 		}
 	}
 	return Input;
 }
 
-CNetObj_PlayerInput CHelpers::ApplyDummyLaser(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot)
+bool CHelpers::DummyLaserReady(CGameClient *pClient, int Slot)
 {
 	if(!g_Config.m_NullDummyLaserUnfreeze || Slot == g_Config.m_ClDummy ||
 		!pClient->Client()->DummyConnected() || pClient->m_Snap.m_SpecInfo.m_Active)
-		return Input;
+		return false;
 	const int Shooter = pClient->m_aLocalIds[Slot];
 	const int Target = pClient->m_aLocalIds[g_Config.m_ClDummy];
 	auto &World = pClient->KrxPredictedWorld();
@@ -361,37 +393,55 @@ CNetObj_PlayerInput CHelpers::ApplyDummyLaser(CGameClient *pClient, CNetObj_Play
 	if(!pShooter || !pTarget || pTarget->m_FreezeTime <= 0 || pTarget->Core()->m_DeepFrozen || pTarget->Core()->m_LiveFrozen ||
 		pShooter->m_FreezeTime > 0 || pShooter->Core()->m_DeepFrozen || pShooter->Core()->m_LiveFrozen ||
 		pShooter->LaserHitDisabled() || !pShooter->CanCollide(Target) ||
-		!pShooter->GetWeaponGot(WEAPON_LASER) || pShooter->GetWeaponAmmo(WEAPON_LASER) == 0 || Input.m_Hook)
-		return Input;
+		!pShooter->GetWeaponGot(WEAPON_LASER) || pShooter->GetWeaponAmmo(WEAPON_LASER) == 0)
+		return false;
 	const int Tile = World.Collision()->GetPureMapIndex(pTarget->Core()->m_Pos);
 	if((World.Collision()->GetTileIndex(Tile) == TILE_FREEZE || World.Collision()->GetFrontTileIndex(Tile) == TILE_FREEZE) &&
 		!pTarget->IsGrounded())
-		return Input;
+		return false;
 	auto &State = m_aSlots[Slot];
 	const int Tick = pClient->Client()->GameTick(g_Config.m_ClDummy);
-	if(State.m_LaserScanTick != Tick || State.m_LaserShooter != Shooter || State.m_LaserTarget != Target)
+	// 0x140220f60 reuses a successful scan during the same tick at identical positions.
+	const vec2 ShooterPos = pShooter->Core()->m_Pos;
+	const vec2 TargetPos = pTarget->Core()->m_Pos;
+	const bool ReusePlan = State.m_LaserAim && State.m_LaserScanTick == Tick &&
+		State.m_LaserShooter == Shooter && State.m_LaserTarget == Target &&
+		ShooterPos == State.m_LaserShooterPos && TargetPos == State.m_LaserTargetPos;
+	if(!ReusePlan)
 	{
 		State.m_LaserScanTick = Tick;
 		State.m_LaserShooter = Shooter;
 		State.m_LaserTarget = Target;
+		State.m_LaserShooterPos = ShooterPos;
+		State.m_LaserTargetPos = TargetPos;
 		State.m_LaserAim = FindDummyLaser(World, *pShooter, *pTarget);
 	}
-	if(!State.m_LaserAim)
-		return Input;
+	return State.m_LaserAim.has_value();
+}
+
+bool CHelpers::ApplyDummyLaser(CGameClient *pClient, CNetObj_PlayerInput &Input, int Slot)
+{
+	if(!DummyLaserReady(pClient, Slot))
+		return false;
+	const auto *pShooter = pClient->KrxPredictedWorld().GetCharacterById(pClient->m_aLocalIds[Slot]);
+	if(Input.m_Hook && pShooter->Core()->m_HookState != HOOK_GRABBED)
+		return false;
+	auto &State = m_aSlots[Slot];
+	const int Tick = State.m_LaserScanTick;
 	Input.m_WantedWeapon = WEAPON_LASER + 1;
 	Input.m_TargetX = round_to_int(State.m_LaserAim->x * 10000.0f);
 	Input.m_TargetY = round_to_int(State.m_LaserAim->y * 10000.0f);
 	if(pShooter->GetActiveWeapon() == WEAPON_LASER && pShooter->DiagnosticReloadTimer() == 0 && State.m_LaserFireTick != Tick)
 	{
-		Input.m_Fire = (Input.m_Fire + 3) & (INPUT_STATE_MASK & ~1);
+		Input.m_Fire = (static_cast<unsigned>(Input.m_Fire) + 3u) & (INPUT_STATE_MASK & ~1);
 		State.m_LaserFireTick = Tick;
 	}
-	return Input;
+	return true;
 }
 
 void CHelpers::Update(CGameClient *pClient)
 {
-	if(!NullProfileActive() || pClient->Client()->State() != IClient::STATE_ONLINE || pClient->m_Snap.m_SpecInfo.m_Active)
+	if(!NullProfileActive() || pClient->Client()->State() != IClient::STATE_ONLINE || !pClient->Predict())
 		return;
 	const auto *pCharacter = pClient->KrxPredictedWorld().GetCharacterById(pClient->m_aLocalIds[g_Config.m_ClDummy]);
 	if(!pCharacter)

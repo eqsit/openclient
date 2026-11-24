@@ -45,7 +45,7 @@ MACRO_CONFIG_INT(NullGodmodeReactSpeed, null_godmode_react_speed, 30, 0, 400, CF
 MACRO_CONFIG_INT(NullGodmodeReactSpeedFast, null_godmode_react_speed_fast, 30, 0, 800, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Extra reaction brought forward at high speed, scaling with speed squared")
 MACRO_CONFIG_INT(NullGodmodeReactShock, null_godmode_react_shock, 100, 0, 400, CFGFLAG_CLIENT | CFGFLAG_SAVE, "How much a sudden velocity change brings the reaction earlier")
 MACRO_CONFIG_INT(NullGodmodeHammerDodge, null_godmode_hammer_dodge, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Treat contact range (a hammer swing, a point-blank blast) as ground to avoid")
-MACRO_CONFIG_INT(NullGodmodeHammerDodgeMode, null_godmode_hammer_dodge_mode, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Who counts as a threat: 0 only whoever is hooking you, 1 anyone with a hammer or grenade")
+MACRO_CONFIG_INT(NullGodmodeHammerDodgeMode, null_godmode_hammer_dodge_mode, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Who counts as a threat: 0 whoever is hooking you, 1 also active players holding a hammer")
 MACRO_CONFIG_INT(NullGodmodeHammerLookahead, null_godmode_hammer_lookahead, 14, 0, 60, CFGFLAG_CLIENT | CFGFLAG_SAVE, "How far ahead your input is checked for walking into a swing, in ticks")
 MACRO_CONFIG_INT(NullGodmodeRocketDodge, null_godmode_rocket_dodge, 0, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "While airborne, get above someone aiming a grenade at you")
 MACRO_CONFIG_INT(NullGodmodeRocketRange, null_godmode_rocket_range, 600, 0, 2000, CFGFLAG_CLIENT | CFGFLAG_SAVE, "How near someone with a grenade must be to be watched, in world units")

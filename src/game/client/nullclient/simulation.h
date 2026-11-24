@@ -31,6 +31,11 @@ namespace OpenKrx::NullClient
 	// predicted input, through the actual direct-input handler in an isolated copy.
 	int WeaponOnDirectInput(const CGameWorld &Source, int ClientId, const CNetObj_PlayerInput &Input);
 
+	// Parallel candidate workers keep one isolated collision snapshot per worker
+	// for the lifetime of the map; only cells written by a candidate are
+	// journaled and rewound. Call on map load so snapshots never outlive a map.
+	void InvalidateWorkerCollisions();
+
 	struct CPruneRadii
 	{
 		float m_General;
@@ -44,7 +49,11 @@ namespace OpenKrx::NullClient
 		// through every entity destructor and nested chain checkpoint.
 		std::shared_ptr<CCollision> m_pCollisionOwner;
 		std::shared_ptr<std::array<CTuningParams, 256>> m_pTuningOwner;
-		std::shared_ptr<uint64_t> m_pTotalSteps = std::make_shared<uint64_t>(0);
+		struct CCounters
+		{
+			uint64_t m_Steps = 0, m_Copies = 0;
+		};
+		std::shared_ptr<CCounters> m_pCounters = std::make_shared<CCounters>();
 		CGameWorld m_Root;
 		CGameWorld m_World;
 		int m_ClientId = -1;
@@ -56,11 +65,17 @@ namespace OpenKrx::NullClient
 		std::vector<std::pair<int, bool>> m_vRocketThreats;
 		std::vector<std::unique_ptr<CSimulation>> m_vWorkerContexts;
 		float m_RocketNear = 0;
+		// Journal position of this world on its isolated collision copy; every
+		// reset/clone returns to it instead of re-copying the map.
+		int m_JournalTileMark = 0;
 		void Prune(CPruneRadii Radii);
 		void PrepareThreats(const CSettings &Settings);
-		std::unique_ptr<CSimulation> CloneForWorker() const;
+		void RewindCollision();
+		std::unique_ptr<CSimulation> CloneForWorker(const std::shared_ptr<CCollision> &pCollision) const;
 
 	public:
+		~CSimulation() override;
+		bool InitializePathliner(const CGameWorld &Source, int ClientId);
 		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, bool Legit = false);
 		bool Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, CPruneRadii Radii);
 		std::unique_ptr<IWorld> Clone() const override;
@@ -87,7 +102,8 @@ namespace OpenKrx::NullClient
 		CGameWorld &World() { return m_World; }
 		void CommitRoot();
 		int Steps() const { return m_Steps; }
-		uint64_t TotalSteps() const { return *m_pTotalSteps; }
+		uint64_t TotalSteps() const { return m_pCounters->m_Steps; }
+		uint64_t TotalCopies() const { return m_pCounters->m_Copies; }
 		const std::vector<std::pair<int, float>> &HammerThreats() const { return m_vHammerThreats; }
 		const std::vector<std::pair<int, float>> &RocketContactThreats() const { return m_vRocketContactThreats; }
 		int HammerThreatCount() const { return static_cast<int>(m_vHammerThreats.size()); }

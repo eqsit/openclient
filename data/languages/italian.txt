@@ -2723,3 +2723,6 @@ Active: Hook
 
 https://wiki.ddnet.org/wiki/Mapping
 == 
+
+Uploading map data to GPU
+== Caricando dati mappa alla GPU

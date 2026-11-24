@@ -164,7 +164,7 @@ namespace OpenKrx::NullClient
 		return AnyDirection || m_Output.m_VetoJump || m_Output.m_VetoHook || m_Output.m_VetoFire;
 	}
 
-	bool CController::Defensive(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Input, const CWeights &Weights, bool FreezeFatal, bool Idle, bool AllowWeapon)
+	bool CController::Defensive(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Input, const CWeights &Weights, bool FreezeFatal, bool AllowWeapon, const char *pStage)
 	{
 		World.Reset();
 		auto *pCharacter = World.Character();
@@ -204,7 +204,7 @@ namespace OpenKrx::NullClient
 		// Original defensive pass writes the proposed weapon fields into the plan
 		// but does not set the one-shot action; Apply deliberately preserves live
 		// fire/weapon fields until the main emergency search issues an action.
-		m_pStage = "defensive";
+		m_pStage = pStage;
 		return true;
 	}
 
@@ -439,6 +439,31 @@ namespace OpenKrx::NullClient
 		return Input;
 	}
 
+	void CController::BeginTick(int Tick)
+	{
+		if(Tick == m_BeginTick)
+			return;
+		m_BeginTick = Tick;
+		m_Output.m_HasPlan = false;
+		m_Output.m_WeaponAction = -1;
+		m_Output.m_HasVeto = false;
+		m_Output.m_VetoJump = false;
+		m_Output.m_VetoHook = false;
+		m_Output.m_VetoFire = false;
+		m_Output.m_aVetoDirections = {};
+	}
+
+	void CController::ExpireOutput(int Tick)
+	{
+		// Input is normally sent before rendering the new prediction tick.
+		// Allow that one-tick handoff and expire decisions if rendering stalls.
+		if(Tick >= m_LastTick && static_cast<int64_t>(Tick) - m_LastTick <= 1)
+			return;
+		BeginTick(Tick);
+		m_Output.m_CutTicks = 0;
+		m_Output.m_HookTicks = 0;
+	}
+
 	void CController::Decide(CSimulation &World, const CSettings &Settings, const CNetObj_PlayerInput &Raw, const CFrame &Frame)
 	{
 		const int Mode = Frame.m_Dummy ? CSettings::MODE_GOD : Settings.m_Mode;
@@ -517,8 +542,12 @@ namespace OpenKrx::NullClient
 			m_Output.m_HookTicks = 0;
 		if(m_Output.m_CutTicks > 0)
 		{
-			const unsigned Held = (Raw.m_Direction ? 4U : 0U) | (Raw.m_Jump ? 2U : 0U) | (Raw.m_Hook ? 1U : 0U);
-			if(!(m_Output.m_CutMask & Held))
+			// 0x140215240: the held set always keeps the hook bit (dir ? 5 : 1),
+			// and the mask narrows to it every tick instead of dropping the whole
+			// cut when one bit it covers is released.
+			const unsigned Held = (Raw.m_Direction ? 5U : 1U) | (Raw.m_Jump ? 2U : 0U);
+			m_Output.m_CutMask &= Held;
+			if(m_Output.m_CutMask == 0)
 				m_Output.m_CutTicks = 0;
 			else
 				Input = Cut(Input, m_Output.m_CutMask);
@@ -560,8 +589,10 @@ namespace OpenKrx::NullClient
 		m_BaselineLife = Baseline.m_Life;
 		m_BaselineDied = Baseline.m_Died;
 		int Reaction = Settings.m_React + (Hooker >= 0 ? Settings.m_ReactHooked : 0);
-		Reaction += static_cast<int>(static_cast<float>(Settings.m_ReactShock) * Shock / 100.0f) - static_cast<int>(Speed * Speed * static_cast<float>(Settings.m_ReactSpeedFast) / -10000.0f) - static_cast<int>(static_cast<float>(Settings.m_ReactSpeed) * Speed / -100.0f);
-		if(Hooker >= 0 && (World.RocketThreatCount() > 0 || World.HammerThreatCount() > 0))
+		Reaction += static_cast<int>(static_cast<float>(Settings.m_ReactShock) * Shock / 100.0f) - static_cast<int>(static_cast<float>(Settings.m_ReactSpeedFast) * Speed * Speed / -10000.0f) - static_cast<int>(static_cast<float>(Settings.m_ReactSpeed) * Speed / -100.0f);
+		// 0x140215240:586-590 also treats a rocket *contact* threat as a reason
+		// to react a full horizon early.
+		if(Hooker >= 0 && (World.RocketThreatCount() > 0 || !World.RocketContactThreats().empty() || World.HammerThreatCount() > 0))
 			Reaction += Settings.m_Horizon;
 		m_Reaction = std::clamp(Reaction, 1, Settings.m_Horizon);
 		World.Reset();
@@ -621,6 +652,12 @@ namespace OpenKrx::NullClient
 		Weights.m_WallCost = Settings.m_WallCost;
 		Weights.m_TeeHookCost = Settings.m_TeeHookCost;
 		Weights.m_Chain = Settings.m_Deep && Settings.m_Chain > 0 ? std::max(Settings.m_Chain, Settings.m_DeepChain) : Settings.m_Chain;
+		if(Frame.m_Dummy)
+		{
+			Weights.m_Chain = std::max(2, Weights.m_Chain);
+			if(!Frame.m_DummyControlled && !Raw.m_Direction && !Raw.m_Jump && !Raw.m_Hook)
+				Weights.m_Deviation = 0;
+		}
 		Weights.m_Coast = Settings.m_Coast;
 		Weights.m_HazardSpeed = static_cast<float>(Settings.m_HazardSpeed) / 10.0f;
 		m_LastWeights = Weights;
@@ -652,6 +689,7 @@ namespace OpenKrx::NullClient
 				Weights.m_Anchor += (Arc - Weights.m_Anchor) * (static_cast<float>(Settings.m_HookCounterArc) / 100.0f);
 			}
 			Weights.m_HoldSlack = Weights.m_Settle = Weights.m_Travel = Weights.m_Deviation = Weights.m_HammerCost = Weights.m_HookCost = 0;
+			Weights.m_RocketContactCost = 0;
 			Weights.m_Hold = std::max(Weights.m_Hold, Weights.m_CounterPull);
 			// Original 20c949 sets weights+0x6d: a counter-hook candidate
 			// that freezes is a failure, even when the regular freeze cost is 0.
@@ -697,10 +735,10 @@ namespace OpenKrx::NullClient
 					W.m_Clearance = Settings.m_KnockbackClearance;
 					W.m_HammerCost = Settings.m_HammerDodge ? Settings.m_HammerCost : 0;
 					W.m_RocketCost = Settings.m_RocketCost;
-					W.m_Travel = 0;
+					W.m_Deviation = 0;
 					W.m_RespectHeld = !Idle;
 					W.m_FreezeFatal = FreezeCost;
-					if(Defensive(World, Settings, Raw, Input, W, FreezeCost, Idle, Settings.m_RocketAnswer != 0))
+					if(Defensive(World, Settings, Input, W, FreezeCost, Settings.m_RocketAnswer != 0, "dodge grenade blast"))
 						return true;
 				}
 			}
@@ -714,12 +752,13 @@ namespace OpenKrx::NullClient
 					auto W = Weights;
 					W.m_Hold = static_cast<float>(Settings.m_KnockbackGrip) / 100.0f;
 					W.m_Travel = 0;
+					W.m_Deviation = 0;
 					W.m_Clearance = Settings.m_KnockbackClearance;
 					W.m_RespectHeld = !Idle;
 					W.m_FreezeFatal = FreezeCost;
 					if(Idle)
-						W.m_HookCost = 100000.0f;
-					if(Defensive(World, Settings, Raw, Input, W, FreezeCost, Idle, false))
+						W.m_GroundJump = 100000.0f;
+					if(Defensive(World, Settings, Input, W, FreezeCost, false, "hold position"))
 						return true;
 				}
 				else
@@ -739,10 +778,10 @@ namespace OpenKrx::NullClient
 				{
 					auto W = Weights;
 					W.m_HammerCost = Settings.m_HammerCost;
-					W.m_Travel = 0;
+					W.m_Deviation = 0;
 					W.m_RespectHeld = !Idle;
 					W.m_FreezeFatal = FreezeCost;
-					if(Defensive(World, Settings, Raw, Input, W, FreezeCost, Idle, false))
+					if(Defensive(World, Settings, Input, W, FreezeCost, false, "dodge hammer"))
 						return true;
 				}
 			}
@@ -759,10 +798,10 @@ namespace OpenKrx::NullClient
 				if(Danger)
 				{
 					auto W = Weights;
-					W.m_Travel = 0;
+					W.m_Deviation = 0;
 					W.m_RespectHeld = !Idle;
 					W.m_FreezeFatal = FreezeCost;
-					if(Defensive(World, Settings, Raw, Input, W, FreezeCost, Idle, false))
+					if(Defensive(World, Settings, Input, W, FreezeCost, false, "dodge grenade shot"))
 						return true;
 				}
 			}

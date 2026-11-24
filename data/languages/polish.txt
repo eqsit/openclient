@@ -1763,7 +1763,7 @@ Unable to save the skin with a reserved name
 == %d/%d KiB (%.1f KiB/s)
 
 No local servers found (ports %d-%d)
-== Nie znaleziono serwerów lokalnych (porty %d-%d)
+== Nie znaleziono serwerów LAN (porty %d-%d)
 
 Example of usage
 == Przykładowe użycie
@@ -2723,3 +2723,6 @@ not bound
 
 Show cursor
 == 
+
+Uploading map data to GPU
+== Wysyłanie danych mapy do GPU

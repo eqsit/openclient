@@ -2723,3 +2723,6 @@ Moved ingame
 
 https://wiki.ddnet.org/wiki/Mapping
 == 
+
+Uploading map data to GPU
+== Слање података мапе Г.Ј.О.~у (GPU)

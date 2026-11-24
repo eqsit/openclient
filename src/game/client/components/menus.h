@@ -144,6 +144,8 @@ protected:
 	int m_Popup;
 	bool m_ShowStart;
 	bool m_MenuActive;
+	bool m_NullTasPanel = false;
+	void RenderNullTasPanel();
 
 	bool m_DummyNamePlatePreview = false;
 
@@ -676,6 +678,7 @@ public:
 
 	bool IsActive() const { return m_MenuActive; }
 	void SetActive(bool Active);
+	void ToggleNullTasPanel();
 
 	void OnInterfacesInit(CGameClient *pClient) override;
 	void OnInit() override;

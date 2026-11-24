@@ -2723,3 +2723,6 @@ not bound
 
 Show cursor
 == Mostrar cursor
+
+Uploading map data to GPU
+== Carregando dados de mapa para GPU

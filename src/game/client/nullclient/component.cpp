@@ -31,6 +31,7 @@ namespace OpenKrx::NullClient
 
 	void CNullClient::OnReset()
 	{
+		InvalidateWorkerCollisions();
 		m_vShotPaths.clear();
 		m_ShotPathTick = -1;
 		StopRescueScene();
@@ -51,7 +52,6 @@ namespace OpenKrx::NullClient
 		m_aRestoreSafe = {};
 		m_aRestoreProbeInputs = {};
 		m_aClientIds = {-1, -1};
-		m_LastSlot = -1;
 		m_WasSelected = false;
 	}
 
@@ -59,27 +59,31 @@ namespace OpenKrx::NullClient
 	{
 		if(!Selected() || Slot < 0 || Slot > 1 || GameClient()->m_Tas.Active())
 			return Input;
-		m_aRaw[Slot] = Input;
 		auto Settings = SettingsFromConfig();
 		// The UI uses OpenKRX's acknowledged grenade return in place of the
 		// original immediate switch-back. Keep that policy out of the reference comparison.
 		if(g_Config.m_NullRocketRestoreWeapon)
 			Settings.m_RestoreWeapon = false;
-		const bool Enabled = Slot == g_Config.m_ClDummy ? Settings.m_Enabled : Settings.m_Dummy;
+		const bool Dummy = Slot != g_Config.m_ClDummy;
+		const bool Enabled = Dummy ? Settings.m_Dummy : Settings.m_Enabled;
 		const int Id = GameClient()->m_aLocalIds[Slot];
 		const auto *pCharacter = GameClient()->KrxPredictedWorld().GetCharacterById(Id);
 		if(Client()->State() != IClient::STATE_ONLINE || GameClient()->m_Snap.m_SpecInfo.m_Active ||
-			!(Input.m_PlayerFlags & PLAYERFLAG_PLAYING) || m_aClientIds[Slot] != Id || !pCharacter)
+			(!Dummy && !(Input.m_PlayerFlags & PLAYERFLAG_PLAYING)) || m_aClientIds[Slot] != Id || !pCharacter)
 		{
 			m_aWeaponRestore[Slot].Reset();
 			m_aNativeReturn[Slot].Reset();
 			m_aRestoreProbeTicks[Slot] = -1;
+			// 0x140213c20:160-179 drops the restore target as soon as the local
+			// character is gone; the controller itself survives the death.
+			m_aControllers[Slot].Output().m_RestoreWeapon = -1;
 			return Input;
 		}
 		auto &Restore = m_aWeaponRestore[Slot];
 		auto &Controller = m_aControllers[Slot];
-		const bool Dummy = Slot != g_Config.m_ClDummy;
-		if(!Controller.MatchesMode(Settings, Dummy) || (!Dummy && Settings.m_Mode == CSettings::MODE_LEGIT))
+		const int Tick = Client()->PredGameTick(g_Config.m_ClDummy);
+		Controller.ExpireOutput(Tick);
+		if(!Enabled || !Controller.MatchesMode(Settings, Dummy) || (!Dummy && Settings.m_Mode == CSettings::MODE_LEGIT))
 		{
 			Restore.Reset();
 			m_aNativeReturn[Slot].Reset();
@@ -87,20 +91,19 @@ namespace OpenKrx::NullClient
 			return Enabled && Controller.MatchesMode(Settings, Dummy) ? Controller.ApplyLegit(Input) : Input;
 		}
 		auto &State = Controller.Output();
-		const bool GrenadeAction = Enabled && State.m_HasPlan && State.m_WeaponAction == WEAPON_GRENADE;
+		const bool GrenadeAction = State.m_HasPlan && State.m_WeaponAction == WEAPON_GRENADE;
 		const int EmissionWeapon = State.m_WeaponAction >= 0 ? WeaponOnDirectInput(GameClient()->KrxPredictedWorld(), Id, Input) : pCharacter->GetActiveWeapon();
 		const auto NativeInput = m_aNativeReturn[Slot].Prepare(Input, State, Settings);
-		auto Output = State.Apply(NativeInput, Enabled, true, true, EmissionWeapon, Settings);
-		m_aNativeReturn[Slot].Observe(Input, Output, Enabled && Settings.m_RestoreWeapon);
+		auto Output = State.Apply(NativeInput, true, true, true, EmissionWeapon, Settings);
+		m_aNativeReturn[Slot].Observe(Input, Output, Settings.m_RestoreWeapon);
 		const auto *pAuthoritative = GameClient()->KrxGameWorld().GetCharacterById(Id);
-		if(!Enabled || !g_Config.m_NullRocketRestoreWeapon || !pAuthoritative ||
+		if(!g_Config.m_NullRocketRestoreWeapon || !pAuthoritative ||
 			(Restore.Weapon() >= 0 && !pAuthoritative->Core()->m_aWeapons[Restore.Weapon()].m_Got))
 		{
 			Restore.Reset();
 			m_aRestoreProbeTicks[Slot] = -1;
 			return Output;
 		}
-		const int Tick = Client()->PredGameTick(g_Config.m_ClDummy);
 		if(GrenadeAction)
 			m_aRestoreProbeTicks[Slot] = -1;
 		if(!GrenadeAction && Restore.NeedsSafeExit() && (m_aRestoreProbeTicks[Slot] != Tick || mem_comp(&m_aRestoreProbeInputs[Slot], &Output, sizeof(Output)) != 0))
@@ -125,34 +128,99 @@ namespace OpenKrx::NullClient
 			!GrenadeAction && m_aRestoreProbeTicks[Slot] == Tick && m_aRestoreSafe[Slot]);
 	}
 
-	CNetObj_PlayerInput CNullClient::Apply(CNetObj_PlayerInput Input, int Slot)
+	CNetObj_PlayerInput CNullClient::SimulationInput(int Slot) const
 	{
-		if(!Selected() || Slot < 0 || Slot > 1 || GameClient()->m_Tas.Active() ||
-			(!(Input.m_PlayerFlags & PLAYERFLAG_PLAYING) && Slot == g_Config.m_ClDummy))
+		const auto *pClient = GameClient();
+		if(Slot < 0 || Slot >= NUM_DUMMIES)
+			return {};
+		const bool Dummy = Slot != g_Config.m_ClDummy;
+		const int ClientId = pClient->m_aLocalIds[Slot];
+		const bool Hammer = Dummy && ClientId >= 0 && ClientId < MAX_CLIENTS &&
+			g_Config.m_ClDummyHammer && g_Config.m_NullGodmodeDummy;
+		if(const auto *pPlan = m_Serial.Plan(Slot); pPlan && !Hammer)
+			return *pPlan;
+
+		const auto &Controls = pClient->m_Controls;
+		auto Input = Controls.m_aInputData[Slot];
+		if(Dummy)
+		{
+			Input.m_Fire = pClient->m_DummyInput.m_Fire;
+			Input.m_WantedWeapon = pClient->m_DummyInput.m_WantedWeapon;
+			if(Hammer)
+			{
+				const vec2 Aim = pClient->m_LocalCharacterPos - pClient->m_aClients[ClientId].m_Predicted.m_Pos;
+				Input.m_TargetX = static_cast<int>(Aim.x);
+				Input.m_TargetY = static_cast<int>(Aim.y);
+				Input.m_WantedWeapon = WEAPON_HAMMER + 1;
+				Input.m_Fire = (static_cast<unsigned>(Input.m_Fire) + 1u) & ~1u;
+				Input.m_Fire |= pClient->m_DummyFire % 25 == 0;
+			}
+			if(g_Config.m_ClDummyCopyMoves || g_Config.m_ClDummyControl)
+				return Input;
+			if(g_Config.m_NullSerialKillerDummy)
+			{
+				Input.m_Direction = Input.m_Jump = Input.m_Hook = 0;
+				return Input;
+			}
+		}
+		Input.m_Direction = (Controls.m_aInputDirectionRight[Slot] != 0) - (Controls.m_aInputDirectionLeft[Slot] != 0);
+		return Input;
+	}
+
+	bool CNullClient::DummyLaserReady(int Slot)
+	{
+		return Selected() && Client()->State() == IClient::STATE_ONLINE &&
+			!GameClient()->m_Tas.Active() && !GameClient()->m_Tas.NullPlaybackActive() &&
+			m_Helpers.DummyLaserReady(GameClient(), Slot);
+	}
+
+	CNetObj_PlayerInput CNullClient::Apply(CNetObj_PlayerInput Input, int Slot, bool SkipDummySerial, bool *pDummyLaserApplied)
+	{
+		if(!Selected() || Slot < 0 || Slot > 1 || GameClient()->m_Tas.Active())
 			return Input;
-		auto Output = m_Fly.HasPlan(Slot) ? m_Fly.Apply(Input, Slot) : ApplyAvoid(m_Serial.Apply(GameClient(), Input, Slot), Slot);
+		// 0x140213c20:98-138 masks the whole transform with an in-game/connection
+		// check, so a disconnect between decision and emission sends raw input.
+		if(Client()->State() != IClient::STATE_ONLINE)
+			return Input;
+		const bool Main = Slot == g_Config.m_ClDummy;
+		m_aRaw[Slot] = Input;
+		if(Main && !(Input.m_PlayerFlags & PLAYERFLAG_PLAYING))
+			return Input;
+		const auto SerialInput = !Main && SkipDummySerial ? Input : m_Serial.Apply(GameClient(), Input, Slot);
+		auto Output = Main && m_Fly.Active() ? m_Fly.Apply(SerialInput, Slot) : ApplyAvoid(SerialInput, Slot);
+		if(!Main)
+		{
+			// 0x1401f8800 compares the fields needed by dummy laser after Serial.
+			if(Output.m_TargetX == SerialInput.m_TargetX && Output.m_TargetY == SerialInput.m_TargetY &&
+				Output.m_Hook == SerialInput.m_Hook && Output.m_Fire == SerialInput.m_Fire &&
+				Output.m_WantedWeapon == SerialInput.m_WantedWeapon && !GameClient()->m_Tas.NullPlaybackActive())
+				{
+				const bool Applied = m_Helpers.ApplyDummyLaser(GameClient(), Output, Slot);
+				if(pDummyLaserApplied)
+					*pDummyLaserApplied = Applied;
+			}
+			return Output;
+		}
 		// Original main Controls 121a57..121ad0 derives these gates from
 		// emitted changes, not whether the planner happens to hold a plan.
-		const bool HookAim = Output.m_Hook != Input.m_Hook || Output.m_TargetX != Input.m_TargetX || Output.m_TargetY != Input.m_TargetY;
-		const bool Changed = HookAim || Output.m_Direction != Input.m_Direction || Output.m_Jump != Input.m_Jump;
-		const bool FireChanged = Output.m_Fire != Input.m_Fire;
-		if(!Changed && !FireChanged)
-		{
-			const auto Laser = m_Helpers.ApplyDummyLaser(GameClient(), Output, Slot);
-			if(mem_comp(&Laser, &Output, sizeof(Output)) != 0)
-				return Laser;
-		}
-		if(!(Input.m_PlayerFlags & PLAYERFLAG_PLAYING))
-			return Input;
+		const bool AimChanged = Output.m_TargetX != Input.m_TargetX || Output.m_TargetY != Input.m_TargetY;
+		const bool HookChanged = Output.m_Hook != Input.m_Hook;
+		const bool DirectionChanged = Output.m_Direction != Input.m_Direction;
+		const bool JumpChanged = Output.m_Jump != Input.m_Jump;
+		const bool FireChanged = Output.m_Fire != SerialInput.m_Fire;
+		// 0x140224d40:775 gates the helpers on Hook||TargetX||TargetY.
+		const bool HookGate = HookChanged || AimChanged;
+		const bool Changed = AimChanged || HookChanged || DirectionChanged || JumpChanged;
 		Output = m_Aimbot.Apply(GameClient(), Output, Slot, Changed);
-		return m_Helpers.Apply(GameClient(), Output, Slot, Changed, FireChanged, HookAim);
+		return m_Helpers.Apply(GameClient(), Output, Slot, Changed, FireChanged, HookGate);
 	}
 	void CNullClient::SynchronizeSlot()
 	{
-		if(!m_WasSelected || m_LastSlot != g_Config.m_ClDummy)
+		// Switching the dummy slot must not wipe the other slot: the original
+		// keeps two independent module instances (client+0x537230/0x5436d8).
+		if(!m_WasSelected)
 		{
 			OnReset();
-			m_LastSlot = g_Config.m_ClDummy;
 			m_WasSelected = true;
 		}
 	}
@@ -171,11 +239,14 @@ namespace OpenKrx::NullClient
 			return;
 		}
 		SynchronizeSlot();
+		const int Tick = Client()->PredGameTick(g_Config.m_ClDummy);
+		for(auto &Controller : m_aControllers)
+			Controller.BeginTick(Tick);
 		if(GameClient()->m_Snap.m_SpecInfo.m_Active || GameClient()->m_Tas.Active())
 			return;
-		m_Fly.Update(GameClient());
 		m_Idle.Update(GameClient());
 		m_Serial.Update(GameClient(), m_Warlist, m_Idle.Idle());
+		m_Fly.Update(GameClient());
 		m_Helpers.Update(GameClient());
 		if(!g_Config.m_NullGodmodeVisuals)
 			m_vRescueSnapshots.clear();
@@ -193,7 +264,9 @@ namespace OpenKrx::NullClient
 			}
 			if(Id < 0 || !GameClient()->m_Snap.m_aCharacters[Id].m_Active)
 			{
-				m_aControllers[Slot].Reset();
+				// 0x140213c20 keeps controller state and only drops the weapon
+				// restore when the character disappears; the plan is cleared by
+				// BeginTick, not by a full reset.
 				m_aWeaponRestore[Slot].Reset();
 				m_aNativeReturn[Slot].Reset();
 				m_aRestoreProbeTicks[Slot] = -1;
@@ -209,29 +282,20 @@ namespace OpenKrx::NullClient
 			}
 			if(m_aControllers[Slot].LastTick() == Client()->PredGameTick(g_Config.m_ClDummy))
 				continue;
-			auto Raw = m_aRaw[Slot];
-			if(!(Raw.m_PlayerFlags & PLAYERFLAG_PLAYING))
-				Raw = GameClient()->m_Controls.m_aInputData[Slot];
-			if(Slot == g_Config.m_ClDummy)
-			{
-				const auto &Controls = GameClient()->m_Controls;
-				Raw.m_Direction = Controls.m_aInputDirectionLeft[Slot] == Controls.m_aInputDirectionRight[Slot] ? 0 : Controls.m_aInputDirectionLeft[Slot] ? -1 :
-																					     1;
-				Raw.m_Jump = Controls.m_PhysicalJump != 0;
-				Raw.m_Hook = Controls.m_aPhysicalHook[Slot] != 0;
-			}
-			if(!(Raw.m_PlayerFlags & PLAYERFLAG_PLAYING))
+			const auto Raw = SimulationInput(Slot);
+			if(Slot == g_Config.m_ClDummy && !(GameClient()->m_Controls.m_aInputData[Slot].m_PlayerFlags & PLAYERFLAG_PLAYING))
 				continue;
-			Raw = m_Serial.Apply(GameClient(), Raw, Slot, false);
 			const int64_t Start = time_get_impl();
 			CSimulation World;
 			const bool Legit = Slot == g_Config.m_ClDummy && Settings.m_Mode == CSettings::MODE_LEGIT;
 			if(!World.Initialize(GameClient()->KrxPredictedWorld(), Id, Settings, m_Idle.Idle(), Legit))
 				continue;
+			const int64_t Initialized = time_get_impl();
 			CFrame Frame;
 			Frame.m_Tick = Client()->PredGameTick(g_Config.m_ClDummy);
 			Frame.m_ResolvePendingWeapon = true;
 			Frame.m_Dummy = Slot != g_Config.m_ClDummy;
+			Frame.m_DummyControlled = g_Config.m_ClDummyCopyMoves || g_Config.m_ClDummyControl || m_Serial.HasPlan(Slot);
 			const auto &Snapshot = GameClient()->m_Snap.m_aCharacters[Id].m_Cur;
 			Frame.m_AuthoritativeWeapon = Snapshot.m_Weapon;
 			Frame.m_AuthoritativeAttackTick = Snapshot.m_AttackTick;
@@ -239,28 +303,39 @@ namespace OpenKrx::NullClient
 			if(g_Config.m_NullGodmodeVisuals && Slot == g_Config.m_ClDummy &&
 				(m_vRescueSnapshots.empty() || Start - m_vRescueSnapshots.back().m_Time >= time_freq() * 18 / 100))
 				Frame.m_pRescuePaths = &Rescue.m_vPaths;
+			const int64_t DecideStart = time_get_impl();
 			m_aControllers[Slot].Decide(World, Settings, Raw, Frame);
+			const int64_t Decided = time_get_impl();
+			int64_t PathTime = 0;
 			if(Slot == g_Config.m_ClDummy && Settings.m_ShotPath)
 			{
 				m_vShotPaths = ProjectilePaths(World, Raw, Settings.m_ShotPathTicks);
+				PathTime = time_get_impl() - Decided;
 				m_ShotPathTick = Frame.m_Tick;
 			}
-			if(!Rescue.m_vPaths.empty())
+			if(Frame.m_pRescuePaths)
 			{
-				Rescue.m_Time = Start;
+				Rescue.m_Time = time_get_impl();
 				Rescue.m_Tick = Client()->GameTick(Slot);
 				Rescue.m_MapCrc = GameClient()->Map()->Crc();
-				m_SavedRescue = Rescue;
+				if(!Rescue.m_vPaths.empty())
+					m_SavedRescue = Rescue;
 				m_vRescueSnapshots.push_back(std::move(Rescue));
 				if(m_vRescueSnapshots.size() > 8)
 					m_vRescueSnapshots.pop_front();
 			}
+			int64_t JumpTime = 0;
 			if(g_Config.m_NullPreserveJump && Slot == g_Config.m_ClDummy &&
 				GameClient()->m_Controls.m_PhysicalJump && !GameClient()->m_Controls.m_ManualJumpConsumed)
+			{
+				const int64_t JumpStart = time_get_impl();
 				m_aControllers[Slot].PreserveManualJump(World, Settings, Raw, Frame);
-			m_Reports.Timing(Slot, (time_get_impl() - Start) * 1000000 / time_freq());
+				JumpTime = time_get_impl() - JumpStart;
+			}
+			const auto Us = [](int64_t Duration) { return static_cast<int>(Duration * 1000000 / time_freq()); };
+			m_Reports.Timing(Slot, Client()->GameTick(Slot), {Us(time_get_impl() - Start), Us(Initialized - Start), Us(Decided - DecideStart), Us(PathTime), Us(JumpTime), World.TotalSteps(), World.TotalCopies()});
 		}
-		m_Reports.Update(GameClient(), m_aControllers, m_aRaw);
+		m_Reports.Update(GameClient(), m_aControllers, m_aRaw, {m_Serial.Target(0), m_Serial.Target(1)});
 		RenderVisuals();
 	}
 	void CNullClient::OnMessage(int MsgId, void *pRawMsg)

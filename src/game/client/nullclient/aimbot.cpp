@@ -3,16 +3,18 @@
 #include <game/client/gameclient.h>
 #include <game/client/prediction/entities/character.h>
 #include <game/collision.h>
+#include <game/localization.h>
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <vector>
 
 namespace OpenKrx::NullClient
 {
 int SolveBallistic(vec2 From, vec2 To, float Curvature, float Speed, float TickSpeed, std::array<CBallisticAim, 2> &aResult)
 {
 	const vec2 Delta = To - From;
-	const float Curve = Curvature / 10000.0f;
+	const double Curve = static_cast<double>(Curvature) / 10000.0;
 	const float TimeScale = Speed <= 0.001f ? 0.0f : TickSpeed / Speed;
 	int Count = 0;
 	if(std::abs(Curve) < 1e-9f)
@@ -25,36 +27,35 @@ int SolveBallistic(vec2 From, vec2 To, float Curvature, float Speed, float TickS
 	}
 	if(std::abs(Delta.x) >= 0.001f)
 	{
-		const float Discriminant = 1.0f - (Delta.x * Curve * Delta.x - Delta.y) * Curve * 4.0f;
+		const double Dx = Delta.x;
+		const double CurvedY = Dx * Curve * Dx;
+		const double DeltaY = Delta.y - CurvedY;
+		const double Discriminant = 1.0 - (CurvedY - Delta.y) * Curve * 4.0;
 		if(Discriminant < 0)
 			return 0;
-		const float Root = std::sqrt(Discriminant);
-		const float Denominator = (Curve + Curve) * Delta.x;
-		const float Sign = Delta.x > 0 ? 1.0f : -1.0f;
-		for(float Numerator : {Root - 1.0f, -Root - 1.0f})
+		const double Root = std::sqrt(Discriminant);
+		const double Sign = Dx > 0 ? 1.0 : -1.0;
+		// Rationalize the near root to avoid subtracting two almost equal values.
+		for(double Slope : {(DeltaY + DeltaY) / (Dx * (Root + 1.0)), (-1.0 - Root) / (Dx * (Curve + Curve))})
 		{
-			const float Slope = Numerator / Denominator;
-			const float X = Sign / std::sqrt(Slope * Slope + 1.0f);
-			if(Delta.x / X > 0.001f)
-				aResult[Count++] = {vec2(X, X * Slope), (Delta.x / X) * TimeScale};
+			const double X = Sign / std::sqrt(Slope * Slope + 1.0);
+			const double Range = Dx / X;
+			if(Range > 0.001f)
+				aResult[Count++] = {vec2(X, X * Slope), static_cast<float>(Range * TimeScale)};
 		}
 	}
 	else
 	{
-		const float Discriminant = Curve * 4.0f * Delta.y + 1.0f;
+		const double Discriminant = Curve * 4.0 * Delta.y + 1.0;
 		if(Discriminant < 0)
 			return 0;
-		const float Root = std::sqrt(Discriminant);
+		const double Root = std::sqrt(Discriminant);
 		for(int Direction : {-1, 1})
-			for(float Sign : {1.0f, -1.0f})
+			for(double SignedRoot : {Root, -Root})
 			{
-				const float Range = (Sign * Root - static_cast<float>(Direction)) / (Curve + Curve);
-				if(Range > 0.001f)
-				{
-					aResult[Count++] = {vec2(0, Direction), Range * TimeScale};
-					if(Count == 2)
-						break;
-				}
+				const double Range = (SignedRoot - Direction) / (Curve + Curve);
+				if(Count < 2 && Range > 0.001f)
+					aResult[Count++] = {vec2(0, Direction), static_cast<float>(Range * TimeScale)};
 			}
 	}
 	if(Count == 2 && aResult[1].m_Ticks < aResult[0].m_Ticks)
@@ -100,7 +101,7 @@ vec2 TargetPosition(CGameClient *pClient, CGameWorld &World, int Target)
 {
 	if(Target < 0 || Target >= MAX_CLIENTS) return vec2(0, 0);
 	const auto *pCharacter = World.GetCharacterById(Target);
-	return pCharacter ? pCharacter->Core()->m_Pos : pClient->m_aClients[Target].m_Predicted.m_Pos;
+	return pCharacter ? pCharacter->Core()->m_Pos : pClient->m_aClients[Target].m_RenderPos;
 }
 float PingLead(CGameClient *pClient)
 {
@@ -131,7 +132,7 @@ CTargetPath TargetPath(CGameClient *pClient, CGameWorld &World, int Target, int 
 		CCharacterCore Core = *pCharacter->Core();
 		Core.Init(nullptr, World.Collision());
 		if(ReleaseHook)
-			Core.m_Input.m_Hook = 0;
+			Core.m_HookState = HOOK_IDLE;
 		if(pCharacter->m_FreezeTime > 0 || Core.m_LiveFrozen)
 			Core.m_Direction = Core.m_Input.m_Direction = 0;
 		for(int Tick = 1; Tick <= Horizon; ++Tick)
@@ -159,35 +160,88 @@ CTargetPath TargetPath(CGameClient *pClient, CGameWorld &World, int Target, int 
 
 vec2 WireDirection(vec2 Direction)
 {
+	if(length(Direction) < 0.0001f)
+		return vec2(1, 0);
 	return normalize(vec2(round_to_int(Direction.x * 10000.0f), round_to_int(Direction.y * 10000.0f)));
 }
 
-bool CanTarget(CGameClient *pClient, CGameWorld &World, CCharacter &Self, int Target, int Weapon, const CTuningParams &Tune)
+std::vector<float> HookAngles(const CCollision &Collision, vec2 Origin, vec2 Target, float Radius, vec2 Mouse, float Fov)
+{
+	// 0x14021e7e0 orders the precise centre probes before the wider fan and tile corners.
+	const vec2 Delta = Target - Origin;
+	const float Distance = length(Delta);
+	const float Centre = angle(Delta);
+	const float Width = std::asin(std::min(.95f, (Radius + 1.5f) / Distance));
+	std::vector<float> vAngles;
+	vAngles.reserve(84);
+	vAngles.push_back(Centre);
+	for(float Offset : {0.000025f, 0.0001f, 0.0004f, 0.0015f, 0.005f, 0.015f})
+	{
+		vAngles.push_back(Centre + Offset);
+		vAngles.push_back(Centre - Offset);
+	}
+	for(int Sample = 1; Sample <= 24; ++Sample)
+	{
+		const float Offset = Sample * Width / 24.0f;
+		vAngles.push_back(Centre + Offset);
+		vAngles.push_back(Centre - Offset);
+	}
+	vec2 Hit;
+	if(Collision.IntersectLineTeleHook(Origin + (Delta / Distance) * Radius * 1.5f, Target, &Hit, nullptr))
+	{
+		const int X = round_to_int(Hit.x) / 32;
+		const int Y = round_to_int(Hit.y) / 32;
+		for(int Dx : {0, 1})
+			for(int Dy : {0, 1})
+			{
+				const vec2 Corner((X + Dx) * 32.0f - .5f, (Y + Dy) * 32.0f - .5f);
+				const float CornerAngle = angle(Corner - Origin);
+				for(float Offset : {0.0f, -.0001f, .0001f, -.0005f, .0005f})
+					vAngles.push_back(CornerAngle + Offset);
+			}
+	}
+	const float Cursor = angle(Mouse);
+	const float Edge = std::max(0.0f, std::acos(std::clamp(Fov, -1.0f, 1.0f)) - .0001f);
+	vAngles.insert(vAngles.end(), {Cursor, Cursor - Edge, Cursor + Edge});
+	return vAngles;
+}
+
+bool CanTarget(CGameClient *pClient, CGameWorld &World, const CCharacter *pSelf, int SelfId, int Target, int Weapon, const CTuningParams &Tune)
 {
 	const auto &Data = pClient->m_aClients[Target];
-	if(Target == Self.GetId() || !pClient->m_Snap.m_aCharacters[Target].m_Active || Data.m_Paused ||
+	if(Target == SelfId || !pClient->m_Snap.m_aCharacters[Target].m_Active || Data.m_Paused ||
 		Data.m_Team == TEAM_SPECTATORS)
 		return false;
 	auto *pOther = World.GetCharacterById(Target);
-	const auto &Core = *Self.Core();
-	if(!Core.m_Super && !(pOther ? pOther->Core()->m_Super : Data.m_Super))
+	const auto &SelfData = pClient->m_aClients[SelfId];
+	const bool SelfSuper = pSelf ? pSelf->Core()->m_Super : SelfData.m_Super;
+	const bool SelfSolo = pSelf ? pSelf->Core()->m_Solo : SelfData.m_Solo;
+	if(!SelfSuper && !(pOther ? pOther->Core()->m_Super : Data.m_Super))
 	{
-		if(!(pOther ? pOther->CanCollide(Self.GetId()) : pClient->m_Teams.CanCollide(Self.GetId(), Target)) ||
-			Core.m_Solo || (pOther ? pOther->Core()->m_Solo : Data.m_Solo))
+		if(!(pOther ? pOther->CanCollide(SelfId) : pClient->m_Teams.CanCollide(SelfId, Target)) ||
+			SelfSolo || (pOther ? pOther->Core()->m_Solo : Data.m_Solo))
 			return false;
 	}
+	// Without an entity the client-data copy of the same flags is the only source.
+	const bool HammerHitDisabled = pSelf ? pSelf->Core()->m_HammerHitDisabled : SelfData.m_HammerHitDisabled;
+	const bool ShotgunHitDisabled = pSelf ? pSelf->Core()->m_ShotgunHitDisabled : SelfData.m_ShotgunHitDisabled;
+	const bool LaserHitDisabled = pSelf ? pSelf->Core()->m_LaserHitDisabled : SelfData.m_LaserHitDisabled;
+	const bool GrenadeHitDisabled = pSelf ? pSelf->Core()->m_GrenadeHitDisabled : SelfData.m_GrenadeHitDisabled;
+	const bool HookHitDisabled = pSelf ? pSelf->Core()->m_HookHitDisabled : SelfData.m_HookHitDisabled;
 	switch(Weapon)
 	{
-	case -1: return !Core.m_HookHitDisabled && Tune.m_PlayerHooking != 0;
-	case WEAPON_HAMMER: return !Core.m_HammerHitDisabled;
-	case WEAPON_SHOTGUN: return !Core.m_ShotgunHitDisabled;
-	case WEAPON_LASER: return !Core.m_LaserHitDisabled;
-	default: return !Core.m_GrenadeHitDisabled;
+	case -1: return !HookHitDisabled && Tune.m_PlayerHooking != 0;
+	case WEAPON_HAMMER: return !HammerHitDisabled;
+	case WEAPON_SHOTGUN: return !ShotgunHitDisabled;
+	case WEAPON_LASER: return !LaserHitDisabled;
+	default: return !GrenadeHitDisabled;
 	}
 }
 
-std::optional<vec2> BounceAim(CGameWorld &World, CCharacter &Self, int TargetId, vec2 Target, float Radius, const CTuningParams &Tune)
+std::optional<vec2> BounceAim(CGameWorld &World, const CCharacter *pSelf, int SelfId, vec2 Origin, int TargetId, vec2 Target, float Radius, const CTuningParams &Tune, float Reach)
 {
+	// 0x1402217d0:768-773: the wallbounce trace starts with the reach of the weapon
+	// in hand (FUN_140221200), not with the laser reach.
 	auto *pCollision = World.Collision();
 	const int Limit = std::clamp(static_cast<int>(static_cast<float>(Tune.m_LaserBounceNum)), 0, 8);
 	const int Rays = std::clamp(g_Config.m_NullAimbotWallbounceRays, 24, 360);
@@ -197,14 +251,14 @@ std::optional<vec2> BounceAim(CGameWorld &World, CCharacter &Self, int TargetId,
 	for(int Ray = 0; Limit > 0 && Ray < Rays; ++Ray)
 	{
 		const vec2 Initial = WireDirection(direction(Ray * (2.0f * pi) / Rays));
-		vec2 Position = Self.Core()->m_Pos, Direction = WireDirection(Initial);
-		float Remaining = Tune.m_LaserReach;
+		vec2 Position = Origin, Direction = WireDirection(Initial);
+		float Remaining = Reach;
 		for(int Bounce = 0; Bounce <= Limit && Remaining > 0; ++Bounce)
 		{
 			vec2 Stop = Position + Direction * Remaining;
 			const bool Wall = pCollision->IntersectLineTeleWeapon(Position, Stop, nullptr, &Stop) != 0;
 			vec2 Closest;
-			const auto *pHit = World.IntersectCharacter(Position, Stop, 0, Closest, Bounce == 0 ? &Self : nullptr, Self.GetId());
+			const auto *pHit = World.IntersectCharacter(Position, Stop, 0, Closest, Bounce == 0 ? pSelf : nullptr, SelfId);
 			if(pHit && pHit->GetId() != TargetId)
 				break;
 			if(Bounce)
@@ -237,37 +291,71 @@ std::optional<vec2> BounceAim(CGameWorld &World, CCharacter &Self, int TargetId,
 
 } // namespace
 
+bool CAimbot::DebugMessage(char *pBuffer, int Size) const
+{
+	switch(m_State.m_Status)
+	{
+	case EStatus::CLEAR: return false;
+	case EStatus::AVOID: str_copy(pBuffer, Localize("aimbot: god mode has the aim"), Size); break;
+	case EStatus::INACTIVE_WEAPON: str_copy(pBuffer, Localize("aimbot: this weapon is not ticked"), Size); break;
+	case EStatus::BUSY: str_copy(pBuffer, Localize("aimbot: the aim is in use by something unticked"), Size); break;
+	case EStatus::NOBODY:
+		// 0x1402208a0 clears the walled counter but never increments it.
+		str_format(pBuffer, Size, Localize("aimbot: nobody  (%d seen, %d far, %d behind, %d walled, %d no shot)"),
+			m_State.m_Seen, m_State.m_Far, m_State.m_Behind, 0, m_State.m_NoShot);
+		break;
+	}
+	return true;
+}
+
 CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Input, int Slot, bool AvoidChanged)
 {
 	if(!NullProfileActive() || Slot < 0 || Slot > 1)
 		return Input;
-	auto &State = m_aStates[Slot];
+	auto &State = m_State;
 	const int PreviousFire = State.m_LastFire;
 	const bool NewHook = Input.m_Hook && !State.m_LastHook;
 	State.m_LastHook = Input.m_Hook;
 	State.m_LastFire = Input.m_Fire;
 	State.m_Target = State.m_Weapon = -1;
 	const bool HoldHook = g_Config.m_NullBindAimbotHook && pClient->Input()->KeyIsPressed(g_Config.m_NullBindAimbotHook);
-	if((!g_Config.m_NullAimbot && !HoldHook) || AvoidChanged || pClient->Client()->State() != IClient::STATE_ONLINE)
+	if(pClient->Client()->State() != IClient::STATE_ONLINE)
 		return Input;
+	if(!g_Config.m_NullAimbot && !HoldHook)
+	{
+		State.m_Status = EStatus::INACTIVE_WEAPON;
+		return Input;
+	}
+	if(AvoidChanged)
+	{
+		State.m_Status = EStatus::AVOID;
+		return Input;
+	}
 	auto &World = pClient->KrxPredictedWorld();
 	const int Id = pClient->m_aLocalIds[Slot];
-	auto *pSelf = World.GetCharacterById(Id);
-	if(!pSelf)
+	if(Id < 0 || Id >= MAX_CLIENTS || !pClient->m_Snap.m_aCharacters[Id].m_Active)
 		return Input;
+	const auto &Snapshot = pClient->m_Snap.m_aCharacters[Id].m_Cur;
+	auto *pSelf = World.GetCharacterById(Id);
+	// 0x14021ffc0:254-263: without a local character entity the original aims from the
+	// snapshot position with the fixed 28-unit radius instead of bailing out.
+	const vec2 SelfPosition = pSelf ? pSelf->Core()->m_Pos : pClient->m_aClients[Id].m_RenderPos;
+	const float SelfRadius = pSelf ? pSelf->GetProximityRadius() : 28.0f;
 	const bool Firing = (Input.m_Fire & 1) || CountInput(PreviousFire, Input.m_Fire).m_Presses > 0;
-	const int ActiveWeapon = pSelf->GetActiveWeapon();
+	const int ActiveWeapon = pSelf ? pSelf->GetActiveWeapon() : Snapshot.m_Weapon;
 	const bool AimWeapon = Firing && WeaponSettings(ActiveWeapon).m_Enabled;
-	const int HookState = pSelf->Core()->m_HookState;
-	if(HoldHook && HookState != HOOK_IDLE)
+	const int HookState = pSelf ? pSelf->Core()->m_HookState : Snapshot.m_HookState;
+	if(HoldHook && pSelf && HookState != HOOK_IDLE)
 	{
-		const bool AttachedToPlayer = HookState == HOOK_GRABBED && pSelf->Core()->HookedPlayer() >= 0;
+		const int HookedPlayer = pSelf ? pSelf->Core()->HookedPlayer() : Snapshot.m_HookedPlayer;
+		const bool AttachedToPlayer = HookState == HOOK_GRABBED && HookedPlayer >= 0;
 		Input.m_Hook = AttachedToPlayer || HookState == HOOK_FLYING;
 		if(!AttachedToPlayer || !AimWeapon)
 		{
 			if(AttachedToPlayer)
 			{
-				State.m_Target = pSelf->Core()->HookedPlayer();
+				State.m_Status = EStatus::CLEAR;
+				State.m_Target = HookedPlayer;
 				State.m_Weapon = -1;
 			}
 			return Input;
@@ -276,22 +364,28 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 	const bool CanStartHook = HookState == HOOK_IDLE || NewHook;
 	const bool Hook = CanStartHook && (HoldHook || (Input.m_Hook && g_Config.m_NullAimbotHook));
 	if(!HoldHook && CanStartHook && Input.m_Hook && !g_Config.m_NullAimbotHook)
+	{
+		State.m_Status = EStatus::BUSY;
 		return Input;
+	}
 	if(!Hook && !AimWeapon)
+	{
+		State.m_Status = Firing ? EStatus::BUSY : EStatus::INACTIVE_WEAPON;
 		return Input;
+	}
+	State.m_Seen = State.m_Far = State.m_Behind = State.m_NoShot = 0;
 	const int Weapon = Hook ? -1 : ActiveWeapon;
 	const auto Settings = WeaponSettings(Weapon);
-	const auto &Tune = *pSelf->GetTuning(pSelf->GetPureTuneZone());
+	const auto &Tune = pSelf ? *pSelf->GetTuning(pSelf->GetPureTuneZone()) : *pClient->GetTuning(0);
 	const bool DDRace = World.m_WorldConfig.m_IsDDRace;
 	const bool Projectile = Weapon == WEAPON_GUN || Weapon == WEAPON_GRENADE || (Weapon == WEAPON_SHOTGUN && !DDRace);
 	const float Curvature = Weapon == WEAPON_GUN ? Tune.m_GunCurvature : Weapon == WEAPON_GRENADE ? Tune.m_GrenadeCurvature : Tune.m_ShotgunCurvature;
 	const float Speed = Weapon == WEAPON_GUN ? Tune.m_GunSpeed : Weapon == WEAPON_GRENADE ? Tune.m_GrenadeSpeed : Tune.m_ShotgunSpeed;
-	const float Range = Reach(Tune, Weapon, pSelf->GetProximityRadius(), DDRace);
+	const float Range = Reach(Tune, Weapon, SelfRadius, DDRace);
 	const float Fov = std::cos((std::min(180.0f, Settings.m_Fov * .5f) * 3.1415927f) / 180.0f);
 	vec2 Mouse = pClient->m_Controls.m_aMousePos[Slot];
 	Mouse = length(Mouse) < .001f ? vec2(1, 0) : normalize(Mouse);
-	const vec2 Position = pSelf->Core()->m_Pos;
-	const float SelfRadius = pSelf->GetProximityRadius();
+	const vec2 Position = SelfPosition;
 	if(State.m_StickyWeapon != Weapon)
 		State.m_StickyTarget = -1;
 	State.m_StickyWeapon = Weapon;
@@ -307,13 +401,17 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 	{
 		int m_Id;
 		float m_Radius;
-		std::array<vec2, 5> m_aPositions;
+		vec2 m_Position;
+		vec2 m_Velocity;
+		bool m_Extrapolate;
+		unsigned m_ExtrapolatedTicks = 0;
+		std::array<vec2, 5> m_aExtrapolated;
 	};
 	std::array<CTraceTee, MAX_CLIENTS> aTraceTees;
 	int NumTraceTees = 0;
 	for(int Other = 0; Other < MAX_CLIENTS; ++Other)
 	{
-		if(!CanTarget(pClient, World, *pSelf, Other, Weapon, Tune))
+		if(!CanTarget(pClient, World, pSelf, Id, Other, Weapon, Tune))
 			continue;
 		const auto *pOther = World.GetCharacterById(Other);
 		const float TargetRadius = pOther ? pOther->GetProximityRadius() : 28.0f;
@@ -322,25 +420,29 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 			auto &Tee = aTraceTees[NumTraceTees++];
 			Tee.m_Id = Other;
 			Tee.m_Radius = TargetRadius;
-			Tee.m_aPositions.fill(TargetPosition(pClient, World, Other));
-			if((Hook || Projectile) && pOther && g_Config.m_NullAimbotLead)
-				for(int Step = 1; Step <= 4; ++Step)
-				{
-					vec2 Velocity = pOther->Core()->m_Vel * static_cast<float>(Step);
-					World.Collision()->MoveBox(&Tee.m_aPositions[Step], &Velocity, vec2(28, 28), vec2(0, 0));
-				}
+			Tee.m_Position = TargetPosition(pClient, World, Other);
+			Tee.m_Extrapolate = pOther && Projectile && g_Config.m_NullAimbotLead;
+			if(Tee.m_Extrapolate)
+				Tee.m_Velocity = pOther->Core()->m_Vel;
 		}
 		if(g_Config.m_NullAimbotIgnoreFriends && pClient->m_aClients[Other].m_Friend)
 			continue;
+		++State.m_Seen;
 		const float Margin = Hook ? SelfRadius + 2.0f : TargetRadius;
 		const vec2 Delta = TargetPosition(pClient, World, Other) - Position;
 		const float Distance = length(Delta);
 		if(Distance < .001f || Range < Distance - Margin)
+		{
+			++State.m_Far;
 			continue;
+		}
 		const float Facing = dot(Mouse, Delta / Distance);
 		if(Facing < Fov && (!Hook || std::acos(std::clamp(Facing, -1.0f, 1.0f)) >
 			std::acos(std::clamp(Fov, -1.0f, 1.0f)) + std::asin(std::min(1.0f, Margin / Distance))))
+		{
+			++State.m_Behind;
 			continue;
+		}
 		float Score = Settings.m_Priority == 1 ? Distance : 1.0f - Facing;
 		if(g_Config.m_NullAimbotSticky && Other == State.m_StickyTarget)
 			Score *= 1.0f - g_Config.m_NullAimbotStickyMargin / 100.0f;
@@ -354,12 +456,13 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 	const float Lifetime = Weapon == WEAPON_GUN ? Tune.m_GunLifetime : Weapon == WEAPON_GRENADE ? Tune.m_GrenadeLifetime : Tune.m_ShotgunLifetime;
 	const int Horizon = !g_Config.m_NullAimbotLead && Ping <= 0 ? 0 :
 		Projectile ? 100 : Hook ? std::clamp(static_cast<int>(std::ceil(Range / HookSpeed)) + 4, 1, 100) :
+		// 0x14039f420 is ceilf on both the hook and the ping branch.
 		std::clamp(static_cast<int>(std::ceil(Ping)), 0, 100);
 
 	const float FireSpeed = Tune.m_HookFireSpeed;
 	const int HookTicks = Hook && Range > 0 && FireSpeed > 0 ?
 		std::clamp(static_cast<int>(std::ceil(Range / HookSpeed)) + 4, 1, 100) : 0;
-	const auto OriginPath = TargetPath(pClient, World, Id, Hook ? Horizon : 0, Tune, true);
+	const auto OriginPath = TargetPath(pClient, World, Id, HookTicks, Tune, true);
 
 	const auto Solve = [&](int Target, float Radius, const CTargetPath &Path) -> std::optional<vec2> {
 		const auto PointAt = [&](float Ticks) { return Path.At(Ping + (g_Config.m_NullAimbotLead ? Ticks : 0)); };
@@ -368,8 +471,24 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 			float Best = 0.0f;
 			for(int Index = 0; Index < NumTraceTees; ++Index)
 			{
-				const auto &Tee = aTraceTees[Index];
-				const vec2 Center = Tee.m_Id == Target ? PointAt(static_cast<float>(Step)) : Tee.m_aPositions[std::min(4, Step)];
+				auto &Tee = aTraceTees[Index];
+				vec2 Center = Tee.m_Position;
+				if(Tee.m_Id == Target)
+					Center = PointAt(static_cast<float>(Step));
+				else if(Tee.m_Extrapolate)
+				{
+					// 0x14021c370 extrapolates projectile blockers at most four ticks.
+					const int Lead = std::clamp(Step, 0, 4);
+					if(!(Tee.m_ExtrapolatedTicks & (1U << Lead)))
+					{
+						vec2 Movement = Tee.m_Velocity * static_cast<float>(Lead);
+						World.Collision()->MoveBox(&Center, &Movement, vec2(28, 28), vec2(0, 0));
+						Tee.m_aExtrapolated[Lead] = Center;
+						Tee.m_ExtrapolatedTicks |= 1U << Lead;
+					}
+					else
+						Center = Tee.m_aExtrapolated[Lead];
+				}
 				vec2 Closest;
 				if(!closest_point_on_line(Start, End, Center, Closest))
 					Closest = Start;
@@ -470,17 +589,23 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 		if(Distance < .001f)
 			return {};
 		const float Center = angle(Delta);
-		const float Width = std::asin(std::min(.95f, (Hook ? SelfRadius + 1.5f : Radius * .95f) / Distance));
-		for(int Sample = 0; Sample < (Hook ? 36 : 33); ++Sample)
+		std::vector<float> vAngles;
+		if(Hook)
+			vAngles = HookAngles(*World.Collision(), Position, Point, SelfRadius, Mouse, Fov);
+		else
 		{
-			float Angle = Center + (Sample % 2 ? 1 : -1) * ((Sample + 1) / 2) * (Width / 16);
-			if(Sample >= 33)
-			{
-				const float HalfFov = std::max(0.0f, std::acos(std::clamp(Fov, -1.0f, 1.0f)) - .0001f);
-				Angle = angle(Mouse) + (Sample - 34) * HalfFov;
-			}
+			// 0x1402217d0:632-753 uses a 33-ray fan for hammer and line weapons.
+			const float Width = std::asin(std::min(.95f, Radius * .95f / Distance));
+			vAngles.reserve(33);
+			for(int Sample = 0; Sample < 33; ++Sample)
+				vAngles.push_back(Center + (Sample % 2 ? 1 : -1) * ((Sample + 1) / 2) * (Width / 16));
+		}
+		const float HookConeSine = std::min(.95f, (SelfRadius + 1.5f) / Distance);
+		const float HookCone = std::sqrt(1.0f - HookConeSine * HookConeSine);
+		for(float Angle : vAngles)
+		{
 			const vec2 Ray = WireDirection(direction(Angle));
-			if(Hook && dot(Mouse, Ray) < Fov)
+			if(Hook && (dot(Mouse, Ray) < Fov || dot(Delta / Distance, Ray) < HookCone))
 				continue;
 			if(Weapon == WEAPON_HAMMER)
 			{
@@ -517,7 +642,7 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 			}
 		}
 		if(!Hook && Weapon != WEAPON_HAMMER && g_Config.m_NullAimbotWallbounce)
-			return BounceAim(World, *pSelf, Target, Point, Radius, Tune);
+			return BounceAim(World, pSelf, Id, Position, Target, Point, Radius, Tune, Range);
 		return {};
 	};
 	int Target = -1;
@@ -535,7 +660,9 @@ CNetObj_PlayerInput CAimbot::Apply(CGameClient *pClient, CNetObj_PlayerInput Inp
 			Aim = *Result;
 			break;
 		}
+		++State.m_NoShot;
 	}
+	State.m_Status = Target >= 0 ? EStatus::CLEAR : EStatus::NOBODY;
 	State.m_StickyTarget = State.m_Target = Target;
 	if(Target < 0)
 		return Input;

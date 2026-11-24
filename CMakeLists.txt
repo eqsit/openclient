@@ -2675,6 +2675,7 @@ if(CLIENT)
     nullclient/serial_threats.cpp
     nullclient/warlist.h
     nullclient/warlist.cpp
+    nullclient/report_analysis.h
     nullclient/reports.h
     nullclient/reports.cpp
     nullclient/visuals.cpp

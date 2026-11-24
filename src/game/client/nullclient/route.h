@@ -6,13 +6,21 @@
 class CCollision;
 namespace OpenKrx::NullClient
 {
-// Null 1401fd240..1401feaC0. Shared by Fly and Serial, never KRX.
+// Search workspace shared by successive routes for one Fly or Serial instance.
 class CRoute
 {
 	CCollision *m_pCollision = nullptr;
 	int m_Width = 0, m_Height = 0;
 	bool m_AvoidFreeze = false;
 	std::vector<int8_t> m_vWalkable, m_vNearSurface;
+	struct CCell
+	{
+		float m_Cost = 0;
+		int m_Parent = -1;
+		uint32_t m_Visited = 0, m_Closed = 0;
+	};
+	std::vector<CCell> m_vCells;
+	uint32_t m_Search = 0;
 	bool Walkable(int X, int Y);
 	bool NearSurface(int X, int Y);
 	int Nearest(vec2 Position, bool Initial) const;

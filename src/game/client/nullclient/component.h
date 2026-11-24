@@ -35,7 +35,6 @@ namespace OpenKrx::NullClient
 		std::deque<CRescueSnapshot> m_vRescueSnapshots;
 		std::optional<CRescueSnapshot> m_SavedRescue;
 		std::int64_t m_RescueSceneStart = 0;
-		bool m_RescueSceneWasPaused = false;
 		bool m_RescueSceneShown = false;
 		bool CaptureRescueScene();
 		bool StartRescueScene(bool LogErrors);
@@ -63,7 +62,6 @@ namespace OpenKrx::NullClient
 		std::array<CNetObj_PlayerInput, 2> m_aRestoreProbeInputs{};
 		std::array<CNetObj_PlayerInput, 2> m_aRaw{};
 		std::array<int, 2> m_aClientIds{-1, -1};
-		int m_LastSlot = -1;
 		bool m_WasSelected = false;
 		void SynchronizeSlot();
 
@@ -81,8 +79,11 @@ namespace OpenKrx::NullClient
 		bool LoadProfile(const char *pName);
 		bool DeleteProfile(const char *pName);
 		void OpenProfileFolder();
-		CNetObj_PlayerInput Apply(CNetObj_PlayerInput Input, int Slot);
+		CNetObj_PlayerInput SimulationInput(int Slot) const;
+		bool DummyLaserReady(int Slot);
+		CNetObj_PlayerInput Apply(CNetObj_PlayerInput Input, int Slot, bool SkipDummySerial = false, bool *pDummyLaserApplied = nullptr);
 		bool Selected() const;
+		bool HasRescueCalculation() const { return m_SavedRescue.has_value(); }
 		bool ForceFakeAimSend(int Slot) const { return m_Helpers.ForceSend(Slot); }
 		const CAimbot &Aimbot() const { return m_Aimbot; }
 		CWarlist &Warlist() { return m_Warlist; }

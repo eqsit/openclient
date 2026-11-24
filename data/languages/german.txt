@@ -2723,3 +2723,6 @@ not bound
 
 Show cursor
 == Zeige Mauszeiger
+
+Uploading map data to GPU
+== Lade Kartendaten zur GPU hoch

@@ -2723,3 +2723,6 @@ Mute emoticons
 
 https://wiki.ddnet.org/wiki/Mapping
 == 
+
+Uploading map data to GPU
+== GPU ﺭﺩ ﭗﻣ ﺕﺎﻋﻼﻃﺍ ﯼﺭﺍﺬﮔﺭﺎﺑ

@@ -37,6 +37,20 @@ class CCollision
 public:
 	// Fent's background physics must never borrow the live writable tile grid.
 	std::unique_ptr<CCollision> CreateIsolatedCopy() const;
+	// Speculative worlds only change a few cells (laser probe tiles, doors).
+	// Record those writes on an isolated copy so every candidate can start from
+	// the pristine map without copying the whole grid again. A mark lets nested
+	// clones undo only their own writes.
+	void EnableChangeJournal();
+	bool HasChangeJournal() const;
+	int JournalTileMark() const;
+	void RewindJournalTo(int TileMark);
+	// Door entities never live in speculative worlds, so door writes are not
+	// journaled, but the layer is still read (GetMoveRestrictions, TileExists)
+	// and cached copies must resync it when the live layer changes.
+	int DoorVersion() const { return m_DoorVersion; }
+	bool CopyDoorsFrom(const CCollision &Other);
+	bool HasDoorLayer() const { return m_pDoor != nullptr; }
 	CCollision();
 	~CCollision();
 
@@ -168,6 +182,7 @@ private:
 	CSwitchTile *m_pSwitch;
 	CTuneTile *m_pTune;
 	CDoorTile *m_pDoor;
+	int m_DoorVersion = 0;
 
 	// TILE_TELEIN
 	std::map<int, std::vector<vec2>> m_TeleIns;
@@ -178,6 +193,11 @@ private:
 	// TILE_TELEINEVIL, TILE_TELECHECK, TILE_TELECHECKIN, TILE_TELECHECKINEVIL, TILE_TELEINHOOK
 	std::map<int, std::vector<vec2>> m_TeleOthers;
 	bool m_HasHookTeleIns;
+
+	// Only allocated for isolated copies that opt in; see EnableChangeJournal.
+	// Shared so the collision stays copy-assignable for CreateIsolatedCopy.
+	struct CChangeJournal;
+	std::shared_ptr<CChangeJournal> m_pChangeJournal;
 };
 
 void ThroughOffset(vec2 Pos0, vec2 Pos1, int *pOffsetX, int *pOffsetY);

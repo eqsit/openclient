@@ -5,6 +5,7 @@
 #include <base/time.h>
 #include <engine/client.h>
 #include <game/client/gameclient.h>
+#include <game/localization.h>
 #include <engine/console.h>
 #include <engine/storage.h>
 #include <engine/shared/config.h>
@@ -95,11 +96,6 @@ bool CNullClient::SaveProfile(const char *pName)
 #undef MACRO_CONFIG_INT
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
-	char aValue[32];
-	str_format(aValue, sizeof(aValue), "%d", g_Config.m_NullPreserveJump);
-	Write("openkrx_null_preserve_jump", aValue);
-	str_format(aValue, sizeof(aValue), "%d", g_Config.m_NullRocketRestoreWeapon);
-	Write("openkrx_null_rocket_restore_weapon", aValue);
 	Ok &= io_close(File) == 0;
 	if(Ok)
 		Ok = Storage()->RenameFile(Temporary.c_str(), Path.c_str(), IStorage::TYPE_SAVE);
@@ -118,14 +114,25 @@ bool CNullClient::LoadProfile(const char *pName)
 	if(!File) return false;
 	CLineReader Reader;
 	if(!Reader.OpenFile(File)) return false;
-	std::array<bool, 3> aPresetPresent{};
+	SyncAvoidModeSettings();
+	bool HasFlatAvoidOption = false;
 	while(const char *pLine = Reader.Get())
 	{
 		pLine = str_skip_whitespaces_const(pLine);
 		const char *pEnd = str_skip_to_whitespace_const(pLine);
 		const std::string Key(pLine, pEnd);
+		if(!SingleOption(pLine))
+			continue;
+		// The 0x14029a460 allowlist is the only source of profile keys. The two
+		// openkrx_* names are read for profiles written by older builds but are no
+		// longer written, so the file stays loadable by the original (A9-007).
 		bool Known = Key == "openkrx_null_preserve_jump" || Key == "openkrx_null_rocket_restore_weapon";
-#define MACRO_CONFIG_INT(Name, Script, Def, Min, Max, Flags, Desc) Known |= Key == #Script;
+#define MACRO_CONFIG_INT(Name, Script, Def, Min, Max, Flags, Desc) \
+	if(Key == #Script) \
+	{ \
+		Known = true; \
+		HasFlatAvoidOption |= IsAvoidModeOption(&CConfig::m_##Name); \
+	}
 #define MACRO_CONFIG_COL(Name, Script, Def, Flags, Desc) Known |= Key == #Script;
 #define MACRO_CONFIG_STR(Name, Script, Size, Def, Flags, Desc) Known |= Key == #Script;
 #include <engine/shared/nullclient_config.h>
@@ -133,16 +140,12 @@ bool CNullClient::LoadProfile(const char *pName)
 #undef MACRO_CONFIG_INT
 #undef MACRO_CONFIG_COL
 #undef MACRO_CONFIG_STR
-		if(Known && SingleOption(pLine))
-		{
-			aPresetPresent[0] |= Key == "null_avoid_boost_settings";
-			aPresetPresent[1] |= Key == "null_avoid_overdrive_settings";
-			aPresetPresent[2] |= Key == "null_avoid_god_settings";
+		if(Known)
 			Console()->ExecuteLine(pLine, IConsole::CLIENT_ID_UNSPECIFIED, false);
-		}
 	}
-	const int Mode = g_Config.m_NullAvoidMode;
-	SyncAvoidModeSettings(true, Mode >= 1 && Mode <= 3 && aPresetPresent[Mode - 1]);
+	// Full OpenNull profiles preserve explicit live tuning. A bank-only profile
+	// uses the same bank-change handling as an individual console edit.
+	SyncAvoidModeSettings(HasFlatAvoidOption);
 	OnReset();
 	return true;
 }
@@ -212,37 +215,72 @@ void CNullClient::OnConsoleInit()
 	}, this, "Stop the rescue scene and restore demo playback");
 	Console()->Register("null_profile_save", "s[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", pSelf->SaveProfile(pResult->GetString(0)) ? "profile saved" : "could not save profile");
+		const std::string Name = ProfileName(pResult->GetString(0));
+		char aBuf[128];
+		str_format(aBuf, sizeof(aBuf), pSelf->SaveProfile(Name.c_str()) ? "saved profile '%s'" : "could not save profile '%s'", Name.c_str());
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", aBuf);
 	}, this, "Save every Null setting as a named profile");
 	Console()->Register("null_profile_load", "s[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", pSelf->LoadProfile(pResult->GetString(0)) ? "profile loaded" : "could not load profile");
+		const std::string Name = ProfileName(pResult->GetString(0));
+		char aBuf[128];
+		str_format(aBuf, sizeof(aBuf), pSelf->LoadProfile(Name.c_str()) ? "loaded profile '%s'" : "no profile '%s'", Name.c_str());
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", aBuf);
 	}, this, "Apply a named Null settings profile");
 	Console()->Register("null_profile_delete", "s[name]", CFGFLAG_CLIENT, [](IConsole::IResult *pResult, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
-		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", pSelf->DeleteProfile(pResult->GetString(0)) ? "profile deleted" : "could not delete profile");
+		const std::string Name = ProfileName(pResult->GetString(0));
+		char aBuf[128];
+		str_format(aBuf, sizeof(aBuf), pSelf->DeleteProfile(Name.c_str()) ? "deleted profile '%s'" : "no profile '%s'", Name.c_str());
+		pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", aBuf);
 	}, this, "Delete a named Null settings profile");
 	Console()->Register("null_profile_folder", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) { static_cast<CNullClient *>(pUser)->OpenProfileFolder(); }, this, "Open the folder that holds the Null settings profiles");
 	Console()->Register("null_profile_list", "", CFGFLAG_CLIENT, [](IConsole::IResult *, void *pUser) {
 		auto *pSelf = static_cast<CNullClient *>(pUser);
-		for(const auto &Name : pSelf->Profiles(true)) pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", Name.c_str());
+		const auto &vProfiles = pSelf->Profiles(true);
+		if(vProfiles.empty())
+			pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", "no profiles saved");
+		for(const auto &Name : vProfiles) pSelf->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "null/profiles", Name.c_str());
 	}, this, "List the saved Null settings profiles");
 }
 
 bool CNullClient::HandleWarlistCommand(const char *pLine)
 {
 	if(!Selected()) return false;
-	pLine = str_skip_whitespaces_const(pLine);
-	struct CCommand { const char *m_pCommand; const char *m_pGroup; bool m_Add; };
-	for(const auto &Command : {CCommand{"!war","war",true}, CCommand{"!unwar","war",false}, CCommand{"!attack","attack",true}, CCommand{"!unattack","attack",false}})
+	while(*pLine == ' ')
+		++pLine;
+	struct CCommand { const char *m_pCommand, *m_pGroup, *m_pChanged, *m_pUnchanged, *m_pUsage; bool m_Add; };
+	const CCommand aCommands[] = {
+		{"!war", "war", "Warlist: '%s' added to war", "Warlist: '%s' is already at war", "Warlist: type a name, e.g. !war SomePlayer", true},
+		{"!unwar", "war", "Warlist: '%s' removed from war", "Warlist: '%s' was not at war", "Warlist: type a name, e.g. !war SomePlayer", false},
+		{"!attack", "attack", "Warlist: '%s' added to attack", "Warlist: '%s' is already on attack", "Warlist: type a name, e.g. !attack SomePlayer", true},
+		{"!unattack", "attack", "Warlist: '%s' removed from attack", "Warlist: '%s' was not on attack", "Warlist: type a name, e.g. !attack SomePlayer", false}};
+	for(const auto &Command : aCommands)
 	{
-		const char *pName = str_startswith(pLine,Command.m_pCommand);
-		if(!pName || (*pName && *pName != ' ')) continue;
-		pName = str_skip_whitespaces_const(pName);
-		std::string Name(pName); while(!Name.empty() && Name.back() == ' ') Name.pop_back();
-		const bool Changed = m_Warlist.Edit(Command.m_pGroup,Name,Command.m_Add);
-		if(Changed && !SaveWarlist()) Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD,"null/warlist","could not save warlist");
-		else Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD,"null/warlist",Name.empty() ? "Warlist: type a player name after the command" : Changed ? "warlist updated" : "warlist unchanged");
+		const char *pName = str_startswith(pLine, Command.m_pCommand);
+		if(!pName || (*pName && *pName != ' '))
+			continue;
+		while(*pName == ' ')
+			++pName;
+		char aName[32];
+		str_copy(aName, pName);
+		str_clean_whitespaces(aName);
+		if(!aName[0])
+		{
+			GameClient()->m_Chat.Echo(Localize(Command.m_pUsage));
+			return true;
+		}
+		auto Previous = m_Warlist;
+		const bool Changed = m_Warlist.Edit(Command.m_pGroup, aName, Command.m_Add);
+		if(Changed && !SaveWarlist())
+		{
+			m_Warlist = std::move(Previous);
+			GameClient()->m_Chat.Echo(Localize("Could not save the warlist"));
+			return true;
+		}
+		char aMessage[256];
+		str_format(aMessage, sizeof(aMessage), Localize(Changed ? Command.m_pChanged : Command.m_pUnchanged), aName);
+		GameClient()->m_Chat.Echo(aMessage);
 		return true;
 	}
 	return false;

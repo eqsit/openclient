@@ -21,6 +21,13 @@ class IHttpRequest;
 
 namespace OpenKrx
 {
+	struct CNullTasFrame
+	{
+		CNetObj_PlayerInput m_Input{};
+		vec2 m_Position = vec2(0, 0);
+		bool m_Frozen = false;
+	};
+
 	class CKrxTas : public CComponent
 	{
 	public:
@@ -78,9 +85,17 @@ namespace OpenKrx
 		bool LoadNullTas(const char *pName);
 		void ToggleNullPlayback();
 		bool NullPlaybackActive() const;
+		bool NullTasInputActive() const;
 		const std::string &NullTasStatus() const { return m_NullTas.m_Status; }
-		const std::vector<std::string> &NullTasFiles() const { return m_NullTas.m_vFiles; }
+		struct CNullTasFileEntry
+		{
+			std::string m_Name, m_Label;
+		};
+		const std::vector<CNullTasFileEntry> &NullTasFiles() const { return m_NullTas.m_vFiles; }
 		void RefreshNullTasFiles();
+		int NullTasFrameCount() const { return static_cast<int>(m_NullTas.m_vFrames.size()); }
+		int NullTasCursor() const { return static_cast<int>(m_NullTas.m_Tick); }
+		void SeekNullTas(size_t Tick, bool UpdatePositions = false);
 		void LeaveNullTasProfile();
 		bool ProcessNullTasInput(const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Last, CNetObj_PlayerInput &Packet);
 
@@ -92,8 +107,8 @@ namespace OpenKrx
 			std::array<CTuningParams, 256> m_aTuning;
 			std::unique_ptr<CGameWorld> m_pWorld, m_pPreviousWorld, m_pInitialWorld;
 			std::vector<std::unique_ptr<CGameWorld>> m_vCheckpoints;
-			std::vector<CReplayFrame> m_vFrames;
-			std::vector<std::string> m_vFiles;
+			std::vector<CNullTasFrame> m_vFrames;
+			std::vector<CNullTasFileEntry> m_vFiles;
 			std::string m_Map, m_Name, m_Status;
 			vec2 m_Start = vec2(0, 0);
 			std::array<bool, 5> m_aInitialWeaponGot{};
@@ -101,6 +116,7 @@ namespace OpenKrx
 			CNetObj_PlayerInput m_EditorInput{}, m_PlaybackInput{};
 			size_t m_Tick = 0, m_PlaybackTick = 0;
 			int m_ClientId = -1, m_Slot = -1, m_LastPlaybackTick = -1;
+			int m_StartTick = -1, m_FinishTick = -1;
 			int m_Coast = 0, m_Seek = 0, m_Weapon = -1, m_FireState = 0;
 			int64_t m_LastStep = 0, m_LastAutosave = 0, m_LastBoost = 0, m_LastPreview = 0;
 			int64_t m_StepTime = 0;
@@ -122,7 +138,6 @@ namespace OpenKrx
 		void UpdateNullTasBoost(vec2 Aim);
 		void UpdateNullTasPreview();
 		void UpdateNullPlayback(const CNetObj_PlayerInput &Raw, const CNetObj_PlayerInput &Last, CNetObj_PlayerInput &Packet);
-		void SeekNullTas(size_t Tick);
 		static void StepNullTasWorld(CGameWorld &World, int ClientId, const CNetObj_PlayerInput &Input);
 		void RenderNullTas();
 

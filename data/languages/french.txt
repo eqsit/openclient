@@ -2723,3 +2723,6 @@ Unmute emoticons
 
 Mute emoticons
 == 
+
+Uploading map data to GPU
+== Transfert des données de la map vers le GPU

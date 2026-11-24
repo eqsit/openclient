@@ -12,6 +12,7 @@
 #include <base/vmath.h>
 
 #include <engine/client.h>
+#include <engine/client/keyboard.h>
 #include <engine/client/updater.h>
 #include <engine/config.h>
 #include <engine/editor.h>
@@ -962,10 +963,103 @@ bool CMenus::CanDisplayWarning() const
 	return m_Popup == POPUP_NONE;
 }
 
+void CMenus::ToggleNullTasPanel()
+{
+	m_NullTasPanel = !m_NullTasPanel;
+	SetActive(m_NullTasPanel);
+	if(m_NullTasPanel)
+	{
+		const vec2 Center(Graphics()->WindowWidth() / 2.f, Graphics()->WindowHeight() / 2.f);
+		const vec2 Delta = Center - Ui()->UpdatedMousePos();
+		Ui()->OnCursorMove(Delta.x, Delta.y);
+	}
+}
+
+void CMenus::RenderNullTasPanel()
+{
+	const CUIRect Screen = *Ui()->Screen();
+	const float Width = std::min(Screen.h * 208.f / 300.f, Screen.w - 24.f);
+	CUIRect Panel{Screen.w - Width - 12.f, 12.f, Width, 252.f};
+	Panel.Draw(ColorRGBA(.08f, .09f, .12f, .95f), IGraphics::CORNER_ALL, 6.f);
+	Panel.Margin(10.f, &Panel);
+	CUIRect Title, Tabs, Left, Right, Row;
+	Panel.HSplitTop(24.f, &Title, &Panel);
+	Ui()->DoLabel(&Title, Localize("TAS CONTROL"), 16.f, TEXTALIGN_MC);
+	Panel.HSplitTop(22.f, &Tabs, &Panel);
+	Tabs.VSplitMid(&Left, &Right, 2.f);
+	static bool s_Setup;
+	static CButtonContainer s_ViewTab, s_SetupTab;
+	if(DoButton_Menu(&s_ViewTab, Localize("VIEW"), !s_Setup, &Left))
+		s_Setup = false;
+	if(DoButton_Menu(&s_SetupTab, Localize("SETUP"), s_Setup, &Right))
+		s_Setup = true;
+	auto Toggle = [&](const char *pLabel, const char *pHint, int &Value) {
+		Panel.HSplitTop(20.f, &Row, &Panel);
+		Ui()->DoToolTip(&Value, &Row, Localize(pHint));
+		if(DoButton_CheckBox(&Value, Localize(pLabel), Value, &Row))
+			Value ^= 1;
+	};
+	auto Slider = [&](const char *pLabel, const char *pHint, int &Value, int Min, int Max, int Step) {
+		Panel.HSplitTop(20.f, &Row, &Panel);
+		Ui()->DoToolTip(&Value, &Row, Localize(pHint));
+		if(Ui()->DoScrollbarOption(&Value, &Value, &Row, Localize(pLabel), Min, Max))
+			Value = std::clamp(Min + ((Value - Min + Step / 2) / Step) * Step, Min, Max);
+	};
+	if(!s_Setup)
+	{
+		Toggle("Route", "Draw the recorded run on the map", g_Config.m_NullTasDrawPath);
+		Toggle("Look-ahead", "Show movement with and without firing", g_Config.m_NullTasFirePreview);
+		Toggle("Hook preview", "Show where a hook grabs and swings the tee", g_Config.m_NullTasHookPreview);
+		Toggle("Weapon laser", "Draw the aim line of the held weapon", g_Config.m_NullTasWeaponLaser);
+		Toggle("Predict fire", "Assume continuous fire in the look-ahead", g_Config.m_NullTasPredictFire);
+	}
+	else
+	{
+		Slider("Speed", "Editor ticks per second while steering", g_Config.m_NullTasTps, 1, 50, 2);
+		Slider("Coast", "Ticks to drift after releasing the controls", g_Config.m_NullTasCoast, 0, 200, 2);
+		Slider("Reach", "Length of the look-ahead lines in ticks", g_Config.m_NullTasPreviewLen, 10, 150, 5);
+		Slider("Rewind", "Ticks to rewind when the tee freezes", g_Config.m_NullTasFreezeRewindTicks, 1, 200, 2);
+		Toggle("Auto-rewind", "Rewind when the tee freezes", g_Config.m_NullTasFreezeRewind);
+		Toggle("All weapons", "Give the editor tee every weapon", g_Config.m_NullTasAllWeapons);
+	}
+	auto BindName = [&](int Key) { return Key > KEY_UNKNOWN && Key < KEY_LAST ? KeyName(Key) : Localize("Unbound"); };
+	CUIRect Hint;
+	char aBinds[192];
+	str_format(aBinds, sizeof(aBinds), "%s menu    %s flow    %s / %s seek",
+		BindName(g_Config.m_NullTasKeyMenu), BindName(g_Config.m_NullTasKeyFlow),
+		BindName(g_Config.m_NullTasKeySeekBack), BindName(g_Config.m_NullTasKeySeekFwd));
+	Panel.HSplitTop(18.f, &Hint, &Panel);
+	Ui()->DoLabel(&Hint, aBinds, 11.f, TEXTALIGN_ML);
+	str_format(aBinds, sizeof(aBinds), "%s / %s speed    1-5 weapon    %s laser    %s boost",
+		BindName(g_Config.m_NullTasKeySpeedDown), BindName(g_Config.m_NullTasKeySpeedUp),
+		BindName(g_Config.m_NullTasKeyLaser), BindName(g_Config.m_NullTasKeyBoost));
+	Panel.HSplitTop(18.f, &Hint, &Panel);
+	Ui()->DoLabel(&Hint, aBinds, 11.f, TEXTALIGN_ML);
+	auto &Tas = GameClient()->m_Tas;
+	if(Tas.NullTasFrameCount() > 0)
+	{
+		CUIRect Timeline;
+		Screen.HSplitBottom(32.f, nullptr, &Timeline);
+		Timeline.VMargin(24.f, &Timeline);
+		Timeline.Draw(ColorRGBA(.08f, .09f, .12f, .92f), IGraphics::CORNER_ALL, 3.f);
+		Timeline.Margin(4.f, &Timeline);
+		int Cursor = Tas.NullTasCursor();
+		static int s_Timeline;
+		if(Ui()->DoScrollbarOption(&s_Timeline, &Cursor, &Timeline, Localize("Frame"), 0, Tas.NullTasFrameCount()))
+			Tas.SeekNullTas(Cursor);
+	}
+}
+
 void CMenus::Render()
 {
 	Ui()->MapScreen();
 	Ui()->SetMouseSlow(false);
+	if(m_NullTasPanel && GameClient()->m_Tas.NullEditorActive())
+	{
+		RenderNullTasPanel();
+		return;
+	}
+	m_NullTasPanel = false;
 
 	static int s_Frame = 0;
 	if(s_Frame == 0)
@@ -2344,6 +2438,7 @@ void CMenus::SetActive(bool Active)
 	m_MenuActive = Active;
 	if(!m_MenuActive)
 	{
+		m_NullTasPanel = false;
 		if(m_NeedSendinfo)
 		{
 			GameClient()->SendInfo(false);

@@ -9,7 +9,7 @@
 
 namespace OpenKrx::NullClient
 {
-	// State consumed by 14020a420. Deciding and emitting are distinct operations:
+	// State consumed by the input transform at 0x140213c20:
 	// emission preserves live fire, weapon and player-flag fields except an
 	// explicit weapon action, and can run repeatedly during one prediction tick.
 	struct COutputState

@@ -2723,3 +2723,6 @@ not bound
 
 Show cursor
 == 
+
+Uploading map data to GPU
+== 正在將地圖數據傳輸至顯示卡

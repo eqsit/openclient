@@ -1,6 +1,8 @@
 #ifndef GAME_CLIENT_NULLCLIENT_SETTINGS_H
 #define GAME_CLIENT_NULLCLIENT_SETTINGS_H
 
+class CConfig;
+
 namespace OpenKrx::NullClient
 {
 	struct CSettings
@@ -99,7 +101,9 @@ namespace OpenKrx::NullClient
 		int m_Coast = 10;
 		int m_HazardSpeed = 0;
 	};
-	void SyncAvoidModeSettings(bool RestoreFromProfile = false, bool RestorePreset = true);
+	void SyncAvoidModeSettings(bool KeepCurrentValues = false);
+	bool IsAvoidModeOption(int CConfig::*pValue);
+	void ResetSelectedAvoidMode();
 	CSettings SettingsFromConfig();
 }
 

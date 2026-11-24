@@ -2723,3 +2723,6 @@ not bound
 
 Show cursor
 == 显示光标
+
+Uploading map data to GPU
+== 正在将地图数据传输至显卡

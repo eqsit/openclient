@@ -45,10 +45,10 @@ namespace OpenKrx::NullClient
 				{
 					if(Settings.m_AutoWeapon && Settings.m_RestoreWeapon && m_RestoreWeapon < 0 && ActiveWeapon >= 0)
 						m_RestoreWeapon = ActiveWeapon;
-					Input.m_WantedWeapon = m_WeaponAction + 1;
 				}
 				else
 					Input.m_Fire = static_cast<int>(static_cast<unsigned>(Input.m_Fire) + 2U);
+				Input.m_WantedWeapon = m_WeaponAction + 1;
 				m_WeaponAction = -1;
 			}
 			return Input;

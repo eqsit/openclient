@@ -2,7 +2,6 @@
 
 #include <engine/client.h>
 #include <engine/shared/config.h>
-#include <engine/shared/jobs.h>
 
 #include <game/client/gameclient.h>
 #include <game/client/prediction/entities/character.h>
@@ -14,7 +13,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <future>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 namespace OpenKrx::NullClient
@@ -27,44 +27,139 @@ namespace OpenKrx::NullClient
 			return pCharacter->m_FreezeTime > 0 || pCharacter->Core()->m_DeepFrozen;
 		}
 
-		// Null 243cd0/243f90: persistent private pool, up to 16 participants
-		// including the caller, dynamic candidate claims, synchronous completion.
-		struct CNullPool
+		void RestorePredictedAmmo(const CGameWorld &World, CCharacter &Local)
 		{
-			const int m_Participants;
-			CJobPool m_Jobs;
-			CNullPool() : m_Participants(std::clamp(static_cast<int>(std::thread::hardware_concurrency() ? std::thread::hardware_concurrency() : 4), 1, 16))
+			if(World.m_WorldConfig.m_PredictWeapons)
+				for(int Weapon = 0; Weapon < NUM_WEAPONS; ++Weapon)
+					if(Local.GetWeaponGot(Weapon) && Local.GetWeaponAmmo(Weapon) == 0)
+						Local.SetWeaponAmmo(Weapon, -1);
+		}
+
+		// 4.1, 0x1402819c0 / 0x140281e70: each worker retains its slot.
+		// A group using N participants wakes slots 1..N-1 plus the caller (0).
+		class CNullPool
+		{
+			std::mutex m_Mutex;
+			std::condition_variable m_Start, m_Done;
+			std::vector<std::thread> m_vThreads;
+			uint64_t m_Generation = 0;
+			bool m_Stop = false;
+			int m_Active = 0, m_Pending = 0;
+			const std::function<void(int)> *m_pRun = nullptr;
+
+			void Worker(int Slot)
 			{
-				m_Jobs.Init(m_Participants - 1);
+				uint64_t Generation = 0;
+				std::unique_lock Lock(m_Mutex);
+				while(true)
+				{
+					m_Start.wait(Lock, [&] { return m_Stop || m_Generation != Generation; });
+					if(m_Stop)
+						return;
+					Generation = m_Generation;
+					if(Slot >= m_Active)
+						continue;
+					const auto *pRun = m_pRun;
+					Lock.unlock();
+					(*pRun)(Slot);
+					Lock.lock();
+					if(--m_Pending == 0)
+						m_Done.notify_one();
+				}
+			}
+
+		public:
+			CNullPool()
+			{
+				const unsigned CpuCount = std::thread::hardware_concurrency();
+				const unsigned Participants = std::min(CpuCount ? CpuCount : 4u, 16u);
+				for(unsigned Slot = 1; Slot < Participants; ++Slot)
+					m_vThreads.emplace_back(&CNullPool::Worker, this, Slot);
+			}
+			~CNullPool()
+			{
+				{
+					std::lock_guard Lock(m_Mutex);
+					m_Stop = true;
+				}
+				m_Start.notify_all();
+				for(auto &Thread : m_vThreads)
+					Thread.join();
+			}
+			int Participants() const { return static_cast<int>(m_vThreads.size()) + 1; }
+
+			void Run(int Participants, const std::function<void(int)> &EvaluateSlot)
+			{
+				{
+					std::lock_guard Lock(m_Mutex);
+					m_Active = Participants;
+					m_Pending = Participants - 1;
+					m_pRun = &EvaluateSlot;
+					++m_Generation;
+				}
+				m_Start.notify_all();
+				EvaluateSlot(0);
+				std::unique_lock Lock(m_Mutex);
+				m_Done.wait(Lock, [&] { return m_Pending == 0; });
+				m_pRun = nullptr;
 			}
 		};
 		struct CCandidateWork
 		{
 			std::atomic<int> m_Next{0};
 			int m_Count;
-			std::function<void(IWorld &, int)> m_Evaluate;
+			const std::function<void(IWorld &, int)> &m_Evaluate;
 			void Run(IWorld &World)
 			{
 				for(int Index; (Index = m_Next.fetch_add(1, std::memory_order_relaxed)) < m_Count;)
 					m_Evaluate(World, Index);
 			}
 		};
-		class CCandidateJob final : public IJob
-		{
-			CSimulation &m_World;
-			std::shared_ptr<CCandidateWork> m_pWork;
-			std::promise<uint64_t> m_Completed;
-			void Run() override
-			{
-				const auto Before = m_World.TotalSteps();
-				m_pWork->Run(m_World);
-				m_Completed.set_value(m_World.TotalSteps() - Before);
-			}
 
-		public:
-			CCandidateJob(CSimulation &World, std::shared_ptr<CCandidateWork> pWork) : m_World(World), m_pWork(std::move(pWork)) { Abortable(false); }
-			std::future<uint64_t> Result() { return m_Completed.get_future(); }
+		// One isolated collision per candidate worker, kept for the lifetime of
+		// the map. Rebuilding it per search copied every map layer for each
+		// worker on every tick; only the cells a candidate writes are journaled
+		// and rewound now.
+		struct CWorkerCollisionCache
+		{
+			const CCollision *m_pSource = nullptr;
+			std::vector<std::shared_ptr<CCollision>> m_vCopies;
+			// Live door layer generation the copies were last synced to; -1
+			// forces a resync after invalidation or a map load.
+			int m_DoorVersion = -1;
+			// The cache is plain unsynchronised memory: it may only be touched
+			// from the thread that created it (the game thread).
+			std::thread::id m_OwnerThread{};
 		};
+
+		CWorkerCollisionCache &WorkerCollisions()
+		{
+			static CWorkerCollisionCache s_Cache;
+			return s_Cache;
+		}
+
+		CWorkerCollisionCache &WorkerCollisionsOnOwnerThread()
+		{
+			auto &Cache = WorkerCollisions();
+			const auto Current = std::this_thread::get_id();
+			dbg_assert(Cache.m_OwnerThread == std::thread::id() || Cache.m_OwnerThread == Current,
+				"worker collision cache touched from a second thread");
+			Cache.m_OwnerThread = Current;
+			return Cache;
+		}
+
+		// Nested dispatch (a worker that evaluates a chained search) must not
+		// share the cached contexts, so it falls back to the serial walk.
+		std::atomic<int> s_DispatchDepth{0};
+
+	}
+
+	void InvalidateWorkerCollisions()
+	{
+		auto &Cache = WorkerCollisionsOnOwnerThread();
+		Cache.m_pSource = nullptr;
+		Cache.m_DoorVersion = -1;
+		Cache.m_vCopies.clear();
 	}
 
 	void CIdleTracker::Update(CGameClient *pClient)
@@ -127,7 +222,7 @@ namespace OpenKrx::NullClient
 	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, bool Legit)
 	{
 		const float Radius = Legit ? 320.0f : std::min(static_cast<float>(Settings.m_SimRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 160.0f);
-		const float WeaponRadius = Legit ? 320.0f : Settings.m_Weapons ? std::min(static_cast<float>(Settings.m_WeaponRadius), static_cast<float>(Settings.m_Horizon) * 24.0f + 200.0f) : 0;
+		const float WeaponRadius = Legit ? 320.0f : Settings.m_Weapons ? std::min(static_cast<float>(Settings.m_WeaponRadius), static_cast<float>(Settings.m_Horizon) * 24.0f + 200.0f) : 0.0f;
 		const float PlayerRadius = Legit ? 640.0f : std::min(static_cast<float>(Settings.m_PlayerRadius), static_cast<float>(Settings.m_Horizon) * 20.0f + 580.0f);
 		return Initialize(Source, ClientId, Settings, aIdle, CPruneRadii{Radius, WeaponRadius, PlayerRadius});
 	}
@@ -135,10 +230,11 @@ namespace OpenKrx::NullClient
 	bool CSimulation::Initialize(const CGameWorld &Source, int ClientId, const CSettings &Settings, const std::array<bool, MAX_CLIENTS> &aIdle, CPruneRadii Radii)
 	{
 		m_vWorkerContexts.clear();
-		m_pTotalSteps = std::make_shared<uint64_t>(0);
+		m_pCounters = std::make_shared<CCounters>();
 		m_ClientId = ClientId;
 		m_aIdle = aIdle;
 		m_Root.CopyWorldIsolated(&Source);
+		++m_pCounters->m_Copies;
 		m_Root.m_WorldConfig.m_NullPrediction = true;
 		m_Root.m_WorldConfig.m_KrxPrediction = false;
 		m_Root.m_WorldConfig.m_KrxAvoidDeath = false;
@@ -153,11 +249,7 @@ namespace OpenKrx::NullClient
 		auto *pLocal = m_Root.GetCharacterById(ClientId);
 		if(!pLocal)
 			return false;
-		// 247320 repairs zero ammo only when weapon prediction is enabled.
-		if(m_Root.m_WorldConfig.m_PredictWeapons)
-			for(int Weapon = 0; Weapon < NUM_WEAPONS; ++Weapon)
-				if(pLocal->GetWeaponGot(Weapon) && pLocal->GetWeaponAmmo(Weapon) == 0)
-					pLocal->SetWeaponAmmo(Weapon, -1);
+		RestorePredictedAmmo(m_Root, *pLocal);
 		Prune(Radii);
 		m_Adversarial = 0;
 		for(int Id = 0; Id < MAX_CLIENTS; ++Id)
@@ -169,6 +261,21 @@ namespace OpenKrx::NullClient
 		Reset();
 		PrepareThreats(Settings);
 		return Valid();
+	}
+
+	bool CSimulation::InitializePathliner(const CGameWorld &Source, int ClientId)
+	{
+		m_ClientId = ClientId;
+		m_World.CopyWorldIsolated(&Source);
+		m_World.m_WorldConfig.m_NullPrediction = true;
+		m_World.m_WorldConfig.m_KrxPrediction = false;
+		m_Adversarial = 0;
+		m_Steps = 0;
+		auto *pLocal = Character();
+		if(!pLocal)
+			return false;
+		RestorePredictedAmmo(m_World, *pLocal);
+		return true;
 	}
 
 	void CSimulation::Prune(CPruneRadii Radii)
@@ -277,9 +384,16 @@ namespace OpenKrx::NullClient
 	{
 		auto pCopy = std::make_unique<CSimulation>();
 		pCopy->m_pCollisionOwner = m_pCollisionOwner;
+		if(pCopy->m_pCollisionOwner && pCopy->m_pCollisionOwner->HasChangeJournal())
+		{
+			// The clone shares the journaled map. Remember where the parent's
+			// writes end so only the clone's own cells are undone.
+			pCopy->m_JournalTileMark = pCopy->m_pCollisionOwner->JournalTileMark();
+		}
 		pCopy->m_pTuningOwner = m_pTuningOwner;
-		pCopy->m_pTotalSteps = m_pTotalSteps;
+		pCopy->m_pCounters = m_pCounters;
 		pCopy->m_Root.CopyWorldIsolated(&m_World);
+		++pCopy->m_pCounters->m_Copies;
 		pCopy->m_ClientId = m_ClientId;
 		pCopy->m_Adversarial = m_Adversarial;
 		pCopy->m_aIdle = m_aIdle;
@@ -290,13 +404,15 @@ namespace OpenKrx::NullClient
 		pCopy->Reset();
 		return pCopy;
 	}
-	std::unique_ptr<CSimulation> CSimulation::CloneForWorker() const
+	std::unique_ptr<CSimulation> CSimulation::CloneForWorker(const std::shared_ptr<CCollision> &pCollision) const
 	{
 		auto pCopy = std::make_unique<CSimulation>();
-		pCopy->m_pCollisionOwner = m_World.Collision()->CreateIsolatedCopy();
+		pCopy->m_pCollisionOwner = pCollision;
+		pCopy->m_JournalTileMark = 0;
 		pCopy->m_pTuningOwner = std::make_shared<std::array<CTuningParams, 256>>();
 		std::copy_n(m_World.TuningList(), 256, pCopy->m_pTuningOwner->begin());
 		pCopy->m_Root.CopyWorldIsolated(&m_Root);
+		++pCopy->m_pCounters->m_Copies;
 		pCopy->m_Root.RebindCollision(pCopy->m_pCollisionOwner.get());
 		pCopy->m_Root.RebindTuning(pCopy->m_pTuningOwner->data());
 		pCopy->m_ClientId = m_ClientId;
@@ -311,7 +427,7 @@ namespace OpenKrx::NullClient
 	}
 	void CSimulation::ForEachCandidate(int Count, const std::function<void(IWorld &, int)> &Evaluate)
 	{
-		// 23b810 only dispatches with at least 12 eligible moves, requesting
+		// 0x140276d90 only dispatches with at least 12 eligible moves, requesting
 		// min(pool participants, count/4). Selection/ties remain on the caller.
 		if(Count < 12)
 		{
@@ -319,41 +435,103 @@ namespace OpenKrx::NullClient
 			return;
 		}
 		static CNullPool Pool;
-		const int Participants = std::min(Pool.m_Participants, Count / 4);
+		const int Participants = std::min(Pool.Participants(), Count / 4);
 		if(Participants < 2)
 		{
 			IWorld::ForEachCandidate(Count, Evaluate);
 			return;
 		}
-		auto pWork = std::make_shared<CCandidateWork>();
-		pWork->m_Count = Count;
-		pWork->m_Evaluate = Evaluate;
-		std::array<std::future<uint64_t>, 15> aResults;
+		CCollision *pSource = m_World.Collision();
+		if(!pSource)
+		{
+			IWorld::ForEachCandidate(Count, Evaluate);
+			return;
+		}
+		// A chained search evaluated inside a worker must not reuse the cached
+		// contexts; the serial walk keeps its own state and stays correct.
+		struct CDispatchGuard
+		{
+			bool m_Owner;
+			CDispatchGuard() : m_Owner(s_DispatchDepth.fetch_add(1, std::memory_order_acq_rel) == 0) {}
+			~CDispatchGuard() { s_DispatchDepth.fetch_sub(1, std::memory_order_acq_rel); }
+		} Guard;
+		if(!Guard.m_Owner)
+		{
+			IWorld::ForEachCandidate(Count, Evaluate);
+			return;
+		}
+		auto &Cache = WorkerCollisionsOnOwnerThread();
+		if(Cache.m_pSource != pSource)
+		{
+			// The client reuses one CCollision object across maps, so callers
+			// also invalidate this cache explicitly on map load.
+			Cache.m_pSource = pSource;
+			Cache.m_vCopies.clear();
+		}
+		while(static_cast<int>(Cache.m_vCopies.size()) < Participants - 1)
+		{
+			std::shared_ptr<CCollision> pCopy(pSource->CreateIsolatedCopy().release());
+			pCopy->EnableChangeJournal();
+			Cache.m_vCopies.push_back(std::move(pCopy));
+		}
+		// Every candidate starts from the map as it is now: undo the cells the
+		// previous search left behind, then pull in doors the live prediction
+		// moved since the copies were created.
+		for(auto &pCopy : Cache.m_vCopies)
+			pCopy->RewindJournalTo(0);
+		if(Cache.m_DoorVersion != pSource->DoorVersion())
+		{
+			bool Synced = true;
+			for(auto &pCopy : Cache.m_vCopies)
+				Synced = pCopy->CopyDoorsFrom(*pSource) && Synced;
+			// Only claim the copies are current if every one of them synced.
+			if(Synced)
+				Cache.m_DoorVersion = pSource->DoorVersion();
+		}
 		// Reuse private snapshots between priority groups sharing this root.
 		Reset();
 		while(static_cast<int>(m_vWorkerContexts.size()) < Participants - 1)
-			m_vWorkerContexts.push_back(CloneForWorker());
-		for(int Worker = 0; Worker < Participants - 1; ++Worker)
 		{
-			auto pJob = std::make_shared<CCandidateJob>(*m_vWorkerContexts[Worker], pWork);
-			aResults[Worker] = pJob->Result();
-			Pool.m_Jobs.Add(std::move(pJob));
+			auto pWorker = CloneForWorker(Cache.m_vCopies[m_vWorkerContexts.size()]);
+			m_pCounters->m_Copies += pWorker->TotalCopies();
+			m_vWorkerContexts.push_back(std::move(pWorker));
 		}
-		pWork->Run(*this);
-		// Drain every job before captured candidate arrays, weights, and input
-		// go out of scope. The client is compiled without C++ exceptions.
-		for(int Worker = 0; Worker < Participants - 1; ++Worker)
-			*m_pTotalSteps += aResults[Worker].get();
+		CCandidateWork Work{{0}, Count, Evaluate};
+		std::array<CCounters, 16> aWork{};
+		Pool.Run(Participants, [&](int Slot) {
+			CSimulation &World = Slot == 0 ? *this : *m_vWorkerContexts[Slot - 1];
+			const CCounters Before = *World.m_pCounters;
+			Work.Run(World);
+			aWork[Slot] = {World.TotalSteps() - Before.m_Steps, World.TotalCopies() - Before.m_Copies};
+		});
+		for(int Slot = 1; Slot < Participants; ++Slot)
+		{
+			m_pCounters->m_Steps += aWork[Slot].m_Steps;
+			m_pCounters->m_Copies += aWork[Slot].m_Copies;
+		}
 	}
 	void CSimulation::Reset()
 	{
+		RewindCollision();
 		m_World.CopyWorldIsolated(&m_Root);
+		++m_pCounters->m_Copies;
 		m_Steps = 0;
+	}
+	void CSimulation::RewindCollision()
+	{
+		if(m_pCollisionOwner && m_pCollisionOwner->HasChangeJournal())
+			m_pCollisionOwner->RewindJournalTo(m_JournalTileMark);
+	}
+	CSimulation::~CSimulation()
+	{
+		// A clone shares the parent's journaled map; leave it exactly as found.
+		RewindCollision();
 	}
 	void CSimulation::CommitRoot()
 	{
 		m_vWorkerContexts.clear();
 		m_Root.CopyWorldIsolated(&m_World);
+		++m_pCounters->m_Copies;
 		m_Steps = 0;
 	}
 	CCharacter *CSimulation::Character() const { return const_cast<CGameWorld &>(m_World).GetCharacterById(m_ClientId); }
@@ -361,7 +539,7 @@ namespace OpenKrx::NullClient
 	bool CSimulation::Frozen() const
 	{
 		const auto *p = Character();
-		return p && (p->m_FreezeTime > 0 || p->Core()->m_DeepFrozen || p->Core()->m_LiveFrozen);
+		return p && (FrozenThreat(p) || p->Core()->m_LiveFrozen);
 	}
 	bool CSimulation::DeepFrozen() const
 	{
@@ -426,7 +604,8 @@ namespace OpenKrx::NullClient
 				if(Distance < 0.001f)
 					continue;
 				CNetObj_PlayerInput Other{};
-				Other.m_PlayerFlags = PLAYERFLAG_PLAYING;
+				// 0x140285ea8 sets the hook field before the 120-unit hammer test.
+				Other.m_Hook = 1;
 				Other.m_Direction = Delta.x > 0 ? 1 : Delta.x < 0 ? -1 :
 										    0;
 				Other.m_TargetX = static_cast<int>(Delta.x);
@@ -438,7 +617,7 @@ namespace OpenKrx::NullClient
 					pOther->GiveWeapon(WEAPON_HAMMER);
 					pOther->SetWeaponAmmo(WEAPON_HAMMER, -1);
 					pOther->SetWeapon(WEAPON_HAMMER);
-					Other.m_Hook = 1;
+					Other.m_WantedWeapon = WEAPON_HAMMER + 1;
 					Other.m_Fire = m_Steps + 1;
 				}
 				pOther->OnDirectInput(&Other);
@@ -451,7 +630,7 @@ namespace OpenKrx::NullClient
 		pLocal->OnPredictedInput(&Input);
 		m_World.Tick();
 		++m_Steps;
-		++*m_pTotalSteps;
+		++m_pCounters->m_Steps;
 		return Valid();
 	}
 
@@ -598,17 +777,20 @@ namespace OpenKrx::NullClient
 	}
 	int CSimulation::RocketApproach(int Ticks) const
 	{
-		if(!Valid() || m_RocketNear <= 0 || Ticks < 1)
+		auto &Root = const_cast<CGameWorld &>(m_Root);
+		auto *pLocal = Root.GetCharacterById(m_ClientId);
+		if(!pLocal || m_RocketNear <= 0 || Ticks < 1)
 			return -1;
 		int Result = -1;
-		const float Gravity = Character()->GetTuning(Character()->GetPureTuneZone())->m_Gravity;
+		const float Gravity = pLocal->GetTuning(pLocal->GetPureTuneZone())->m_Gravity;
+		const vec2 Origin = pLocal->GetPos();
 		for(const auto &[Id, Near] : m_vRocketThreats)
 		{
-			const auto *p = const_cast<CGameWorld &>(m_Root).GetCharacterById(Id);
+			const auto *p = Root.GetCharacterById(Id);
 			if(!p)
 				continue;
 			vec2 Point = p->GetPos(), Velocity = p->Core()->m_Vel;
-			if(distance(Point, Position()) <= m_RocketNear)
+			if(distance(Point, Origin) <= m_RocketNear)
 				return 0;
 			for(int Step = 1; Step <= Ticks; ++Step)
 			{
@@ -616,9 +798,9 @@ namespace OpenKrx::NullClient
 				Velocity.y += Gravity;
 				Point.x += Velocity.x;
 				Point.y += Velocity.y;
-				if(m_World.Collision()->IntersectLine(Previous, Point, nullptr, nullptr))
+				if(Root.Collision()->IntersectLine(Previous, Point, nullptr, nullptr))
 					break;
-				if(distance(Point, Position()) <= m_RocketNear)
+				if(distance(Point, Origin) <= m_RocketNear)
 				{
 					if(Result < 0 || Step < Result)
 						Result = Step;
